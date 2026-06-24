@@ -2,9 +2,6 @@ import {
   ALL_LISTS,
   DATA_SHEET,
   DB_SHEET,
-  FIELDS,
-  ID_KEY,
-  LIST_SEED,
   RECORD_HEADERS,
 } from "./schema";
 import { JobRecord, Lists } from "./types";
@@ -68,13 +65,6 @@ export async function writeLists(lists: Lists): Promise<void> {
   }
   await clearRange(`${DB_SHEET}!A1:CZ`);
   await writeRange(`${DB_SHEET}!A1`, matrix);
-}
-
-export async function seedListsIfEmpty(): Promise<void> {
-  const current = await readLists();
-  const hasAny = Object.values(current).some((v) => v.length > 0);
-  if (hasAny) return;
-  await writeLists(LIST_SEED);
 }
 
 // ===== record CRUD =====
@@ -169,11 +159,4 @@ export async function deleteJob(id: string): Promise<void> {
   if (!rowNum) return;
   // เคลียร์ทั้งแถว (คงโครงสร้างชีท ไม่ขยับ index แถวอื่น)
   await clearRange(`${DATA_SHEET}!A${rowNum}:${LAST_COL}${rowNum}`);
-}
-
-// initialize: สร้าง/รีเซ็ตหัวตาราง + seed dropdown
-export async function initializeWorkbook(): Promise<{ message: string }> {
-  await ensureDataSheet();
-  await seedListsIfEmpty();
-  return { message: "ตั้งค่าชีทเรียบร้อย (หัวตาราง + dropdown ตั้งต้น)" };
 }

@@ -69,23 +69,6 @@ export default function SettingsPage() {
   const removeItem = (key: string, idx: number) =>
     setLists((prev) => ({ ...prev, [key]: (prev[key] || []).filter((_, i) => i !== idx) }));
 
-  const initialize = async () => {
-    if (!confirm("ตั้งค่าชีท: สร้างหัวตาราง 04_CS_Import และ seed dropdown ตั้งต้น (ถ้ายังว่าง)\nดำเนินการต่อ?"))
-      return;
-    setSavingMsg("กำลังตั้งค่าชีท…");
-    setSaving(true);
-    try {
-      const r = await fetch("/api/init", { method: "POST" }).then((x) => x.json());
-      if (r.error) throw new Error(r.error);
-      flash(r.message || "ตั้งค่าเรียบร้อย");
-      await load();
-    } catch (e: any) {
-      flash("ตั้งค่าไม่สำเร็จ: " + e.message, true);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const saveLists = async () => {
     setSavingMsg("กำลังบันทึก dropdown…");
     setSaving(true);
@@ -109,17 +92,6 @@ export default function SettingsPage() {
   return (
     <main className="page">
       <SavingOverlay show={saving} message={savingMsg} />
-
-      <div className="panel">
-        <h2>ตั้งค่าชีท (Initialize)</h2>
-        <p className="muted">
-          สร้าง/ตรวจหัวตาราง <code>04_CS_Import</code> และชีท <code>_database</code> (เก็บ dropdown
-          แบบบล็อก เว้นคอลัมน์คั่น) — ปลอดภัยกับข้อมูลเดิม จะ seed เฉพาะเมื่อ dropdown ยังว่าง
-        </p>
-        <button className="btn primary" onClick={initialize}>
-          เริ่ม Initialize
-        </button>
-      </div>
 
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

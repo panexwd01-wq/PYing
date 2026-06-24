@@ -16,7 +16,7 @@
 - วันที่/เวลาใช้ **flatpickr** ภาษาไทย แสดงปี พ.ศ. + เวลาแบบ 24 ชม.
 - ช่อง **"ดึงจาก Module อื่น" = เทา read-only** (Shipping/Transport/Warehouse ที่ยังไม่ได้สร้าง)
 - กติกาสี: ฟ้า=ต้องกรอก, เหลือง=แก้ไขได้, เทา=Auto/Lock
-- หน้า **ตั้งค่า**: ปุ่ม Initialize + จัดการ dropdown ทุกชุด
+- หน้า **ตั้งค่า**: จัดการ dropdown ทุกชุด (การ Initialize ชีทแยกไปรันด้วย Google Apps Script — ดู `gas/Initialize.gs`)
 - Auto: ใส่ `IM/OPS Status Date` ให้อัตโนมัติเมื่อ Status = End
 
 ## โครงสร้างชีท (Google Sheet เดียว)
@@ -45,7 +45,7 @@ npm run dev                  # http://localhost:3000
    - `private_key` → `GOOGLE_PRIVATE_KEY` (วางทั้งก้อนในเครื่องหมายคำพูด คง `\n` ไว้)
 6. **แชร์ Google Sheet** ([เปิดชีท](https://docs.google.com/spreadsheets/d/1NzkfO_G0pa0fZMvuMlIzaLp-oUx5KAat_GVzng5xSKE)) ให้อีเมล Service Account เป็น **Editor**
    (แชร์มือเดียวครั้งเดียว — ไม่เกี่ยวกับ `setSharing`)
-7. เปิดเว็บ → เมนู **ตั้งค่า** → กด **Initialize** เพื่อสร้างหัวตาราง + dropdown ตั้งต้น
+7. เปิด Google Sheet → **Extensions → Apps Script** → วางโค้ดจาก `gas/Initialize.gs` → รันฟังก์ชัน `initializeWorkbook` เพื่อสร้างหัวตาราง + dropdown ตั้งต้น (ทำครั้งเดียว)
 
 > `SHEET_ID` ตั้งค่าเริ่มต้นเป็นชีทที่ตกลงไว้แล้ว เปลี่ยนได้ใน `.env.local`
 
@@ -71,8 +71,10 @@ npm run dev                  # http://localhost:3000
 src/
   app/
     page.tsx            ตารางงาน (filter + inline edit + save)
-    settings/page.tsx   Initialize + จัดการ dropdown
-    api/                init / lists / jobs (เชื่อม Sheets)
+    settings/page.tsx   จัดการ dropdown
+    api/                lists / jobs (เชื่อม Sheets)
+gas/
+  Initialize.gs         สคริปต์ตั้งค่าชีท (รันแยกใน Google Apps Script)
   components/           Grid, Cell, Toggle, DateTimePicker, Spinner, Overlay ...
   lib/
     schema.ts           นิยาม 63 คอลัมน์ + กลุ่ม + ชนิดช่อง + dropdown ตั้งต้น
