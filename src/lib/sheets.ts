@@ -10,18 +10,38 @@ export function getSheetId(): string {
   return id;
 }
 
+// ทำให้ private key ใช้งานได้ ไม่ว่าจะวางมาแบบไหน
+// - มี quotes ครอบ (เผลอใส่ใน Vercel) -> ลอกออก
+// - newline เป็น \n (literal) -> แปลงเป็น newline จริง
+// - มี \r ปน (วางจาก Windows) -> ตัดทิ้ง
+function normalizePrivateKey(raw: string): string {
+  let key = raw.trim();
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+  key = key.replace(/\\n/g, "\n").replace(/\r/g, "");
+  return key;
+}
+
 export function getSheets(): sheets_v4.Sheets {
   if (cached) return cached;
 
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let key = process.env.GOOGLE_PRIVATE_KEY;
-  if (!email || !key) {
+  const rawKey = process.env.GOOGLE_PRIVATE_KEY;
+  if (!email || !rawKey) {
     throw new Error(
       "ยังไม่ได้ตั้งค่า GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_PRIVATE_KEY"
     );
   }
-  // Vercel เก็บ newline เป็น \n -> ต้องแปลงกลับ
-  key = key.replace(/\\n/g, "\n");
+  const key = normalizePrivateKey(rawKey);
+  if (!key.includes("BEGIN") || !key.includes("PRIVATE KEY")) {
+    throw new Error(
+      "GOOGLE_PRIVATE_KEY ไม่ใช่ PEM ที่ถูกต้อง — ต้องขึ้นต้นด้วย -----BEGIN PRIVATE KEY----- (อย่าใส่เครื่องหมายคำพูดครอบใน Vercel)"
+    );
+  }
 
   const auth = new google.auth.JWT({
     email,

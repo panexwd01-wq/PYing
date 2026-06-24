@@ -57,7 +57,7 @@ npm run dev                  # http://localhost:3000
 2. [vercel.com](https://vercel.com) → **Add New Project** → เลือก repo (framework: Next.js ตรวจอัตโนมัติ)
 3. ใส่ **Environment Variables** 3 ตัว (เหมือน `.env.local`):
    - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-   - `GOOGLE_PRIVATE_KEY` (วางทั้งก้อน รวม `\n`)
+   - `GOOGLE_PRIVATE_KEY` (วางทั้งก้อน รวม `\n` — **บน Vercel อย่าใส่เครื่องหมายคำพูด `"` ครอบ** ต่างจาก `.env.local` ที่ต้องมี quotes)
    - `SHEET_ID`
 4. **Deploy** — เสร็จแล้วได้ URL ใช้งานได้ทันที
 
