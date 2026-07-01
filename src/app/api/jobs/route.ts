@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createJob, deleteJob, listJobs, updateJob } from "@/lib/db";
+import { createJob, deleteJob, listJobs, updateJobs } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,13 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    // รองรับบันทึกหลายระเบียนพร้อมกัน (กรณีแก้หลายแถวในตาราง)
-    const records = Array.isArray(body.records) ? body.records : [body.record];
-    const saved = [];
-    for (const r of records) {
-      saved.push(await updateJob(r));
-    }
+    // รองรับบันทึกหลายระเบียนพร้อมกัน (กรณีแก้หลายแถวในตาราง) — เขียนแบบ batch ครั้งเดียว
+    const records = Array.isArray(body.records)
+      ? body.records
+      : body.record
+      ? [body.record]
+      : [];
+    const saved = await updateJobs(records);
     return NextResponse.json({ jobs: saved });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

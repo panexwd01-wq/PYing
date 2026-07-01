@@ -10,6 +10,7 @@ import {
 import { JobRecord, Lists } from "./types";
 import {
   appendRows,
+  batchWriteRanges,
   clearRange,
   ensureSheet,
   readRange,
@@ -153,15 +154,43 @@ async function findRowNumber(id: string): Promise<number | null> {
 }
 
 export async function updateJob(rec: Partial<JobRecord>): Promise<JobRecord> {
-  if (!rec.__id) throw new Error("ไม่มี __id สำหรับอัปเดต");
-  const rowNum = await findRowNumber(rec.__id);
-  if (!rowNum) throw new Error("ไม่พบระเบียนที่ต้องการแก้ไข");
-  const withRules = applyAutoRules(rec);
-  await writeRange(
-    `${DATA_SHEET}!A${rowNum}:${LAST_COL}${rowNum}`,
-    [recordToRow(withRules)]
-  );
-  return withRules as JobRecord;
+  const [saved] = await updateJobs([rec]);
+  return saved;
+}
+
+// อัปเดตหลายระเบียนในครั้งเดียว: อ่านชีทรอบเดียว แล้วเขียนแบบ batch
+// - merge กับข้อมูลเดิม เพื่อกัน field ที่ client ไม่ได้ส่งมาโดนเขียนทับด้วยค่าว่าง
+export async function updateJobs(
+  recs: Partial<JobRecord>[]
+): Promise<JobRecord[]> {
+  if (!recs.length) return [];
+  const rows = await readRange(`${DATA_SHEET}!A1:${LAST_COL}`);
+  const headers = rows[0] || RECORD_HEADERS;
+  const rowNumById = new Map<string, number>(); // __id -> เลขแถวจริงในชีท
+  const existingById = new Map<string, JobRecord>();
+  for (let i = 1; i < rows.length; i++) {
+    const id = (rows[i]?.[0] || "").trim();
+    if (!id) continue;
+    rowNumById.set(id, i + 1);
+    existingById.set(id, rowToRecord(headers, rows[i]));
+  }
+
+  const data: { range: string; values: string[][] }[] = [];
+  const out: JobRecord[] = [];
+  for (const rec of recs) {
+    if (!rec.__id) throw new Error("ไม่มี __id สำหรับอัปเดต");
+    const rowNum = rowNumById.get(rec.__id);
+    if (!rowNum) throw new Error(`ไม่พบระเบียนที่ต้องการแก้ไข (${rec.__id})`);
+    const merged = { ...existingById.get(rec.__id), ...rec };
+    const withRules = applyAutoRules(merged);
+    data.push({
+      range: `${DATA_SHEET}!A${rowNum}:${LAST_COL}${rowNum}`,
+      values: [recordToRow(withRules)],
+    });
+    out.push(withRules as JobRecord);
+  }
+  await batchWriteRanges(data);
+  return out;
 }
 
 export async function deleteJob(id: string): Promise<void> {

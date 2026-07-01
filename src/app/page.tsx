@@ -112,6 +112,8 @@ export default function Page() {
     const updRecords = rows.filter((r) => dirty.has(r.__id) && !news.has(r.__id));
     setSavingMsg("กำลังบันทึก…");
     setSaving(true);
+    // id ที่บันทึกสำเร็จแล้ว — ใช้ถอดออกจาก news/dirty กันบันทึกซ้ำถ้าพังกลางทาง
+    const savedIds: string[] = [];
     try {
       for (const rec of newRecords) {
         const res = await fetch("/api/jobs", {
@@ -121,6 +123,7 @@ export default function Page() {
         });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
+        savedIds.push(rec.__id); // สร้างสำเร็จแล้ว ครั้งหน้าถือเป็นการแก้ไข ไม่ POST ซ้ำ
       }
       if (updRecords.length) {
         const res = await fetch("/api/jobs", {
@@ -130,11 +133,26 @@ export default function Page() {
         });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
+        for (const r of updRecords) savedIds.push(r.__id);
       }
       await load();
       flash("บันทึกเรียบร้อย");
     } catch (e: any) {
+      // ถอดเฉพาะ id ที่บันทึกสำเร็จออก (ที่เหลือยัง dirty ไว้ให้ลองใหม่)
+      if (savedIds.length) {
+        setNews((prev) => {
+          const n = new Set(prev);
+          savedIds.forEach((id) => n.delete(id));
+          return n;
+        });
+        setDirty((prev) => {
+          const n = new Set(prev);
+          savedIds.forEach((id) => n.delete(id));
+          return n;
+        });
+      }
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
+    } finally {
       setSaving(false);
     }
   }, [dirty, news, rows, load, flash]);

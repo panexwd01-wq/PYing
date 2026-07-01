@@ -54,6 +54,18 @@ export async function writeRange(range: string, values: (string | number)[][]) {
   });
 }
 
+// เขียนหลายช่วงพร้อมกันในคำสั่งเดียว (ลดจำนวน API call ตอนบันทึกหลายแถว)
+export async function batchWriteRanges(
+  data: { range: string; values: (string | number)[][] }[]
+) {
+  if (!data.length) return;
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: getSheetId(),
+    requestBody: { valueInputOption: "RAW", data },
+  });
+}
+
 export async function appendRows(range: string, values: (string | number)[][]) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
