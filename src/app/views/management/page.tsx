@@ -105,7 +105,7 @@ export default function ManagementView() {
 
           <h3 style={{ margin: "14px 4px 6px" }}>Workflow Health (ทุกโมดูล)</h3>
           <div className="grid-wrap">
-            <table className="grid view-table">
+            <table className="view-table">
               <thead><tr className="field-row"><th>Module</th><th>Active</th><th>Pending</th><th>End</th></tr></thead>
               <tbody>
                 {s.workflow.map((w, i) => (

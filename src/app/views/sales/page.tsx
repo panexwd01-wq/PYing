@@ -32,7 +32,7 @@ export default function SalesView() {
         <div className="panel">
           <h2 style={{ fontSize: 15 }}>งานแยกตามลูกค้า</h2>
           <div className="grid-wrap">
-            <table className="grid view-table">
+            <table className="view-table">
               <thead>
                 <tr className="field-row">
                   <th>Customer</th>

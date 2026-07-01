@@ -68,7 +68,7 @@ export default function ShipDailyView() {
 
       {!error && (
         <div className="grid-wrap">
-          <table className="grid view-table">
+          <table className="view-table">
             <thead>
               <tr className="field-row">
                 <th>No.</th><th>Booking/MBL</th><th>Customer</th><th>Cust Ref</th><th>Delivery Date</th>

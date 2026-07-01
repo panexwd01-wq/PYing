@@ -130,7 +130,7 @@ export function RateBoard({ moduleKey }: { moduleKey: string }) {
       <div className="grid-wrap">
         <table className="grid">
           <thead>
-            <tr className="field-row">
+            <tr>
               <th className="sticky-col" style={{ left: 0 }}>#</th>
               {mod.fields.map((f) => (
                 <th key={f.key} className={f.mandatory ? "req" : ""} style={{ minWidth: f.width, width: f.width }} title={f.help || f.label}>

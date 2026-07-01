@@ -47,7 +47,7 @@ export default function ActionView() {
 
       {!error && (
         <div className="grid-wrap">
-          <table className="grid view-table">
+          <table className="view-table">
             <thead>
               <tr className="field-row">
                 <th>Job No.</th><th>Booking/MBL</th><th>Job Type</th><th>Customer</th><th>CS/PIC</th>

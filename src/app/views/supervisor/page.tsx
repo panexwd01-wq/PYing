@@ -50,7 +50,7 @@ export default function SupervisorView() {
 
           <h3 style={{ margin: "14px 4px 6px" }}>Team Workload</h3>
           <div className="grid-wrap">
-            <table className="grid view-table">
+            <table className="view-table">
               <thead><tr className="field-row"><th>Team</th><th>งานเดือนนี้</th><th>Active</th><th>End วันนี้</th><th>End เดือนนี้</th></tr></thead>
               <tbody>
                 {s.team.map((t, i) => (
@@ -62,7 +62,7 @@ export default function SupervisorView() {
 
           <h3 style={{ margin: "14px 4px 6px" }}>Staff KPI (ตาม PIC)</h3>
           <div className="grid-wrap">
-            <table className="grid view-table">
+            <table className="view-table">
               <thead><tr className="field-row"><th>PIC</th><th>Total</th><th>Active</th><th>End</th><th>Delay (&gt;7 วัน)</th><th>Internal Error</th></tr></thead>
               <tbody>
                 {s.staff.map((t, i) => (
@@ -75,7 +75,7 @@ export default function SupervisorView() {
 
           <h3 style={{ margin: "14px 4px 6px" }}>No Charge / Internal Error Detail</h3>
           <div className="grid-wrap">
-            <table className="grid view-table">
+            <table className="view-table">
               <thead><tr className="field-row"><th>Job No</th><th>Team</th><th>PIC</th><th>Extra Type</th><th>Lost Amount</th><th>Reason</th><th>Remark</th></tr></thead>
               <tbody>
                 {s.noChargeList.map((n, i) => (
