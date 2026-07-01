@@ -71,6 +71,12 @@ a {
 .app-header .spacer {
   flex: 1;
 }
+.app-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: flex-end;
+}
 .app-header nav a {
   color: #fff;
   text-decoration: none;
@@ -552,6 +558,102 @@ tr.row-new td.sticky-col {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 4px 7px;
+}
+
+/* ===== dashboard ===== */
+.dash-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.dash-card:hover {
+  box-shadow: 0 4px 14px rgba(10, 50, 55, 0.15);
+  transform: translateY(-1px);
+}
+.dash-total {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--petrol-dark);
+  line-height: 1.1;
+}
+.dash-sub {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.dash-sub .pill {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.dash-sub .pill.open {
+  background: #fff7e6;
+  border-color: #f0d9a8;
+}
+.dash-sub .pill.end {
+  background: #e8f5ea;
+  border-color: #b7ddc0;
+}
+
+/* ===== view tables (Supervisor / Action) ===== */
+.view-table th,
+.view-table td {
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.view-table td {
+  border-bottom: 1px solid var(--line);
+}
+.view-table .pill {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.view-table .pill.open {
+  background: #fff7e6;
+  border-color: #f0d9a8;
+}
+.view-table .pill.end {
+  background: #e8f5ea;
+  border-color: #b7ddc0;
+}
+.view-table .row-end {
+  opacity: 0.6;
+}
+
+/* ===== locked cells / rows ===== */
+.cellbox.locked-ext {
+  background: repeating-linear-gradient(45deg, #f3f3f3, #f3f3f3 6px, #ececec 6px, #ececec 12px);
+  color: #999;
+  cursor: not-allowed;
+  border-radius: 4px;
+}
+tr.row-locked {
+  background: #fafafa;
+}
+tr.row-locked td {
+  color: #888;
+}
+.view-table tr.row-aging td {
+  background: #fdecec;
+}
+
+/* ===== print (Ship Daily) ===== */
+@media print {
+  .app-header,
+  .no-print {
+    display: none !important;
+  }
+  .page {
+    padding: 0;
+  }
+  .view-table {
+    font-size: 12px;
+  }
 }
 
 /* ===== responsive ===== */

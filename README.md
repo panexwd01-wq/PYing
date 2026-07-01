@@ -21,8 +21,23 @@
 
 ## โครงสร้างชีท (Google Sheet เดียว)
 
-- `04_CS_Import` — เก็บ record (แถวแรก = header, คอลัมน์ A = `__id` ภายใน)
-- `_database` — เก็บ dropdown แบบ **บล็อก**: list ละ 1 คอลัมน์ เว้น 1 คอลัมน์คั่นแต่ละบล็อก (อ่านเร็ว/ใช้ชีทน้อย)
+ระบบเป็น **multi-module** — แต่ละโมดูล = 1 tab (แถวแรก = header, คอลัมน์ A = `__id` ภายใน):
+
+| ชีท | โมดูล |
+|-----|-------|
+| `04_CS_Import` | CS Import |
+| `05_CS_Export` | CS Export |
+| `06_Shipping` | Shipping |
+| `07_Transportation` | Transportation |
+| `08_Warehouse` | Warehouse |
+| `09_Extra_Service` | Extra / Service |
+| `10_Accounting` | Accounting |
+| `_lists` | dropdown ทุกชุด (แบบ **บล็อก**: list ละ 1 คอลัมน์ เว้น 1 คอลัมน์คั่น) |
+
+- **Cross-module pull**: โมดูลปลายทาง (06–10) ดึงหัว Job จาก CS Import/Export ด้วย **Job No.** — กรอก Job No. แล้วกดปุ่ม **⟳ ดึงจาก CS** ช่องสีเทาจะถูกเติมอัตโนมัติ
+- **Auto End Date**: ทุกโมดูล เมื่อ Status = End ระบบลงวันที่ในช่อง `* Status Date` ให้อัตโนมัติ
+
+> เดิมใช้ tab `_database` — เวอร์ชันนี้ย้ายมาเป็น `_lists` กด **Initialize** ในหน้า **ตั้งค่า** 1 ครั้งเพื่อสร้าง tab ทั้งหมด + seed dropdown
 
 ---
 
@@ -70,14 +85,19 @@ npm run dev                  # http://localhost:3000
 ```
 src/
   app/
-    page.tsx            ตารางงาน (filter + inline edit + save)
+    page.tsx            Dashboard (สรุปจำนวนงานแต่ละโมดูล)
+    m/[key]/page.tsx    หน้าตารางของแต่ละโมดูล (filter + inline edit + save + ดึงจาก CS)
     settings/page.tsx   Initialize + จัดการ dropdown
-    api/                init / lists / jobs (เชื่อม Sheets)
-  components/           Grid, Cell, Toggle, DateTimePicker, Spinner, Overlay ...
+    api/                init / lists / jobs / refresh (เชื่อม Sheets)
+  components/
+    ModuleBoard.tsx     ตารางงาน generic ใช้ได้ทุกโมดูล
+    JobGrid, Cell, Toggle, DateTimePicker, FilterBar, Spinner, Overlay ...
   lib/
-    schema.ts           นิยาม 63 คอลัมน์ + กลุ่ม + ชนิดช่อง + dropdown ตั้งต้น
+    fields.ts           type กลาง (Field / PullSpec) + ID_KEY / JOB_KEY
+    modules/*.ts         นิยามคอลัมน์ของแต่ละโมดูล (csImport, csExport, shipping, …)
+    schema.ts           ทะเบียนโมดูล (MODULES) + master lists ตั้งต้น
     sheets.ts           เชื่อม Google Sheets (Service Account)
-    db.ts               CRUD record + block parser ของ _database
+    db.ts               CRUD ต่อโมดูล + cross-module pull engine + block parser ของ _lists
 ```
 
 ## ปรับแต่งต่อ

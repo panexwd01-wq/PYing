@@ -3,28 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { CenterLoading } from "@/components/Spinner";
-import { ALL_LISTS } from "@/lib/schema";
+import { ALL_LISTS, LIST_LABEL } from "@/lib/schema";
 import { Lists } from "@/lib/types";
-
-const LIST_LABEL: Record<string, string> = {
-  im_ops_status: "IM/OPS Status",
-  job_type: "Job Type",
-  im_cs: "IM/CS (ผู้รับผิดชอบ CS)",
-  carrier: "Co-Agent / Carrier",
-  sales: "Sales / BKG by",
-  customer: "Customer",
-  pol: "POL",
-  pod: "POD",
-  term: "Term",
-  im_doc: "IM/DOC",
-  enter_doc_status: "Enter Doc (สถานะ)",
-  done_pending: "Done / Pending",
-  extra_service_type: "Extra/Service Type",
-  del_address: "Del Address",
-  supplier_transport: "Supplier ขนส่ง",
-  wh_address: "WH Address",
-  supplier_warehouse: "Supplier คลัง",
-};
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);

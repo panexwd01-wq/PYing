@@ -10,12 +10,25 @@ export function Cell({
   value,
   options,
   onChange,
+  locked,
+  lockHint,
 }: {
   field: Field;
   value: string;
   options: string[];
   onChange: (v: string) => void;
+  locked?: boolean;
+  lockHint?: string;
 }) {
+  // ล็อกจากภายนอก (ยังไม่มี PIC / งาน End แล้ว) -> แสดงแบบอ่านอย่างเดียว
+  if (locked && field.type !== "auto") {
+    return (
+      <div className="cellbox locked-ext" title={lockHint || "ล็อกอยู่"}>
+        {field.type === "toggle" ? value || "No" : value || "—"}
+      </div>
+    );
+  }
+
   switch (field.type) {
     case "auto":
       // ดึงจาก Module อื่น -> read-only (เทา)

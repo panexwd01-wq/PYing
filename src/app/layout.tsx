@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sarabun } from "next/font/google";
 import Link from "next/link";
+import { MODULES } from "@/lib/schema";
 import "./globals.css";
 
 const sarabun = Sarabun({
@@ -25,7 +26,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div className="spacer" />
           <nav>
-            <Link href="/">ตารางงาน</Link>
+            <Link href="/">Dashboard</Link>
+            {MODULES.map((m) => (
+              <Link key={m.key} href={`/m/${m.key}`}>
+                {m.short}
+              </Link>
+            ))}
+            <Link href="/views/supervisor">Supervisor</Link>
+            <Link href="/views/action">Action</Link>
+            <Link href="/views/management">Mgmt</Link>
+            <Link href="/views/sales">Sales</Link>
+            <Link href="/views/ship-daily">Ship Daily</Link>
             <Link href="/settings">ตั้งค่า</Link>
           </nav>
         </header>

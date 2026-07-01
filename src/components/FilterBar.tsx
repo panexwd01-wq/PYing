@@ -1,7 +1,5 @@
 "use client";
 
-import { Lists } from "@/lib/types";
-
 export interface Filters {
   year: string;
   month: string;
@@ -18,62 +16,74 @@ const MONTHS_TH = [
 export function FilterBar({
   filters,
   setFilters,
-  lists,
+  statusOptions,
+  csOptions,
+  csLabel,
   years,
+  showDate,
 }: {
   filters: Filters;
   setFilters: (f: Filters) => void;
-  lists: Lists;
+  statusOptions: string[];
+  csOptions: string[];
+  csLabel: string;
   years: string[];
+  showDate: boolean;
 }) {
   const set = (k: keyof Filters, v: string) => setFilters({ ...filters, [k]: v });
 
   return (
     <>
-      <div className="field">
-        <label>ปี (ค.ศ.)</label>
-        <select value={filters.year} onChange={(e) => set("year", e.target.value)}>
-          <option value="">ทั้งหมด</option>
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y} / {Number(y) + 543}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field">
-        <label>เดือน</label>
-        <select value={filters.month} onChange={(e) => set("month", e.target.value)}>
-          <option value="">ทั้งหมด</option>
-          {MONTHS_TH.map((m, i) => (
-            <option key={i} value={String(i + 1).padStart(2, "0")}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </div>
+      {showDate && (
+        <>
+          <div className="field">
+            <label>ปี (ค.ศ.)</label>
+            <select value={filters.year} onChange={(e) => set("year", e.target.value)}>
+              <option value="">ทั้งหมด</option>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y} / {Number(y) + 543}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>เดือน</label>
+            <select value={filters.month} onChange={(e) => set("month", e.target.value)}>
+              <option value="">ทั้งหมด</option>
+              {MONTHS_TH.map((m, i) => (
+                <option key={i} value={String(i + 1).padStart(2, "0")}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
       <div className="field">
         <label>Status</label>
         <select value={filters.status} onChange={(e) => set("status", e.target.value)}>
           <option value="">ทั้งหมด</option>
-          {(lists.im_ops_status || []).map((s) => (
+          {statusOptions.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
         </select>
       </div>
-      <div className="field">
-        <label>IM/CS</label>
-        <select value={filters.cs} onChange={(e) => set("cs", e.target.value)}>
-          <option value="">ทั้งหมด</option>
-          {(lists.im_cs || []).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      {csOptions.length > 0 && (
+        <div className="field">
+          <label>{csLabel}</label>
+          <select value={filters.cs} onChange={(e) => set("cs", e.target.value)}>
+            <option value="">ทั้งหมด</option>
+            {csOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="field grow">
         <label>ค้นหา (Job / BKG / HBL / Cust Ref)</label>
         <input
