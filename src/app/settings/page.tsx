@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const { data, loading, error, reload: reloadApp } = useData();
   const [lists, setLists] = useState<Lists>({});
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   const [drag, setDrag] = useState<{ key: string; idx: number } | null>(null);
 
@@ -19,32 +20,48 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 2800);
   };
 
+  // ตั้งสถานะ "ยังไม่บันทึก" + เด้ง Toast เตือนเฉพาะครั้งแรกที่เริ่มแก้
+  const markDirty = () => {
+    setDirty((prev) => {
+      if (!prev) flash("มีการแก้ไข — อย่าลืมกด “บันทึก Dropdown”");
+      return true;
+    });
+  };
+
   // sync สำเนาแก้ไขจากข้อมูลกลาง (context)
   useEffect(() => {
     if (!data) return;
     const base: Lists = {};
     for (const k of ALL_LISTS) base[k] = data.lists[k] ? [...data.lists[k]] : [];
     setLists(base);
+    setDirty(false);
   }, [data]);
 
-  const setItem = (key: string, idx: number, value: string) =>
+  const setItem = (key: string, idx: number, value: string) => {
+    markDirty();
     setLists((prev) => {
       const arr = [...(prev[key] || [])];
       arr[idx] = value;
       return { ...prev, [key]: arr };
     });
-  const addItem = (key: string) =>
+  };
+  const addItem = (key: string) => {
+    markDirty();
     setLists((prev) => ({ ...prev, [key]: [...(prev[key] || []), ""] }));
-  const removeItem = (key: string, idx: number) =>
+  };
+  const removeItem = (key: string, idx: number) => {
+    markDirty();
     setLists((prev) => ({ ...prev, [key]: (prev[key] || []).filter((_, i) => i !== idx) }));
-  const moveItem = (key: string, from: number, to: number) =>
-    setLists((prev) => {
-      const arr = [...(prev[key] || [])];
-      if (to < 0 || to >= arr.length || from === to) return prev;
-      const [x] = arr.splice(from, 1);
-      arr.splice(to, 0, x);
-      return { ...prev, [key]: arr };
-    });
+  };
+  const moveItem = (key: string, from: number, to: number) => {
+    const arr = lists[key] || [];
+    if (to < 0 || to >= arr.length || from === to) return;
+    markDirty();
+    const next = [...arr];
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    setLists((prev) => ({ ...prev, [key]: next }));
+  };
 
   const saveLists = async () => {
     setSaving(true);
@@ -57,6 +74,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ lists: clean }),
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
+      setDirty(false);
       await reloadApp();
       flash("บันทึก dropdown เรียบร้อย");
     } catch (e: any) {
@@ -73,15 +91,16 @@ export default function SettingsPage() {
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h2 style={{ flex: 1 }}>จัดการ Dropdown (Lists)</h2>
-          <button className="btn" onClick={reloadApp} disabled={loading}>
+          {dirty && <span className="unsaved-pill">● ยังไม่บันทึก</span>}
+          <button className="btn" onClick={reloadApp} disabled={loading || saving}>
             รีเฟรช
           </button>
-          <button className="btn primary" onClick={saveLists} disabled={loading}>
+          <button className={"btn primary" + (dirty ? " pulse" : "")} onClick={saveLists} disabled={loading || saving}>
             บันทึก Dropdown
           </button>
         </div>
         <p className="muted">
-          แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · แล้วกดบันทึก — มีผลกับ dropdown ทั้งระบบทันที
+          แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ
         </p>
       </div>
 

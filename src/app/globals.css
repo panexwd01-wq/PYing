@@ -785,3 +785,27 @@ tr.row-locked td {
   background: #eef4f5;
   box-shadow: 0 2px 8px rgba(10, 50, 55, 0.15);
 }
+
+/* ===== สถานะยังไม่บันทึก (หน้า Dropdown) ===== */
+.unsaved-pill {
+  font-size: 12px;
+  color: #b06a00;
+  background: #fff4e0;
+  border: 1px solid #f0d9a8;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease both;
+}
+.btn.primary.pulse {
+  animation: savePulse 1.6s ease-in-out infinite;
+}
+@keyframes savePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 100, 110, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(20, 100, 110, 0);
+  }
+}
