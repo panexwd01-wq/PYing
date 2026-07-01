@@ -332,8 +332,16 @@ th.sticky-col {
   z-index: 15;
   box-shadow: 1px 0 0 var(--line);
 }
-thead th.sticky-col {
-  z-index: 30;
+/* หัวตารางของคอลัมน์ที่ freeze ต้องอยู่บนสุด (บน + ซ้าย) —
+   ต้องมี specificity สูงกว่ากฎ .field-row/.group-row th ไม่งั้นถูก header คอลัมน์อื่นทับตอนเลื่อนขวา */
+table.grid thead th.sticky-col {
+  z-index: 34;
+}
+table.grid thead tr.field-row th.sticky-col {
+  z-index: 35;
+}
+table.grid thead tr.group-row th.sticky-col {
+  z-index: 36;
 }
 tr.dirty td:first-child {
   box-shadow: inset 3px 0 0 var(--amber);

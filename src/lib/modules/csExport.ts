@@ -1,6 +1,6 @@
 import { Field } from "../fields";
 
-// ===== 05_CS_Export =====
+// ===== 05_CS_Export — ตรงตาม requirement.xlsx (คอลัมน์ CS Export) =====
 export const EXPORT_FIELDS: Field[] = [
   // ----- OPS -----
   { key: "ex_ops_status", label: "EX/OPS Status", group: "OPS", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, width: 130, help: "กด End ต้องผ่านเงื่อนไขครบ" },
@@ -42,31 +42,38 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "extra_require", label: "(EXP) Extra/Service Require", group: "Extra / Service", type: "toggle", width: 150, help: "Yes แล้วต้องเลือก Type" },
   { key: "extra_req_type", label: "(EXP) Extra/Service Type", group: "Extra / Service", type: "multiselect", list: "extra_service_type", width: 200 },
 
-  // ----- Shipping -----
+  // ----- Shipping (auto = ดึงย้อนจาก 06_Shipping) -----
   { key: "shipping_flag", label: "Shipping?", group: "Shipping", type: "toggle", width: 100 },
   { key: "clearance_date", label: "Clearance Date", group: "Shipping", type: "datetime", width: 160 },
   { key: "clearance_pending_reason", label: "Clearance Pending Reason", group: "Shipping", type: "auto", width: 170, rpull: { from: "06_Shipping", field: "clearance_pending_reason" } },
   { key: "shipp_extra_type", label: "(SHIPP) Extra/Service Type", group: "Shipping", type: "auto", width: 170, rpull: { from: "06_Shipping", field: "extra_req_type" } },
   { key: "clearance_end_date", label: "Clearance Status End Date", group: "Shipping", type: "auto", width: 160, rpull: { from: "06_Shipping", field: "clearance_end_date" } },
   { key: "cs_note_ship", label: "Cs Note for Ship Pic", group: "Shipping", type: "text", width: 180 },
+  { key: "ship_outsourcing", label: "Ship Outsourcing", group: "Shipping", type: "auto", width: 150, rpull: { from: "06_Shipping", field: "ship_outsourcing" } },
 
   // ----- Transport -----
   { key: "transport_flag", label: "Transport?", group: "Transport", type: "toggle", width: 100 },
   { key: "del_address", label: "Del Address", group: "Transport", type: "dropdown", list: "del_address", width: 150 },
   { key: "delivery_date", label: "Delivery / Loading Date", group: "Transport", type: "datetime", width: 170 },
-  { key: "trans_extra_require", label: "(TRANS) Extra/Service require?", group: "Transport", type: "auto", width: 170, rpull: { from: "07_Transportation", field: "extra_require" } },
+  { key: "trans_extra_require", label: "(TRANS) Extra/Service require?", group: "Transport", type: "auto", width: 170, rpull: { from: "07_Transportation", field: "extra_req_type" } },
   { key: "trans_supp1", label: "Trans Supp 1", group: "Transport", type: "dropdown", list: "supplier_transport", width: 140 },
   { key: "trans_supp1_vol", label: "Trans Supp 1 Vol", group: "Transport", type: "text", width: 120 },
   { key: "trans_supp1_sts", label: "Trans Supp 1 Sts", group: "Transport", type: "auto", width: 120, rpull: { from: "07_Transportation", field: "supp1_sts" } },
   { key: "trans_supp1_end", label: "Trans Supp 1 End Date", group: "Transport", type: "auto", width: 150, rpull: { from: "07_Transportation", field: "supp1_end" } },
+  { key: "trans_supp1_pending", label: "Trans Supp1 Pending Reason", group: "Transport", type: "auto", width: 160, rpull: { from: "07_Transportation", field: "supp1_pending" } },
+  { key: "trans_supp1_any_extra", label: "Trans Supp1 Any Extra?", group: "Transport", type: "auto", width: 130, rpull: { from: "07_Transportation", field: "supp1_any_extra" } },
   { key: "trans_supp2", label: "Trans Supp 2", group: "Transport", type: "dropdown", list: "supplier_transport", width: 140 },
   { key: "trans_supp2_vol", label: "Trans Supp 2 Vol", group: "Transport", type: "text", width: 120 },
   { key: "trans_supp2_sts", label: "Trans Supp 2 Sts", group: "Transport", type: "auto", width: 120, rpull: { from: "07_Transportation", field: "supp2_sts" } },
   { key: "trans_supp2_end", label: "Trans Supp 2 End Date", group: "Transport", type: "auto", width: 150, rpull: { from: "07_Transportation", field: "supp2_end" } },
+  { key: "trans_supp2_pending", label: "Trans Supp2 Pending Reason", group: "Transport", type: "auto", width: 160, rpull: { from: "07_Transportation", field: "supp2_pending" } },
+  { key: "trans_supp2_any_extra", label: "Trans Supp2 Any Extra?", group: "Transport", type: "auto", width: 130, rpull: { from: "07_Transportation", field: "supp2_any_extra" } },
   { key: "trans_supp3", label: "Trans Supp 3", group: "Transport", type: "dropdown", list: "supplier_transport", width: 140 },
   { key: "trans_supp3_vol", label: "Trans Supp 3 Vol", group: "Transport", type: "text", width: 120 },
   { key: "trans_supp3_sts", label: "Trans Supp 3 Sts", group: "Transport", type: "auto", width: 120, rpull: { from: "07_Transportation", field: "supp3_sts" } },
   { key: "trans_supp3_end", label: "Trans Supp 3 End Date", group: "Transport", type: "auto", width: 150, rpull: { from: "07_Transportation", field: "supp3_end" } },
+  { key: "trans_supp3_pending", label: "Trans Supp3 Pending Reason", group: "Transport", type: "auto", width: 160, rpull: { from: "07_Transportation", field: "supp3_pending" } },
+  { key: "trans_supp3_any_extra", label: "Trans Supp3 Any Extra?", group: "Transport", type: "auto", width: 130, rpull: { from: "07_Transportation", field: "supp3_any_extra" } },
   { key: "cs_note_trans", label: "Cs Note for Trans Pic", group: "Transport", type: "text", width: 180 },
 
   // ----- Warehouse -----

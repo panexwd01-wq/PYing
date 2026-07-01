@@ -138,7 +138,7 @@ const ACC_NAMES = ["THANITA", "CHUTIMA", "SAWAROT"];
 // ค่าตั้งต้น seed ตอน Initialize (แก้ได้ในหน้าตั้งค่า)
 export const LIST_SEED: Record<string, string[]> = {
   im_ops_status: ["Open", "In Progress", "Pending", "End", "Cancel"],
-  job_type: ["Import/FCL", "Import/LCL", "Export/FCL", "Export/LCL", "Re-Export/FCL", "Re-Export/LCL"],
+  job_type: ["Import/FCL", "Import/LCL", "Import/BULK", "Export/FCL", "Export/LCL", "Export/BULK", "Re-Export/FCL", "Re-Export/LCL", "Transportation Only", "Warehouse Only", "Shipping Only"],
   im_cs: CS_NAMES,
   ex_cs: CS_NAMES,
   carrier: ["Maersk", "ONE", "Evergreen", "Co-Agent X"],
