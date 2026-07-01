@@ -1,7 +1,8 @@
-import Link from "next/link";
-import { managementStats } from "@/lib/views";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useData } from "@/components/DataProvider";
+import { CenterLoading } from "@/components/Spinner";
+import { managementStats } from "@/lib/stats";
 
 function TopCard({ title, rows }: { title: string; rows: { name: string; count: number }[] }) {
   return (
@@ -18,41 +19,38 @@ function TopCard({ title, rows }: { title: string; rows: { name: string; count: 
   );
 }
 
-export default async function ManagementView() {
-  let s: Awaited<ReturnType<typeof managementStats>> | null = null;
-  let error = "";
-  try {
-    s = await managementStats();
-  } catch (e: any) {
-    error = e.message;
-  }
+export default function ManagementView() {
+  const { data, loading, error, reload } = useData();
+  if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
+  const s = data ? managementStats(data) : null;
 
   return (
-    <main className="page">
+    <main className="page fade-in">
       <div className="panel">
         <h2>Management View — KPI ทีม / บริษัท</h2>
-        {error ? (
+        {error || !s ? (
           <p className="muted">
-            อ่านข้อมูลไม่ได้: {error} — ไปที่ <Link href="/settings">ตั้งค่า</Link> แล้วกด Initialize
+            โหลดข้อมูลไม่สำเร็จ: {error}{" "}
+            <button className="btn sm" onClick={reload}>ลองใหม่</button>
           </p>
         ) : (
           <div className="lists-grid">
-            <div className="list-card"><h3>Accounting Rows</h3><div className="dash-total">{s!.totalAcc}</div></div>
-            <div className="list-card"><h3>ACC Pending</h3><div className="dash-total">{s!.accPending}</div></div>
-            <div className="list-card"><h3>Extra Items</h3><div className="dash-total">{s!.extraItems}</div></div>
-            <div className="list-card"><h3>Transport Jobs</h3><div className="dash-total">{s!.transJobs}</div></div>
-            <div className="list-card"><h3>Warehouse Jobs</h3><div className="dash-total">{s!.whJobs}</div></div>
+            <div className="list-card"><h3>Accounting Rows</h3><div className="dash-total">{s.totalAcc}</div></div>
+            <div className="list-card"><h3>ACC Pending</h3><div className="dash-total">{s.accPending}</div></div>
+            <div className="list-card"><h3>Extra Items</h3><div className="dash-total">{s.extraItems}</div></div>
+            <div className="list-card"><h3>Transport Jobs</h3><div className="dash-total">{s.transJobs}</div></div>
+            <div className="list-card"><h3>Warehouse Jobs</h3><div className="dash-total">{s.whJobs}</div></div>
           </div>
         )}
       </div>
 
-      {!error && (
+      {s && !error && (
         <div className="panel">
           <h2 style={{ fontSize: 15 }}>Top รายการ</h2>
           <div className="lists-grid">
-            <TopCard title="Top Extra/Service Type" rows={s!.topExtra} />
-            <TopCard title="Top Transport Supplier" rows={s!.topTransSupp} />
-            <TopCard title="Top Warehouse Supplier" rows={s!.topWhSupp} />
+            <TopCard title="Top Extra/Service Type" rows={s.topExtra} />
+            <TopCard title="Top Transport Supplier" rows={s.topTransSupp} />
+            <TopCard title="Top Warehouse Supplier" rows={s.topWhSupp} />
           </div>
         </div>
       )}

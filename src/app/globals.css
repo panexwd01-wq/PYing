@@ -684,3 +684,104 @@ tr.row-locked td {
 .flatpickr-input {
   font: inherit;
 }
+
+/* ===== transitions / motion ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-in {
+  animation: fadeIn 0.22s ease both;
+}
+
+/* การ์ด/พาเนล/ปุ่ม/แถว มี transition นุ่ม ๆ */
+.panel,
+.list-card {
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.list-card:hover {
+  border-color: var(--petrol);
+}
+.btn {
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    transform 0.08s ease, box-shadow 0.15s ease;
+}
+.btn:hover {
+  box-shadow: 0 2px 6px rgba(10, 50, 55, 0.12);
+}
+.btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+.btn.primary:hover {
+  box-shadow: 0 3px 10px rgba(10, 50, 55, 0.22);
+}
+/* ช่องกรอก/ดรอปดาวน์ โฟกัสนุ่ม */
+.cell,
+.field input,
+.field select,
+.list-card input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.cell:focus,
+.field input:focus,
+.field select:focus,
+.list-card input:focus {
+  outline: none;
+  border-color: var(--petrol);
+  box-shadow: 0 0 0 3px rgba(20, 100, 110, 0.14);
+}
+/* แถวตารางไฮไลต์เมื่อชี้ */
+.grid tbody tr {
+  transition: background 0.12s ease;
+}
+.grid tbody tr:hover td:not(.sticky-col) {
+  background: #f7fbfc;
+}
+.view-table tbody tr {
+  transition: background 0.12s ease;
+}
+.view-table tbody tr:hover td {
+  background: #f7fbfc;
+}
+/* nav ลิงก์ active-ish */
+.app-header nav a:active {
+  transform: translateY(1px);
+}
+/* overlay fade */
+.overlay {
+  animation: fadeIn 0.16s ease both;
+}
+
+/* ===== drag handle (จัดลำดับ dropdown) ===== */
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+  color: #9aa;
+  padding: 0 6px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 5px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.drag-handle:hover {
+  color: var(--petrol);
+  background: #eef4f5;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.list-card .item-row {
+  align-items: center;
+  border-radius: 6px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.list-card .item-row.dragging {
+  background: #eef4f5;
+  box-shadow: 0 2px 8px rgba(10, 50, 55, 0.15);
+}

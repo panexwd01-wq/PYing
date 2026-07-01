@@ -10,9 +10,10 @@ import {
   recordHeaders,
 } from "./schema";
 import { checkEnd } from "./endRules";
-import { JobRecord, Lists } from "./types";
+import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
+  batchGetRanges,
   batchWriteRanges,
   clearRange,
   ensureSheet,
@@ -272,6 +273,71 @@ export async function listJobs(m: ModuleDef): Promise<JobRecord[]> {
   return rows.map(enrich);
 }
 
+// ===== snapshot: อ่านทุกโมดูล + lists ใน request เดียว แล้ว enrich ในหน่วยความจำ =====
+function parseModuleRows(m: ModuleDef, values: string[][]): JobRecord[] {
+  if (!values || values.length < 2) return [];
+  const headers = values[0];
+  return values
+    .slice(1)
+    .filter((r) => (r[0] || "").trim() !== "")
+    .map((r) => rowToRecord(headers, r));
+}
+
+function parseListRows(values: string[][]): Lists {
+  const out: Lists = {};
+  const header = values?.[0] || [];
+  for (let c = 0; c < header.length; c++) {
+    const key = (header[c] || "").trim();
+    if (!key) continue;
+    const vals: string[] = [];
+    for (let r = 1; r < values.length; r++) {
+      const v = (values[r]?.[c] || "").trim();
+      if (v) vals.push(v);
+    }
+    out[key] = vals;
+  }
+  for (const k of ALL_LISTS) if (!(k in out)) out[k] = [];
+  return out;
+}
+
+export async function getSnapshot(): Promise<Snapshot> {
+  const dataRanges = MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`);
+  const all = await batchGetRanges([...dataRanges, `${DB_SHEET}!A1:CZ`]);
+  const lists = parseListRows(all[MODULES.length]);
+
+  const rawById: Record<string, JobRecord[]> = {};
+  MODULES.forEach((m, i) => (rawById[m.id] = parseModuleRows(m, all[i])));
+
+  // สร้าง index ต้นทาง (CS) + ปลายทาง (downstream) จากข้อมูลในหน่วยความจำ (ไม่อ่านซ้ำ)
+  const srcIdx: SourceIndex = { imp: new Map(), exp: new Map() };
+  for (const r of rawById["04_CS_Import"] || []) {
+    const k = (r.imp_job_no || "").trim();
+    if (k) srcIdx.imp.set(k, r);
+  }
+  for (const r of rawById["05_CS_Export"] || []) {
+    const k = (r.exp_job_no || "").trim();
+    if (k) srcIdx.exp.set(k, r);
+  }
+  const downIdx: DownIndex = {};
+  for (const id of ["06_Shipping", "07_Transportation", "08_Warehouse"]) {
+    const map = new Map<string, JobRecord>();
+    for (const r of rawById[id] || []) {
+      const k = (r.job_no || "").trim();
+      if (k) map.set(k, r);
+    }
+    downIdx[id] = map;
+  }
+
+  const modules: Record<string, JobRecord[]> = {};
+  for (const m of MODULES) {
+    let rows = rawById[m.id] || [];
+    if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
+    else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
+    modules[m.key] = rows;
+  }
+  return { modules, lists };
+}
+
 function genId(salt = 0): string {
   const d = new Date();
   const rand = Math.floor(Math.random() * 1e6).toString(36);
@@ -282,31 +348,30 @@ export async function createJob(
   m: ModuleDef,
   rec: Partial<JobRecord>
 ): Promise<JobRecord> {
-  await ensureDataSheet(m);
-  const enrich = await makeEnricher(m);
-  const withId = enrich({ ...rec, __id: rec.__id || genId() } as JobRecord);
-  const final = applyAutoRules(m, withId) as JobRecord;
-  enforceEnd(m, final);
-  await appendRows(`${m.id}!A1`, [recordToRow(m, final)]);
-  return final;
+  const [saved] = await createJobs(m, [rec]);
+  return saved;
 }
 
-// สร้างหลายระเบียนในครั้งเดียว (append รอบเดียว) — ใช้ตอน sync
+// สร้างหลายระเบียนในครั้งเดียว (append รอบเดียว, ไม่อ่าน sheet)
+// enrich=true เฉพาะตอน sync ที่ต้องการเติมหัว Job ลงชีทจริง (ยอมอ่านเพิ่ม)
 export async function createJobs(
   m: ModuleDef,
-  recs: Partial<JobRecord>[]
-): Promise<number> {
-  if (!recs.length) return 0;
-  await ensureDataSheet(m);
-  const enrich = await makeEnricher(m);
-  const values = recs.map((rec, i) => {
-    const withId = enrich({ ...rec, __id: rec.__id || genId(i + 1) } as JobRecord);
+  recs: Partial<JobRecord>[],
+  enrich = false
+): Promise<JobRecord[]> {
+  if (!recs.length) return [];
+  const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
+  const out: JobRecord[] = [];
+  const values: string[][] = [];
+  recs.forEach((rec, i) => {
+    const withId = en({ ...rec, __id: rec.__id || genId(i + 1) } as JobRecord);
     const final = applyAutoRules(m, withId) as JobRecord;
     enforceEnd(m, final);
-    return recordToRow(m, final);
+    out.push(final);
+    values.push(recordToRow(m, final));
   });
   await appendRows(`${m.id}!A1`, values);
-  return recs.length;
+  return out;
 }
 
 async function findRowNumber(m: ModuleDef, id: string): Promise<number | null> {
@@ -342,14 +407,14 @@ export async function updateJobs(
     existingById.set(id, rowToRecord(headers, rows[i]));
   }
 
-  const enrich = await makeEnricher(m);
+  // ไม่ enrich ตอนบันทึก (ประหยัดโควต้าอ่าน) — ค่าที่ pull ไว้เดิมถูกเก็บไว้ครบใน existing
   const data: { range: string; values: string[][] }[] = [];
   const out: JobRecord[] = [];
   for (const rec of recs) {
     if (!rec.__id) throw new Error("ไม่มี __id สำหรับอัปเดต");
     const rowNum = rowNumById.get(rec.__id);
     if (!rowNum) throw new Error(`ไม่พบระเบียนที่ต้องการแก้ไข (${rec.__id})`);
-    const merged = enrich({ ...existingById.get(rec.__id), ...rec } as JobRecord);
+    const merged = { ...existingById.get(rec.__id), ...rec } as JobRecord;
     const withRules = applyAutoRules(m, merged) as JobRecord;
     enforceEnd(m, withRules);
     data.push({
@@ -425,7 +490,7 @@ async function reExportLink(): Promise<number> {
       ex_cs_remark: r.im_cs_remark,
     });
   }
-  return createJobs(EXPORT_MODULE, toCreate);
+  return (await createJobs(EXPORT_MODULE, toCreate)).length;
 }
 
 export async function syncAll(): Promise<{
@@ -463,7 +528,7 @@ export async function syncAll(): Promise<{
       }
     }
   }
-  const extraCreated = await createJobs(EXTRA, newExtra);
+  const extraCreated = (await createJobs(EXTRA, newExtra, true)).length;
 
   // ----- 2) Accounting Master Queue -> 10_Accounting -----
   // จัดกลุ่ม Extra (รวมที่เพิ่งสร้าง) ตาม Job No.
@@ -528,7 +593,7 @@ export async function syncAll(): Promise<{
       }
     }
   }
-  const accCreated = await createJobs(ACC, newAcc);
+  const accCreated = (await createJobs(ACC, newAcc, true)).length;
 
   return {
     message: `Sync เสร็จ — Re-Export ${reExport}, Extra ${extraCreated}, Accounting ${accCreated} แถว`,

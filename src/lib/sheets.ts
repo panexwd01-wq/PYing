@@ -44,6 +44,18 @@ export async function readRange(range: string): Promise<string[][]> {
   return (res.data.values as string[][]) || [];
 }
 
+// อ่านหลายช่วงพร้อมกันใน 1 request (ใช้ทำ snapshot ทั้งระบบ)
+export async function batchGetRanges(ranges: string[]): Promise<string[][][]> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: getSheetId(),
+    ranges,
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+  const vr = res.data.valueRanges || [];
+  return ranges.map((_, i) => (vr[i]?.values as string[][]) || []);
+}
+
 export async function writeRange(range: string, values: (string | number)[][]) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({

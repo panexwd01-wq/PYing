@@ -1,24 +1,22 @@
-import Link from "next/link";
-import { collectJobs } from "@/lib/views";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useData } from "@/components/DataProvider";
+import { CenterLoading } from "@/components/Spinner";
+import { collectJobs } from "@/lib/stats";
 
-export default async function SupervisorView() {
-  let jobs: Awaited<ReturnType<typeof collectJobs>> = [];
-  let error = "";
-  try {
-    jobs = await collectJobs();
-  } catch (e: any) {
-    error = e.message;
-  }
+export default function SupervisorView() {
+  const { data, loading, error, reload } = useData();
+  if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
+  const jobs = data ? collectJobs(data) : [];
 
   return (
-    <main className="page">
+    <main className="page fade-in">
       <div className="panel">
         <h2>Supervisor View — งานทั้งหมดทุกโมดูล</h2>
         {error ? (
           <p className="muted">
-            อ่านข้อมูลไม่ได้: {error} — ไปที่ <Link href="/settings">ตั้งค่า</Link> แล้วกด Initialize
+            โหลดข้อมูลไม่สำเร็จ: {error}{" "}
+            <button className="btn sm" onClick={reload}>ลองใหม่</button>
           </p>
         ) : (
           <p className="muted">รวม {jobs.length} รายการจาก 7 โมดูล</p>

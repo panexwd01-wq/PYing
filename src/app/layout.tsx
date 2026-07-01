@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Sarabun } from "next/font/google";
 import Link from "next/link";
 import { MODULES } from "@/lib/schema";
+import { DataProvider } from "@/components/DataProvider";
 import "./globals.css";
 
 const sarabun = Sarabun({
@@ -22,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="app-header">
           <div className="brand">
             <span className="full">FREIGHT</span> OPS
-            <span className="mod">04 · CS Import</span>
           </div>
           <div className="spacer" />
           <nav>
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/settings">ตั้งค่า</Link>
           </nav>
         </header>
-        {children}
+        <DataProvider>{children}</DataProvider>
       </body>
     </html>
   );

@@ -1,23 +1,17 @@
-import Link from "next/link";
-import { listJobs } from "@/lib/db";
-import { MODULE_BY_ID } from "@/lib/schema";
+"use client";
+
+import { useData } from "@/components/DataProvider";
+import { CenterLoading } from "@/components/Spinner";
 import { PrintButton } from "@/components/PrintButton";
+import { shipDailyRows } from "@/lib/stats";
 
-export const dynamic = "force-dynamic";
-
-// 06A — ใบตรวจปล่อยประจำวัน (สำหรับปริ้นหน้างาน) : ดึงงาน Shipping ที่ยังไม่ Finished
-export default async function ShipDailyView() {
-  let rows: Awaited<ReturnType<typeof listJobs>> = [];
-  let error = "";
-  try {
-    const all = await listJobs(MODULE_BY_ID["06_Shipping"]);
-    rows = all.filter((r) => (r.shipp_status || "") !== "End");
-  } catch (e: any) {
-    error = e.message;
-  }
+export default function ShipDailyView() {
+  const { data, loading, error, reload } = useData();
+  if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
+  const rows = data ? shipDailyRows(data) : [];
 
   return (
-    <main className="page">
+    <main className="page fade-in">
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h2 style={{ flex: 1 }}>Ship Daily Print Check — ใบตรวจปล่อยประจำวัน</h2>
@@ -25,7 +19,8 @@ export default async function ShipDailyView() {
         </div>
         {error ? (
           <p className="muted">
-            อ่านข้อมูลไม่ได้: {error} — ไปที่ <Link href="/settings">ตั้งค่า</Link> แล้วกด Initialize
+            โหลดข้อมูลไม่สำเร็จ: {error}{" "}
+            <button className="btn sm" onClick={reload}>ลองใหม่</button>
           </p>
         ) : (
           <p className="muted no-print">งานตรวจปล่อยที่ยังไม่ End จำนวน {rows.length} รายการ</p>

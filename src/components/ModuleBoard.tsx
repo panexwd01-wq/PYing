@@ -5,8 +5,9 @@ import { JobGrid } from "@/components/JobGrid";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { CenterLoading } from "@/components/Spinner";
+import { useData } from "@/components/DataProvider";
 import { MODULE_BY_KEY, moduleGroups, recordHeaders } from "@/lib/schema";
-import { JobRecord, Lists } from "@/lib/types";
+import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
 const SEARCH_KEYS = [
@@ -22,6 +23,9 @@ function tempId() {
 
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
+  const { data, loading: dataLoading, error: dataError, reload } = useData();
+  const lists = data?.lists || {};
+
   const groups = useMemo(() => moduleGroups(mod), [mod]);
   const statusKey = mod.fields[0].key;
   const statusList = mod.fields[0].list;
@@ -44,11 +48,9 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [mod, statusKey]
   );
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingMsg, setSavingMsg] = useState("กำลังบันทึก…");
   const [rows, setRows] = useState<JobRecord[]>([]);
-  const [lists, setLists] = useState<Lists>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [news, setNews] = useState<Set<string>>(new Set());
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -60,29 +62,18 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     setTimeout(() => setToast(null), 2600);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [lr, jr] = await Promise.all([
-        fetch("/api/lists").then((r) => r.json()),
-        fetch(`/api/jobs?module=${moduleKey}`).then((r) => r.json()),
-      ]);
-      if (lr.error) throw new Error(lr.error);
-      if (jr.error) throw new Error(jr.error);
-      setLists(lr.lists || {});
-      setRows(jr.jobs || []);
-      setDirty(new Set());
-      setNews(new Set());
-    } catch (e: any) {
-      flash("โหลดข้อมูลไม่สำเร็จ: " + e.message, true);
-    } finally {
-      setLoading(false);
-    }
-  }, [flash, moduleKey]);
+  // sync แถวจาก snapshot (โหลดครั้งแรก / หลัง reload) — ทิ้ง state แก้ไขที่ค้าง
+  useEffect(() => {
+    if (!data) return;
+    setRows(data.modules[moduleKey] || []);
+    setDirty(new Set());
+    setNews(new Set());
+    setUnlocked(new Set());
+  }, [data, moduleKey]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (dataError) flash("โหลดข้อมูลไม่สำเร็จ: " + dataError, true);
+  }, [dataError, flash]);
 
   const onChange = useCallback((id: string, key: string, value: string) => {
     setRows((prev) => prev.map((r) => (r.__id === id ? { ...r, [key]: value } : r)));
@@ -123,7 +114,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         const res = await fetch(`/api/jobs?module=${moduleKey}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
-        setRows((prev) => prev.filter((r) => r.__id !== id));
+        await reload();
         flash("ลบเรียบร้อย");
       } catch (e: any) {
         flash("ลบไม่สำเร็จ: " + e.message, true);
@@ -131,7 +122,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         setSaving(false);
       }
     },
-    [news, flash, moduleKey]
+    [news, flash, moduleKey, reload]
   );
 
   const saveAll = useCallback(async () => {
@@ -143,17 +134,15 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     const updRecords = rows.filter((r) => dirty.has(r.__id) && !news.has(r.__id));
     setSavingMsg("กำลังบันทึก…");
     setSaving(true);
-    const savedIds: string[] = [];
     try {
-      for (const rec of newRecords) {
+      if (newRecords.length) {
         const res = await fetch(`/api/jobs?module=${moduleKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ record: rec }),
+          body: JSON.stringify({ records: newRecords }),
         });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
-        savedIds.push(rec.__id);
       }
       if (updRecords.length) {
         const res = await fetch(`/api/jobs?module=${moduleKey}`, {
@@ -163,28 +152,15 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
-        for (const r of updRecords) savedIds.push(r.__id);
       }
-      await load();
+      await reload();
       flash("บันทึกเรียบร้อย");
     } catch (e: any) {
-      if (savedIds.length) {
-        setNews((prev) => {
-          const n = new Set(prev);
-          savedIds.forEach((id) => n.delete(id));
-          return n;
-        });
-        setDirty((prev) => {
-          const n = new Set(prev);
-          savedIds.forEach((id) => n.delete(id));
-          return n;
-        });
-      }
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
     } finally {
       setSaving(false);
     }
-  }, [dirty, news, rows, load, flash, moduleKey]);
+  }, [dirty, news, rows, reload, flash, moduleKey]);
 
   const refresh = useCallback(async () => {
     setSavingMsg("กำลังดึงข้อมูลจาก CS…");
@@ -193,14 +169,14 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       const res = await fetch(`/api/refresh?module=${moduleKey}`, { method: "POST" });
       const j = await res.json();
       if (j.error) throw new Error(j.error);
-      await load();
+      await reload();
       flash(j.message || "ดึงข้อมูลเรียบร้อย");
     } catch (e: any) {
       flash("ดึงข้อมูลไม่สำเร็จ: " + e.message, true);
     } finally {
       setSaving(false);
     }
-  }, [moduleKey, load, flash]);
+  }, [moduleKey, reload, flash]);
 
   // ===== filter =====
   const years = useMemo(() => {
@@ -232,7 +208,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   }, [rows, filters, dateField, statusKey, csField, searchKeys]);
 
   return (
-    <main className="page">
+    <main className="page fade-in">
       <SavingOverlay show={saving} message={savingMsg} />
 
       <div className="toolbar">
@@ -247,11 +223,11 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         />
         <span className="count-pill">{filtered.length} / {rows.length} รายการ</span>
         <div className="actions">
-          <button className="btn" onClick={load} disabled={loading}>
+          <button className="btn" onClick={reload} disabled={dataLoading}>
             รีเฟรช
           </button>
           {hasPull && (
-            <button className="btn" onClick={refresh} disabled={loading} title="ดึงข้อมูลเชื่อมข้ามโมดูลด้วย Job No.">
+            <button className="btn" onClick={refresh} disabled={dataLoading} title="ดึงข้อมูลเชื่อมข้ามโมดูลด้วย Job No.">
               ⟳ ดึงข้อมูลเชื่อม
             </button>
           )}
@@ -266,11 +242,11 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
       <div className="legend">
         <span className="item"><span className="sw" style={{ background: "var(--c-mandatory)", borderColor: "var(--c-mandatory-bd)" }} /> ฟ้า = ต้องกรอก</span>
-        <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้</span>
+        <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้ (ต้องมี PIC)</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-locked)", borderColor: "var(--c-locked-bd)" }} /> เทา = Auto / ดึงจาก Module อื่น</span>
       </div>
 
-      {loading ? (
+      {dataLoading && !data ? (
         <CenterLoading />
       ) : (
         <div style={{ marginTop: 12 }}>

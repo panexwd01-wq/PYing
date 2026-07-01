@@ -1,51 +1,33 @@
+"use client";
+
 import Link from "next/link";
-import { MODULES } from "@/lib/schema";
-import { listJobsRaw } from "@/lib/db";
+import { useData } from "@/components/DataProvider";
 import { SyncButton } from "@/components/SyncButton";
+import { CenterLoading } from "@/components/Spinner";
+import { dashboardStats } from "@/lib/stats";
 
-export const dynamic = "force-dynamic";
+export default function Dashboard() {
+  const { data, loading, error, reload } = useData();
 
-interface Stat {
-  key: string;
-  label: string;
-  total: number;
-  ended: number;
-  open: number;
-}
-
-async function collect(): Promise<{ stats: Stat[]; error?: string }> {
-  try {
-    const stats: Stat[] = [];
-    for (const m of MODULES) {
-      const statusKey = m.fields[0].key;
-      const rows = await listJobsRaw(m);
-      const ended = rows.filter((r) => (r[statusKey] || "") === "End").length;
-      stats.push({
-        key: m.key,
-        label: m.label,
-        total: rows.length,
-        ended,
-        open: rows.length - ended,
-      });
-    }
-    return { stats };
-  } catch (e: any) {
-    return { stats: [], error: e.message };
+  if (loading && !data) {
+    return (
+      <main className="page fade-in">
+        <CenterLoading />
+      </main>
+    );
   }
-}
 
-export default async function Dashboard() {
-  const { stats, error } = await collect();
+  const stats = data ? dashboardStats(data) : [];
   const grand = stats.reduce((a, s) => a + s.total, 0);
 
   return (
-    <main className="page">
+    <main className="page fade-in">
       <div className="panel">
         <h2>ภาพรวมระบบ (Dashboard)</h2>
         {error ? (
           <p className="muted">
-            ยังอ่านข้อมูลไม่ได้: {error} — ไปที่หน้า <Link href="/settings">ตั้งค่า</Link> แล้วกด
-            <b> Initialize</b> ก่อน
+            โหลดข้อมูลไม่สำเร็จ: {error}{" "}
+            <button className="btn sm" onClick={reload}>ลองใหม่</button>
           </p>
         ) : (
           <p className="muted">

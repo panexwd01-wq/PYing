@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createJob, deleteJob, listJobs, updateJobs } from "@/lib/db";
+import { createJobs, deleteJob, listJobs, updateJobs } from "@/lib/db";
 import { MODULE_BY_KEY } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,13 @@ export async function POST(req: NextRequest) {
   try {
     const m = resolve(req);
     const body = await req.json();
-    const job = await createJob(m, body.record || {});
-    return NextResponse.json({ job });
+    const records = Array.isArray(body.records)
+      ? body.records
+      : body.record
+      ? [body.record]
+      : [];
+    const jobs = await createJobs(m, records);
+    return NextResponse.json({ jobs });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

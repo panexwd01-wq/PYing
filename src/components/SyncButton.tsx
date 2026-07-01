@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { SavingOverlay } from "./SavingOverlay";
+import { useData } from "./DataProvider";
 
 // ปุ่ม Sync: สร้าง Extra (09) + Accounting queue (10) ตาม Workflow Rules
 export function SyncButton() {
-  const router = useRouter();
+  const { reload } = useData();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
 
@@ -18,7 +18,7 @@ export function SyncButton() {
       const j = await res.json();
       if (j.error) throw new Error(j.error);
       setMsg({ text: j.message || "Sync เรียบร้อย" });
-      router.refresh();
+      await reload();
     } catch (e: any) {
       setMsg({ text: "Sync ไม่สำเร็จ: " + e.message, err: true });
     } finally {

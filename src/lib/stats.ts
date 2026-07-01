@@ -1,10 +1,18 @@
-import { MODULES, MODULE_BY_ID } from "./schema";
-import { listJobsRaw } from "./db";
+// ฟังก์ชันสรุปผล (pure) ทำงานบน Snapshot ในหน่วยความจำฝั่ง client — ไม่ยิง server
+import { MODULES, MODULE_BY_KEY } from "./schema";
+import { Snapshot } from "./types";
 
 const num = (v: unknown) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
   return isNaN(n) ? 0 : n;
 };
+
+function agingDays(d: string): number | null {
+  const m = (d || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+  return Math.floor((Date.now() - dt.getTime()) / 86400000);
+}
 
 function topCount(vals: string[], n = 6): { name: string; count: number }[] {
   const map = new Map<string, number>();
@@ -19,9 +27,34 @@ function topCount(vals: string[], n = 6): { name: string; count: number }[] {
     .slice(0, n);
 }
 
-// รวมงานจากทุกโมดูลเป็นแถวเดียว ใช้ในหน้า View (Supervisor / Action Follow-up)
+const rowsOf = (snap: Snapshot, key: string) => snap.modules[key] || [];
+
+// ===== Dashboard =====
+export interface DashStat {
+  key: string;
+  label: string;
+  total: number;
+  ended: number;
+  open: number;
+}
+export function dashboardStats(snap: Snapshot): DashStat[] {
+  return MODULES.map((m) => {
+    const statusKey = m.fields[0].key;
+    const rows = rowsOf(snap, m.key);
+    const ended = rows.filter((r) => (r[statusKey] || "") === "End").length;
+    return { key: m.key, label: m.label, total: rows.length, ended, open: rows.length - ended };
+  });
+}
+
+// ===== Supervisor / Action =====
+const PIC_KEYS = ["im_cs", "ex_cs", "cs_pic", "entry_pic", "ship_pic", "trans_pic", "wh_pic", "cost_pic", "acc_pic"];
+const REMARK_KEYS = ["im_cs_remark", "imp_cs_remark2", "ex_cs_remark", "shipping_remark", "trans_remark", "wha_remark", "entry_remark", "sell_remark", "ap_remark", "ar_remark"];
+const pick = (r: Record<string, string>, keys: string[]) => {
+  for (const k of keys) if ((r[k] || "").trim()) return r[k];
+  return "";
+};
+
 export interface FlatJob {
-  module: string;
   short: string;
   jobNo: string;
   customer: string;
@@ -29,42 +62,16 @@ export interface FlatJob {
   pic: string;
   remark: string;
   date: string;
-  aging: number | null; // จำนวนวันนับจากวันที่อ้างอิงถึงวันนี้ (null = ไม่มีวันที่)
+  aging: number | null;
 }
-
-const PIC_KEYS = [
-  "im_cs", "ex_cs", "cs_pic", "entry_pic", "ship_pic",
-  "trans_pic", "wh_pic", "cost_pic", "acc_pic",
-];
-const REMARK_KEYS = [
-  "im_cs_remark", "imp_cs_remark2", "ex_cs_remark", "shipping_remark",
-  "trans_remark", "wha_remark", "entry_remark", "sell_remark", "ap_remark", "ar_remark",
-];
-
-const pick = (r: Record<string, string>, keys: string[]) => {
-  for (const k of keys) if ((r[k] || "").trim()) return r[k];
-  return "";
-};
-
-// จำนวนวันจากวันที่ (YYYY-MM-DD ...) ถึงวันนี้
-function agingDays(d: string): number | null {
-  const m = (d || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return null;
-  const dt = new Date(+m[1], +m[2] - 1, +m[3]);
-  const diff = Date.now() - dt.getTime();
-  return Math.floor(diff / 86400000);
-}
-
-export async function collectJobs(): Promise<FlatJob[]> {
+export function collectJobs(snap: Snapshot): FlatJob[] {
   const out: FlatJob[] = [];
   for (const m of MODULES) {
     const statusKey = m.fields[0].key;
     const dateField = m.fields.find((f) => f.type === "datetime");
-    const rows = await listJobsRaw(m);
-    for (const r of rows) {
+    for (const r of rowsOf(snap, m.key)) {
       const date = (dateField && r[dateField.key]) || "";
       out.push({
-        module: m.label,
         short: m.short,
         jobNo: (r[m.jobNoKey] || "").trim(),
         customer: r.customer || "",
@@ -79,7 +86,7 @@ export async function collectJobs(): Promise<FlatJob[]> {
   return out;
 }
 
-// ===== 11 Sales View: KPI ลูกค้า / ปริมาณตู้ =====
+// ===== Sales =====
 export interface SalesStats {
   totalJobs: number;
   uniqueCustomers: number;
@@ -87,11 +94,8 @@ export interface SalesStats {
   t40: number;
   customers: { name: string; jobs: number; c20: number; c40: number }[];
 }
-
-export async function salesStats(): Promise<SalesStats> {
-  const imp = await listJobsRaw(MODULE_BY_ID["04_CS_Import"]);
-  const exp = await listJobsRaw(MODULE_BY_ID["05_CS_Export"]);
-  const all = [...imp, ...exp];
+export function salesStats(snap: Snapshot): SalesStats {
+  const all = [...rowsOf(snap, "cs-import"), ...rowsOf(snap, "cs-export")];
   const byCust = new Map<string, { jobs: number; c20: number; c40: number }>();
   let t20 = 0,
     t40 = 0;
@@ -113,7 +117,7 @@ export async function salesStats(): Promise<SalesStats> {
   return { totalJobs: all.length, uniqueCustomers: byCust.size, t20, t40, customers };
 }
 
-// ===== 00 Management View: KPI ทีม/บริษัท =====
+// ===== Management =====
 export interface MgmtStats {
   totalAcc: number;
   accPending: number;
@@ -124,12 +128,11 @@ export interface MgmtStats {
   topTransSupp: { name: string; count: number }[];
   topWhSupp: { name: string; count: number }[];
 }
-
-export async function managementStats(): Promise<MgmtStats> {
-  const acc = await listJobsRaw(MODULE_BY_ID["10_Accounting"]);
-  const extra = await listJobsRaw(MODULE_BY_ID["09_Extra_Service"]);
-  const trans = await listJobsRaw(MODULE_BY_ID["07_Transportation"]);
-  const wh = await listJobsRaw(MODULE_BY_ID["08_Warehouse"]);
+export function managementStats(snap: Snapshot): MgmtStats {
+  const acc = rowsOf(snap, "accounting");
+  const extra = rowsOf(snap, "extra");
+  const trans = rowsOf(snap, "transport");
+  const wh = rowsOf(snap, "warehouse");
   return {
     totalAcc: acc.length,
     accPending: acc.filter((r) => (r.acc_job_status || "") !== "End").length,
@@ -140,4 +143,9 @@ export async function managementStats(): Promise<MgmtStats> {
     topTransSupp: topCount(trans.flatMap((r) => [r.supp1 || "", r.supp2 || "", r.supp3 || ""])),
     topWhSupp: topCount(wh.map((r) => r.wh_supp1 || "")),
   };
+}
+
+// ship daily (Shipping ที่ยังไม่ End)
+export function shipDailyRows(snap: Snapshot) {
+  return rowsOf(snap, MODULE_BY_KEY["shipping"].key).filter((r) => (r.shipp_status || "") !== "End");
 }
