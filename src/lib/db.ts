@@ -1,5 +1,6 @@
 import {
   ALL_LISTS,
+  ALL_MODULES,
   DB_SHEET,
   EXPORT_MODULE,
   IMPORT_MODULE,
@@ -108,17 +109,31 @@ const numOf = (v: unknown) => {
 };
 
 // กติกาอัตโนมัติ: ลงวันที่เมื่อ Status = End + ช่องคำนวณของ Extra
+const hasField = (m: ModuleDef, key: string) => m.fields.some((f) => f.key === key);
+
 function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecord> {
   const next = { ...rec };
   const statusKey = m.fields[0]?.key;
+  const isEnd = (next[statusKey] || "") === "End";
   const dateField = m.fields.find((f) => f.key.endsWith("status_date"));
   if (statusKey && dateField) {
-    if ((next[statusKey] || "") === "End") {
+    if (isEnd) {
       if (!next[dateField.key]) next[dateField.key] = nowStamp();
     } else {
       next[dateField.key] = "";
     }
   }
+  // ช่องระบบ: ended_at (วันปิดงาน) ตาม Status = End
+  if (hasField(m, "ended_at")) {
+    if (isEnd) {
+      if (!next.ended_at) next.ended_at = nowStamp();
+    } else {
+      next.ended_at = "";
+    }
+  }
+  // ตารางเรท: updated_at อัปเดตทุกครั้งที่บันทึก
+  if (m.rate && hasField(m, "updated_at")) next.updated_at = nowStamp();
+
   if (m.id === "09_Extra_Service") {
     const count = numOf(next.count);
     next.cost_total = String(numOf(next.cost_unit) * count);
@@ -301,12 +316,12 @@ function parseListRows(values: string[][]): Lists {
 }
 
 export async function getSnapshot(): Promise<Snapshot> {
-  const dataRanges = MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`);
+  const dataRanges = ALL_MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`);
   const all = await batchGetRanges([...dataRanges, `${DB_SHEET}!A1:CZ`]);
-  const lists = parseListRows(all[MODULES.length]);
+  const lists = parseListRows(all[ALL_MODULES.length]);
 
   const rawById: Record<string, JobRecord[]> = {};
-  MODULES.forEach((m, i) => (rawById[m.id] = parseModuleRows(m, all[i])));
+  ALL_MODULES.forEach((m, i) => (rawById[m.id] = parseModuleRows(m, all[i])));
 
   // สร้าง index ต้นทาง (CS) + ปลายทาง (downstream) จากข้อมูลในหน่วยความจำ (ไม่อ่านซ้ำ)
   const srcIdx: SourceIndex = { imp: new Map(), exp: new Map() };
@@ -329,7 +344,7 @@ export async function getSnapshot(): Promise<Snapshot> {
   }
 
   const modules: Record<string, JobRecord[]> = {};
-  for (const m of MODULES) {
+  for (const m of ALL_MODULES) {
     let rows = rawById[m.id] || [];
     if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
     else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
@@ -361,10 +376,13 @@ export async function createJobs(
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
+  const stamp = nowStamp();
+  const setCreated = hasField(m, "created_at");
   const out: JobRecord[] = [];
   const values: string[][] = [];
   recs.forEach((rec, i) => {
     const withId = en({ ...rec, __id: rec.__id || genId(i + 1) } as JobRecord);
+    if (setCreated && !withId.created_at) withId.created_at = stamp; // วันเปิดงาน (ครั้งเดียว)
     const final = applyAutoRules(m, withId) as JobRecord;
     enforceEnd(m, final);
     out.push(final);
@@ -605,11 +623,11 @@ export async function syncAll(): Promise<{
 
 // initialize: สร้างชีททุกโมดูล + หัวตาราง + seed dropdown
 export async function initializeWorkbook(): Promise<{ message: string }> {
-  for (const m of MODULES) {
+  for (const m of ALL_MODULES) {
     await ensureDataSheet(m);
   }
   await seedListsIfEmpty();
   return {
-    message: `ตั้งค่าชีทเรียบร้อย — สร้าง ${MODULES.length} โมดูล + dropdown ตั้งต้น`,
+    message: `ตั้งค่าชีทเรียบร้อย — สร้าง ${ALL_MODULES.length} ชีท + dropdown ตั้งต้น`,
   };
 }

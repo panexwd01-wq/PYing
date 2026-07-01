@@ -571,6 +571,13 @@ tr.row-new td.sticky-col {
   box-shadow: 0 4px 14px rgba(10, 50, 55, 0.15);
   transform: translateY(-1px);
 }
+.list-card.exc-hot {
+  border-color: #e6a5a5;
+  background: #fdecec;
+}
+.list-card.exc-hot .dash-total {
+  color: #b00;
+}
 .dash-total {
   font-size: 30px;
   font-weight: 700;
@@ -784,6 +791,35 @@ tr.row-locked td {
 .list-card .item-row.dragging {
   background: #eef4f5;
   box-shadow: 0 2px 8px rgba(10, 50, 55, 0.15);
+}
+
+/* ===== segmented toggle (Rate Checker / month selector) ===== */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--line);
+}
+.seg-btn:hover {
+  background: #eef4f5;
+}
+.seg-btn.on {
+  background: var(--petrol);
+  color: #fff;
 }
 
 /* ===== สถานะยังไม่บันทึก (หน้า Dropdown) ===== */

@@ -79,7 +79,9 @@ var PANEX_HEADERS = {
     "wh_actual_rcv",
     "wh_supp1_sts",
     "wh_supp1_end",
-    "im_ops_status_date"
+    "im_ops_status_date",
+    "created_at",
+    "ended_at"
   ],
   "05_CS_Export": [
     "__id",
@@ -151,7 +153,9 @@ var PANEX_HEADERS = {
     "wh_supp1_end",
     "wh_supp1_pending",
     "cs_note_wh",
-    "ex_ops_status_date"
+    "ex_ops_status_date",
+    "created_at",
+    "ended_at"
   ],
   "06_Shipping": [
     "__id",
@@ -193,7 +197,9 @@ var PANEX_HEADERS = {
     "clearance_end_date",
     "ship_close_acc_status",
     "ship_close_acc_date",
-    "shipp_status_date"
+    "shipp_status_date",
+    "created_at",
+    "ended_at"
   ],
   "07_Transportation": [
     "__id",
@@ -242,7 +248,9 @@ var PANEX_HEADERS = {
     "supp3_pending",
     "supp3_any_extra",
     "actual_delivery_date",
-    "trans_status_date"
+    "trans_status_date",
+    "created_at",
+    "ended_at"
   ],
   "08_Warehouse": [
     "__id",
@@ -269,7 +277,9 @@ var PANEX_HEADERS = {
     "wh_supp1_kpi",
     "wh_supp1_pending",
     "actual_finished_date",
-    "wha_status_date"
+    "wha_status_date",
+    "created_at",
+    "ended_at"
   ],
   "09_Extra_Service": [
     "__id",
@@ -302,7 +312,9 @@ var PANEX_HEADERS = {
     "sell_sts",
     "sell_remark",
     "ready_acc",
-    "extra_status_date"
+    "extra_status_date",
+    "created_at",
+    "ended_at"
   ],
   "10_Accounting": [
     "__id",
@@ -337,7 +349,39 @@ var PANEX_HEADERS = {
     "cus_paid_date",
     "ar_remark",
     "ar_status",
-    "acc_job_status_date"
+    "acc_job_status_date",
+    "created_at",
+    "ended_at"
+  ],
+  "13_Cost_Rates": [
+    "__id",
+    "supplier",
+    "service_type",
+    "job_type",
+    "port_route",
+    "cargo_type",
+    "customer",
+    "to_address",
+    "cost_rate",
+    "fuel_rate",
+    "price_range",
+    "checked_by",
+    "updated_at"
+  ],
+  "13_Sell_Rates": [
+    "__id",
+    "customer",
+    "service_type",
+    "job_type",
+    "port_route",
+    "cargo_type",
+    "to_address",
+    "sell_rate",
+    "fuel_rate",
+    "remarks",
+    "quoted_by",
+    "sell_confirmed",
+    "updated_at"
   ]
 };
 
@@ -347,7 +391,8 @@ var PANEX_LIST_SEED = {
     "Open",
     "In Progress",
     "Pending",
-    "End"
+    "End",
+    "Cancel"
   ],
   "job_type": [
     "Import/FCL",
@@ -612,6 +657,23 @@ var PANEX_LIST_SEED = {
     "Partial Paid",
     "Paid",
     "Overdue"
+  ],
+  "service_type": [
+    "Freight",
+    "Shipping",
+    "Transportation",
+    "Warehouse"
+  ],
+  "sell_confirmed": [
+    "Yes",
+    "No",
+    "Waiting"
+  ],
+  "place": [
+    "LCB",
+    "BANGKOK",
+    "LAT KRABANG",
+    "ICD"
   ]
 };
 

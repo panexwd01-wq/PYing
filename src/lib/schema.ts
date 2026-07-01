@@ -7,6 +7,7 @@ import { TRANSPORT_FIELDS } from "./modules/transport";
 import { WAREHOUSE_FIELDS } from "./modules/warehouse";
 import { EXTRA_FIELDS } from "./modules/extra";
 import { ACCOUNTING_FIELDS } from "./modules/accounting";
+import { COST_RATE_FIELDS, SELL_RATE_FIELDS } from "./modules/rates";
 
 export type { Field, FieldType, PullSpec } from "./fields";
 export { ID_KEY, JOB_KEY } from "./fields";
@@ -22,24 +23,42 @@ export interface ModuleDef {
   kind: ModuleKind;
   jobNoKey: string; // คีย์ field ที่เป็นเลขงานของโมดูลนี้ (ใช้จับคู่ pull)
   picKey: string; // คีย์ field ผู้รับผิดชอบ (PIC) — ช่องเหลืองแก้ได้เมื่อมี PIC
+  rate?: boolean; // true = ตารางเรท (Rate Checker) ไม่ใช่ job — ไม่เข้า dashboard/sync
   fields: Field[];
 }
 
+// ช่องระบบ (เติมอัตโนมัติ) ต่อท้ายทุกโมดูลงาน — ใช้คำนวณ aging / KPI รายเดือน
+const SYSTEM_FIELDS: Field[] = [
+  { key: "created_at", label: "Job Create Date", group: "ระบบ", type: "auto", width: 150, help: "วันเปิดงาน (อัตโนมัติ)" },
+  { key: "ended_at", label: "Job End Date", group: "ระบบ", type: "auto", width: 150, help: "วันปิดงาน/End (อัตโนมัติ)" },
+];
+const withSystem = (fields: Field[]): Field[] => [...fields, ...SYSTEM_FIELDS.map((f) => ({ ...f }))];
+
+// ----- โมดูลงาน (04–10) -----
 export const MODULES: ModuleDef[] = [
-  { id: "04_CS_Import", key: "cs-import", label: "CS Import", short: "Import", kind: "import", jobNoKey: "imp_job_no", picKey: "im_cs", fields: IMPORT_FIELDS },
-  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", fields: EXPORT_FIELDS },
-  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", fields: SHIPPING_FIELDS },
-  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", fields: TRANSPORT_FIELDS },
-  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", fields: WAREHOUSE_FIELDS },
-  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", fields: EXTRA_FIELDS },
-  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", fields: ACCOUNTING_FIELDS },
+  { id: "04_CS_Import", key: "cs-import", label: "CS Import", short: "Import", kind: "import", jobNoKey: "imp_job_no", picKey: "im_cs", fields: withSystem(IMPORT_FIELDS) },
+  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", fields: withSystem(EXPORT_FIELDS) },
+  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", fields: withSystem(SHIPPING_FIELDS) },
+  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", fields: withSystem(TRANSPORT_FIELDS) },
+  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", fields: withSystem(WAREHOUSE_FIELDS) },
+  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", fields: withSystem(EXTRA_FIELDS) },
+  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", fields: withSystem(ACCOUNTING_FIELDS) },
 ];
 
+// ----- ตารางเรท (13) — ใช้ CRUD ร่วมกับโมดูลได้ แต่ไม่ใช่ job -----
+export const RATE_MODULES: ModuleDef[] = [
+  { id: "13_Cost_Rates", key: "cost-rates", label: "Cost Rates", short: "Cost", kind: "downstream", jobNoKey: "supplier", picKey: "", rate: true, fields: COST_RATE_FIELDS },
+  { id: "13_Sell_Rates", key: "sell-rates", label: "Sell Rates", short: "Sell", kind: "downstream", jobNoKey: "customer", picKey: "", rate: true, fields: SELL_RATE_FIELDS },
+];
+
+// ทุกโมดูลที่มีชีท (ใช้ตอน snapshot / initialize / resolve API)
+export const ALL_MODULES: ModuleDef[] = [...MODULES, ...RATE_MODULES];
+
 export const MODULE_BY_KEY: Record<string, ModuleDef> = Object.fromEntries(
-  MODULES.map((m) => [m.key, m])
+  ALL_MODULES.map((m) => [m.key, m])
 );
 export const MODULE_BY_ID: Record<string, ModuleDef> = Object.fromEntries(
-  MODULES.map((m) => [m.id, m])
+  ALL_MODULES.map((m) => [m.id, m])
 );
 
 // โมดูลต้นทางของการ pull (CS Import / Export)
@@ -108,6 +127,9 @@ export const LIST_LABEL: Record<string, string> = {
   rcv_ship_close_acc: "Received Ship Close Acc",
   ap_status: "AP Status",
   ar_status: "AR Status",
+  service_type: "Service Type (Rate)",
+  sell_confirmed: "Sell Confirmed",
+  place: "สถานที่ตรวจปล่อย (Place)",
 };
 
 const CS_NAMES = ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"];
@@ -115,7 +137,7 @@ const ACC_NAMES = ["THANITA", "CHUTIMA", "SAWAROT"];
 
 // ค่าตั้งต้น seed ตอน Initialize (แก้ได้ในหน้าตั้งค่า)
 export const LIST_SEED: Record<string, string[]> = {
-  im_ops_status: ["Open", "In Progress", "Pending", "End"],
+  im_ops_status: ["Open", "In Progress", "Pending", "End", "Cancel"],
   job_type: ["Import/FCL", "Import/LCL", "Export/FCL", "Export/LCL", "Re-Export/FCL", "Re-Export/LCL"],
   im_cs: CS_NAMES,
   ex_cs: CS_NAMES,
@@ -159,6 +181,9 @@ export const LIST_SEED: Record<string, string[]> = {
   rcv_ship_close_acc: ["Received", "Pending"],
   ap_status: ["Waiting Received Ship Close Acc", "Waiting Supplier Invoice", "Pending Approval", "Ready Payment", "Completed"],
   ar_status: ["Waiting Billing", "Invoiced", "Partial Paid", "Paid", "Overdue"],
+  service_type: ["Freight", "Shipping", "Transportation", "Warehouse"],
+  sell_confirmed: ["Yes", "No", "Waiting"],
+  place: ["LCB", "BANGKOK", "LAT KRABANG", "ICD"],
 };
 
 // list ทั้งหมดที่ต้อง seed/อ่าน

@@ -37,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/views/management">Mgmt</Link>
             <Link href="/views/sales">Sales</Link>
             <Link href="/views/ship-daily">Ship Daily</Link>
+            <Link href="/rates">Rates</Link>
             <Link href="/settings">ตั้งค่า</Link>
           </nav>
         </header>
