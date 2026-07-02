@@ -89,6 +89,12 @@ a {
 .app-header nav a:hover {
   background: rgba(255, 255, 255, 0.14);
 }
+.app-header nav a.active {
+  background: #fff;
+  color: var(--petrol-dark);
+  font-weight: 700;
+  opacity: 1;
+}
 
 .page {
   padding: 16px 18px 80px;
@@ -286,6 +292,9 @@ table.grid td .cellbox {
   min-height: 34px;
   display: flex;
   align-items: center;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 table.grid td input.cell,
 table.grid td select.cell {
@@ -304,20 +313,26 @@ table.grid td select.cell:focus {
   background: #fff;
   box-shadow: 0 0 0 2px var(--petrol-tint);
 }
-/* tint ตามชนิดช่อง */
-td.tint-mandatory {
+/* tint ตามชนิดช่อง — ต้อง scope ใต้ table.grid ให้ specificity ชนะ `table.grid td { background:#fff }` */
+table.grid td.tint-mandatory {
   background: var(--c-mandatory);
+}
+table.grid td.tint-editable {
+  background: var(--c-editable);
+}
+table.grid td.tint-locked {
+  background: var(--c-locked);
 }
 td.tint-mandatory .cellbox,
 td.tint-mandatory input.cell,
-td.tint-mandatory select.cell {
+td.tint-mandatory select.cell,
+td.tint-editable .cellbox,
+td.tint-editable input.cell,
+td.tint-editable select.cell,
+td.tint-locked .cellbox,
+td.tint-locked input.cell,
+td.tint-locked select.cell {
   background: transparent;
-}
-td.tint-editable {
-  background: var(--c-editable);
-}
-td.tint-locked {
-  background: var(--c-locked);
 }
 td.tint-locked .cellbox {
   color: var(--ink-soft);
@@ -510,13 +525,12 @@ tr.row-new td.sticky-col {
   }
 }
 
-/* ===== toast ===== */
+/* ===== toast (มุมขวาล่าง) ===== */
 .toast {
   position: fixed;
   bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 90;
+  right: 20px;
+  z-index: 95;
   background: var(--ink);
   color: #fff;
   padding: 10px 18px;
@@ -530,9 +544,38 @@ tr.row-new td.sticky-col {
 }
 @keyframes slideup {
   from {
-    transform: translate(-50%, 14px);
+    transform: translateY(14px);
     opacity: 0;
   }
+}
+
+/* ===== save bar (แถบยังไม่บันทึก กลางล่างจอ) ===== */
+.save-bar {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 96;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--amber);
+  border-radius: 999px;
+  padding: 9px 12px 9px 18px;
+  font-size: 13px;
+  color: var(--ink);
+  box-shadow: 0 8px 30px rgba(15, 25, 40, 0.22);
+  animation: fadeIn 0.2s ease both;
+}
+.save-bar .save-bar-dot {
+  color: var(--amber);
+  font-size: 11px;
+  animation: savePulse 1.6s ease-in-out infinite;
+}
+.save-bar b {
+  color: var(--petrol-dark);
 }
 
 /* ===== legend ===== */
@@ -770,18 +813,19 @@ tr.row-locked td {
 }
 
 /* ===== transitions / motion ===== */
+/* หมายเหตุ: ห้ามใส่ transform ใน keyframe นี้ เพราะ .fade-in ใช้กับ main.page
+   ถ้ามี transform ค้าง element จะกลายเป็น containing block ของ position:fixed
+   ทำให้ Overlay/Toast ไม่คลุมเต็มจอ */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .fade-in {
-  animation: fadeIn 0.22s ease both;
+  animation: fadeIn 0.2s ease both;
 }
 
 /* การ์ด/พาเนล/ปุ่ม/แถว มี transition นุ่ม ๆ */
@@ -820,13 +864,7 @@ tr.row-locked td {
   border-color: var(--petrol);
   box-shadow: 0 0 0 3px rgba(20, 100, 110, 0.14);
 }
-/* แถวตารางไฮไลต์เมื่อชี้ */
-.grid tbody tr {
-  transition: background 0.12s ease;
-}
-.grid tbody tr:hover td:not(.sticky-col) {
-  background: #f7fbfc;
-}
+/* หมายเหตุ: ไม่ทำ hover-highlight บน table.grid เพราะจะทับสี tint (ฟ้า/เหลือง/เทา) */
 .view-table tbody tr {
   transition: background 0.12s ease;
 }

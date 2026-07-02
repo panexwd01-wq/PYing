@@ -32,7 +32,7 @@ export function Cell({
   switch (field.type) {
     case "auto":
       // ดึงจาก Module อื่น -> read-only (เทา)
-      return <div className="cellbox">{value || "—"}</div>;
+      return <div className="cellbox" title={value}>{value || "—"}</div>;
 
     case "toggle":
       return (
@@ -50,7 +50,7 @@ export function Cell({
 
     case "dropdown":
       return (
-        <select className="cell" value={value} onChange={(e) => onChange(e.target.value)}>
+        <select className="cell" title={value} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">—</option>
           {options.map((o) => (
             <option key={o} value={o}>
@@ -70,6 +70,7 @@ export function Cell({
         <input
           className="cell"
           type="number"
+          title={value}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -77,7 +78,7 @@ export function Cell({
 
     default:
       return (
-        <input className="cell" value={value} onChange={(e) => onChange(e.target.value)} />
+        <input className="cell" title={value} value={value} onChange={(e) => onChange(e.target.value)} />
       );
   }
 }

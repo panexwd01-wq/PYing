@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Cell } from "@/components/Cell";
 import { SavingOverlay } from "@/components/SavingOverlay";
+import { SaveBar } from "@/components/SaveBar";
 import { useData } from "@/components/DataProvider";
 import { MODULE_BY_KEY, recordHeaders } from "@/lib/schema";
 import { JobRecord } from "@/lib/types";
@@ -121,9 +122,6 @@ export function RateBoard({ moduleKey }: { moduleKey: string }) {
         <span className="count-pill">{filtered.length} / {rows.length} เรท</span>
         <div className="actions">
           <button className="btn" onClick={addRow}>＋ เพิ่มเรท</button>
-          <button className="btn primary" onClick={save} disabled={dirty.size === 0}>
-            บันทึก {dirty.size > 0 ? `(${dirty.size})` : ""}
-          </button>
         </div>
       </div>
 
@@ -170,6 +168,7 @@ export function RateBoard({ moduleKey }: { moduleKey: string }) {
         </table>
       </div>
 
+      <SaveBar count={dirty.size} onSave={save} saving={saving} label="เรท" />
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </div>
   );

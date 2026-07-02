@@ -5,19 +5,19 @@ import flatpickr from "flatpickr";
 import { Thai } from "flatpickr/dist/l10n/th.js";
 import "flatpickr/dist/flatpickr.css";
 
-// เก็บค่าเป็น "YYYY-MM-DD HH:mm" (24h) แต่แสดงผลเป็นวันที่ไทย (พ.ศ.)
-function toStore(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
-    d.getHours()
-  )}:${p(d.getMinutes())}`;
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+// เก็บค่าเป็น "YYYY-MM-DD HH:mm" หรือ "YYYY-MM-DD" (dateOnly) — แสดงผลเป็นวันที่ไทย (พ.ศ.)
+function toStore(d: Date, dateOnly: boolean): string {
+  const base = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  return dateOnly ? base : `${base} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
 function parseStore(s: string): Date | null {
   if (!s) return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
   if (!m) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
 }
 
 const TH_MONTHS = Thai.months.shorthand as string[];
@@ -26,10 +26,14 @@ export function DateTimePicker({
   value,
   onChange,
   disabled,
+  dateOnly = false,
+  className = "cell",
 }: {
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  dateOnly?: boolean;
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fpRef = useRef<flatpickr.Instance | null>(null);
@@ -40,27 +44,23 @@ export function DateTimePicker({
     if (!inputRef.current) return;
     const fp = flatpickr(inputRef.current, {
       locale: Thai,
-      enableTime: true,
-      time_24hr: true, // เวลาแบบ 24 ชั่วโมง
-      dateFormat: "Y-m-d H:i",
+      enableTime: !dateOnly,
+      time_24hr: true,
+      dateFormat: dateOnly ? "Y-m-d" : "Y-m-d H:i",
       allowInput: false,
       defaultDate: parseStore(value) || undefined,
-      // แสดงผลเป็นวันที่ไทย + ปี พ.ศ.
       formatDate: (date) => {
-        const d = `${date.getDate()} ${TH_MONTHS[date.getMonth()]} ${
-          date.getFullYear() + 543
-        }`;
-        const p = (n: number) => String(n).padStart(2, "0");
-        return `${d} ${p(date.getHours())}:${p(date.getMinutes())} น.`;
+        const d = `${date.getDate()} ${TH_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`;
+        return dateOnly ? d : `${d} ${p2(date.getHours())}:${p2(date.getMinutes())} น.`;
       },
       onChange: (dates) => {
-        onChangeRef.current(dates[0] ? toStore(dates[0]) : "");
+        onChangeRef.current(dates[0] ? toStore(dates[0], dateOnly) : "");
       },
     });
     fpRef.current = fp;
     return () => fp.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dateOnly]);
 
   // sync เมื่อค่าเปลี่ยนจากภายนอก
   useEffect(() => {
@@ -75,8 +75,8 @@ export function DateTimePicker({
   return (
     <input
       ref={inputRef}
-      className="cell"
-      placeholder="เลือกวันที่/เวลา"
+      className={className}
+      placeholder={dateOnly ? "เลือกวันที่" : "เลือกวันที่/เวลา"}
       disabled={disabled}
       readOnly
     />

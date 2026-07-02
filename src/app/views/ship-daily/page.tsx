@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { PrintButton } from "@/components/PrintButton";
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 const chk = (v: string) => (["Yes", "True", "1", "Lost", "Received"].includes((v || "").trim()) ? "☑" : "☐");
 
@@ -45,7 +46,7 @@ export default function ShipDailyView() {
         </div>
         <div className="toolbar no-print" style={{ marginTop: 8 }}>
           <div className="field"><label>วันที่ตรวจปล่อย</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateTimePicker value={date} onChange={setDate} dateOnly />
           </div>
           <div className="field"><label>สถานที่ตรวจ (Place)</label>
             <select value={place} onChange={(e) => setPlace(e.target.value)}>

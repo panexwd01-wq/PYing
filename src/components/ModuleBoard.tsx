@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { JobGrid } from "@/components/JobGrid";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
+import { SaveBar } from "@/components/SaveBar";
 import { CenterLoading } from "@/components/Spinner";
 import { useData } from "@/components/DataProvider";
 import { MODULE_BY_KEY, moduleGroups, recordHeaders } from "@/lib/schema";
@@ -234,9 +235,6 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           <button className="btn" onClick={addRow}>
             ＋ เพิ่มงาน
           </button>
-          <button className="btn primary" onClick={saveAll} disabled={dirty.size === 0}>
-            บันทึก {dirty.size > 0 ? `(${dirty.size})` : ""}
-          </button>
         </div>
       </div>
 
@@ -267,6 +265,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         </div>
       )}
 
+      <SaveBar count={dirty.size} onSave={saveAll} saving={saving} label="งาน" />
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </main>
   );
