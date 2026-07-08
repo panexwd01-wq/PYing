@@ -768,6 +768,13 @@ tr.row-locked td {
 .view-table tbody tr.row-aging:hover td {
   background: #fbdcdc;
 }
+/* ช่องติ๊กเปล่าใบตรวจปล่อย */
+.view-table td.chk {
+  text-align: center;
+  font-size: 16px;
+  color: #333;
+  min-width: 42px;
+}
 
 /* ===== print (Ship Daily) ===== */
 @media print {
@@ -780,6 +787,17 @@ tr.row-locked td {
   }
   .view-table {
     font-size: 12px;
+  }
+  .view-table.ship-daily thead th,
+  .view-table.ship-daily tbody td {
+    border: 1px solid #999;
+    padding: 6px 8px;
+  }
+  .view-table td.chk {
+    font-size: 15px;
+  }
+  .view-table tbody tr:nth-child(even) td {
+    background: #fff;
   }
 }
 

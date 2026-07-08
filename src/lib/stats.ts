@@ -189,14 +189,78 @@ export interface MgmtDash {
   pendingInvoice: number;
   paid: number;
   pendingCollection: number;
+  lastFinished: number;
+  lastFinishedConts: number;
   topCustomers: { name: string; jobs: number; conts: number; pct: number }[];
-  topSales: { name: string; jobs: number; conts: number; pct: number }[];
+  topSales: { name: string; jobs: number; conts: number; pct: number; kpi: number }[];
   jobTypes: { name: string; total: number; finished: number; pending: number }[];
   workflow: { module: string; active: number; pending: number; end: number }[];
   extraCases: number;
   noChargeCases: number;
   lostAmount: number;
   internalErrCases: number;
+  serviceByModule: { module: string; extraCases: number; noChargeCases: number; lost: number; noChargePct: number }[];
+  errorByModule: { module: string; cases: number; loss: number; pct: number }[];
+  topTransOnTime: SupplierStat[];
+  topTransDelay: SupplierStat[];
+  topWhOnTime: SupplierStat[];
+  topWhDelay: SupplierStat[];
+}
+export interface SupplierStat {
+  name: string;
+  jobs: number;
+  conts: number;
+  pct: number;
+  onTime: number;
+  delay: number;
+  onTimePct: number;
+  delayPct: number;
+}
+
+// จับคู่ supplier → นับงาน/ตู้/ตรงเวลา/ล่าช้า (measured = แถวที่มีวันจริง+วันกำหนด)
+function supplierBreakdown(
+  rows: Record<string, string>[],
+  suppKeys: string[],
+  actualKey: string,
+  dueKey: string
+): { onTime: SupplierStat[]; delay: SupplierStat[] } {
+  const m = new Map<string, { jobs: number; conts: number; onTime: number; delay: number }>();
+  let totalJobs = 0;
+  for (const r of rows) {
+    const conts = contQty(r);
+    const actual = (r[actualKey] || "").slice(0, 10);
+    const due = (r[dueKey] || "").slice(0, 10);
+    const measured = !!actual && !!due;
+    const late = measured && actual > due;
+    for (const sk of suppKeys) {
+      const name = (r[sk] || "").trim();
+      if (!name) continue;
+      totalJobs++;
+      const cur = m.get(name) || { jobs: 0, conts: 0, onTime: 0, delay: 0 };
+      cur.jobs++;
+      cur.conts += conts;
+      if (measured) late ? cur.delay++ : cur.onTime++;
+      m.set(name, cur);
+    }
+  }
+  const base = totalJobs || 1;
+  const list: SupplierStat[] = Array.from(m.entries()).map(([name, v]) => {
+    const meas = v.onTime + v.delay || 1;
+    return {
+      name,
+      jobs: v.jobs,
+      conts: v.conts,
+      pct: Math.round((v.jobs / base) * 100),
+      onTime: v.onTime,
+      delay: v.delay,
+      onTimePct: Math.round((v.onTime / meas) * 100),
+      delayPct: Math.round((v.delay / meas) * 100),
+    };
+  });
+  return {
+    onTime: [...list].sort((a, b) => b.onTimePct - a.onTimePct || b.jobs - a.jobs).slice(0, 5),
+    delay: [...list].sort((a, b) => b.delay - a.delay || b.delayPct - a.delayPct).slice(0, 5),
+  };
 }
 export function managementDash(snap: Snapshot, year: string, month: string): MgmtDash {
   const imp = rowsOf(snap, "cs-import");
@@ -218,6 +282,15 @@ export function managementDash(snap: Snapshot, year: string, month: string): Mgm
     (r) => (r.billing_date || "").trim() || ["Invoiced", "Partial Paid", "Paid"].includes(r.ar_status)
   ).length;
   const paid = acc.filter((r) => r.cus_paid === "Yes" || r.ar_status === "Paid").length;
+
+  // เทียบเดือนก่อนหน้า (Finished Jobs/Containers)
+  let ly = +year, lm = +month - 1;
+  if (lm < 1) { lm = 12; ly -= 1; }
+  const lastY = String(ly), lastM = String(lm).padStart(2, "0");
+  const lastFin = [
+    ...imp.filter((r) => r.im_ops_status === "End" && inMonth(r.ended_at, lastY, lastM)),
+    ...exp.filter((r) => r.ex_ops_status === "End" && inMonth(r.ended_at, lastY, lastM)),
+  ];
 
   const total = cs.length || 1;
   const topBy = (key: string) => {
@@ -270,6 +343,42 @@ export function managementDash(snap: Snapshot, year: string, month: string): Mgm
   const lostAmount = noCharge.reduce((a, r) => a + num(r.cost_total), 0);
   const internalErrCases = extra.filter((r) => isInternalErr(r.root_cause)).length;
 
+  // Service / Internal Error แยกตามโมดูลต้นทาง (Extra.module)
+  const SERVICE_MODS = ["Import", "Export", "Shipping", "Transportation", "Warehouse"];
+  const finByMod: Record<string, number> = {
+    Import: impFin.length, Export: expFin.length,
+    Shipping: workflow.find((w) => w.module === "Shipping")?.end || 0,
+    Transportation: workflow.find((w) => w.module === "Transport")?.end || 0,
+    Warehouse: workflow.find((w) => w.module === "Warehouse")?.end || 0,
+  };
+  const serviceByModule = SERVICE_MODS.map((mod) => {
+    const rs = extra.filter((r) => (r.module || "").trim() === mod);
+    const nc = rs.filter((r) => r.profit_sts === "No Charge");
+    return {
+      module: mod,
+      extraCases: rs.length,
+      noChargeCases: nc.length,
+      lost: nc.reduce((a, r) => a + num(r.cost_total), 0),
+      noChargePct: rs.length ? Math.round((nc.length / rs.length) * 100) : 0,
+    };
+  });
+  const errorByModule = SERVICE_MODS.map((mod) => {
+    const errs = extra.filter((r) => (r.module || "").trim() === mod && isInternalErr(r.root_cause));
+    const fin = finByMod[mod] || 0;
+    return {
+      module: mod,
+      cases: errs.length,
+      loss: errs.reduce((a, r) => a + num(r.cost_total), 0),
+      pct: fin ? Math.round((errs.length / fin) * 100) : 0,
+    };
+  });
+
+  const trans = supplierBreakdown(rowsOf(snap, "transport"), ["supp1", "supp2", "supp3"], "actual_delivery_date", "delivery_date");
+  const wh = supplierBreakdown(rowsOf(snap, "warehouse"), ["wh_supp1"], "actual_finished_date", "delivery_date");
+
+  const salesTop = topBy("sales_bkg_by");
+  const topSalesJobs = salesTop[0]?.jobs || 1;
+
   return {
     finished,
     finishedConts,
@@ -278,28 +387,38 @@ export function managementDash(snap: Snapshot, year: string, month: string): Mgm
     active,
     pending,
     completion,
+    lastFinished: lastFin.length,
+    lastFinishedConts: lastFin.reduce((a, r) => a + contQty(r), 0),
     accReceived,
     invoiceIssued,
     pendingInvoice: Math.max(0, accReceived - invoiceIssued),
     paid,
     pendingCollection: Math.max(0, invoiceIssued - paid),
     topCustomers: topBy("customer"),
-    topSales: topBy("sales_bkg_by"),
+    topSales: salesTop.map((s) => ({ ...s, kpi: Math.round((s.jobs / topSalesJobs) * 100) })),
     jobTypes: Array.from(jtMap.entries()).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total),
     workflow,
     extraCases: extra.length,
     noChargeCases: noCharge.length,
     lostAmount,
     internalErrCases,
+    serviceByModule,
+    errorByModule,
+    topTransOnTime: trans.onTime,
+    topTransDelay: trans.delay,
+    topWhOnTime: wh.onTime,
+    topWhDelay: wh.delay,
   };
 }
 
 // ================= 01 Supervisor (control tower) =================
 export interface SupervisorDash {
+  risk: { mostErrorTeam: string; mostErrorCount: number; errorLost: number; mostPendingTeam: string; mostPendingCount: number };
   exceptions: { label: string; count: number; hint: string }[];
   team: { team: string; total: number; active: number; endToday: number; endMonth: number }[];
-  staff: { pic: string; total: number; active: number; end: number; delay: number; error: number }[];
-  noChargeList: { jobNo: string; team: string; pic: string; type: string; lost: number; reason: string; remark: string }[];
+  errorHealth: { team: string; noChargeCases: number; riskPic: string; extraType: string; lost: number; errorRate: number }[];
+  staff: { pic: string; team: string; total: number; active: number; end: number; delay: number; error: number }[];
+  noChargeList: { jobNo: string; date: string; team: string; pic: string; type: string; lost: number; reason: string; remark: string }[];
 }
 export function supervisorDash(snap: Snapshot, year: string, month: string): SupervisorDash {
   const imp = rowsOf(snap, "cs-import");
@@ -360,28 +479,32 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   });
 
   // Staff KPI รวมทุกโมดูล ตาม PIC
-  const staffMap = new Map<string, { total: number; active: number; end: number; delay: number; error: number }>();
-  for (const [key, sk] of teamDefs.map((d) => [d[0], d[1]] as [string, string])) {
+  type SV = { team: string; total: number; active: number; end: number; delay: number; error: number };
+  const staffMap = new Map<string, SV>();
+  const ensure = (pic: string, team: string): SV => {
+    const cur = staffMap.get(pic) || { team, total: 0, active: 0, end: 0, delay: 0, error: 0 };
+    if (!cur.team) cur.team = team;
+    staffMap.set(pic, cur);
+    return cur;
+  };
+  for (const [key, sk, label] of teamDefs) {
     for (const r of rowsOf(snap, key)) {
       const pic = pick(r, PIC_KEYS);
       if (!pic) continue;
-      const cur = staffMap.get(pic) || { total: 0, active: 0, end: 0, delay: 0, error: 0 };
+      const cur = ensure(pic, label);
       cur.total++;
       const s = r[sk] || "";
       if (s === "End") cur.end++;
       else if (s !== "Cancel") cur.active++;
       const d = daysSince(r.created_at);
       if (d != null && d > 7 && s !== "End") cur.delay++;
-      staffMap.set(pic, cur);
     }
   }
   for (const r of rowsOf(snap, "extra")) {
     if (!isInternalErr(r.root_cause)) continue;
     const pic = pick(r, PIC_KEYS);
     if (!pic) continue;
-    const cur = staffMap.get(pic) || { total: 0, active: 0, end: 0, delay: 0, error: 0 };
-    cur.error++;
-    staffMap.set(pic, cur);
+    ensure(pic, r.module || "").error++;
   }
   const staff = Array.from(staffMap.entries())
     .map(([pic, v]) => ({ pic, ...v }))
@@ -391,6 +514,7 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
     .filter((r) => r.profit_sts === "No Charge")
     .map((r) => ({
       jobNo: r.job_no || "",
+      date: (r.ended_at || r.created_at || "").slice(0, 10),
       team: r.module || "",
       pic: pick(r, PIC_KEYS),
       type: r.extra_req_type || "",
@@ -399,7 +523,47 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
       remark: r.no_charge_remark || "",
     }));
 
-  return { exceptions, team, staff, noChargeList };
+  // Internal Error Health รายทีม (จาก Extra.module) + End Job รายทีมสำหรับ Error Rate
+  const endByTeam: Record<string, number> = {};
+  for (const [key, sk, label] of teamDefs) {
+    endByTeam[label] = rowsOf(snap, key).filter((r) => (r[sk] || "") === "End").length;
+  }
+  const modLabelMap: Record<string, string> = {
+    Import: "Import", Export: "Export", Shipping: "Shipping",
+    Transportation: "Transport", Warehouse: "Warehouse",
+  };
+  const errorHealth = ["Import", "Export", "Shipping", "Transportation", "Warehouse"].map((mod) => {
+    const rs = rowsOf(snap, "extra").filter((r) => (r.module || "").trim() === mod);
+    const nc = rs.filter((r) => r.profit_sts === "No Charge");
+    const errs = rs.filter((r) => isInternalErr(r.root_cause));
+    const teamLabel = modLabelMap[mod] || mod;
+    const end = endByTeam[teamLabel] || 0;
+    return {
+      team: mod,
+      noChargeCases: nc.length,
+      riskPic: topCount(errs.map((r) => pick(r, PIC_KEYS)), 1)[0]?.name || "—",
+      extraType: topCount(rs.map((r) => r.extra_req_type || ""), 1)[0]?.name || "—",
+      lost: nc.reduce((a, r) => a + num(r.cost_total), 0),
+      errorRate: end ? Math.round((errs.length / end) * 100) : 0,
+    };
+  });
+
+  // Operational Risk Summary
+  const topErr = [...errorHealth].sort((a, b) => b.noChargeCases - a.noChargeCases)[0];
+  const pendByTeam = teamDefs.map(([key, sk, label]) => ({
+    team: label,
+    count: rowsOf(snap, key).filter((r) => (r[sk] || "") === "Pending").length,
+  }));
+  const topPend = [...pendByTeam].sort((a, b) => b.count - a.count)[0];
+  const risk = {
+    mostErrorTeam: topErr && topErr.noChargeCases > 0 ? topErr.team : "—",
+    mostErrorCount: topErr?.noChargeCases || 0,
+    errorLost: errorHealth.reduce((a, e) => a + e.lost, 0),
+    mostPendingTeam: topPend && topPend.count > 0 ? topPend.team : "—",
+    mostPendingCount: topPend?.count || 0,
+  };
+
+  return { risk, exceptions, team, errorHealth, staff, noChargeList };
 }
 
 // ================= 02 Action Follow-up (Current Module) =================
@@ -427,6 +591,11 @@ export interface ActionRow {
   csPic: string;
   currentModule: string;
   conts: number;
+  c4w: number;
+  c6w: number;
+  c10w: number;
+  c20gp: number;
+  c40hq: number;
   currentStatus: string;
   currentPic: string;
   actionRequired: string;
@@ -491,6 +660,11 @@ export function actionRows(snap: Snapshot): ActionRow[] {
         csPic: pick(r, PIC_KEYS),
         currentModule: current,
         conts: contQty(r),
+        c4w: num(r.cnt_4w),
+        c6w: num(r.cnt_6w),
+        c10w: num(r.cnt_10w),
+        c20gp: num(r.cnt_20gp),
+        c40hq: num(r.cnt_40hq),
         currentStatus: cStatus,
         currentPic: cPic,
         actionRequired: cStatus,

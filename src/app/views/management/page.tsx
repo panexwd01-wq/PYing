@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
-import { managementDash, MONTHS_TH, yearsInData } from "@/lib/stats";
+import { managementDash, MONTHS_TH, yearsInData, SupplierStat } from "@/lib/stats";
 
 function KPI({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
@@ -11,6 +11,21 @@ function KPI({ label, value, sub }: { label: string; value: number | string; sub
       <h3>{label}</h3>
       <div className="dash-total">{value}</div>
       {sub && <div className="muted" style={{ fontSize: 12 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SuppCard({ title, rows, metric }: { title: string; rows: SupplierStat[]; metric: "onTime" | "delay" }) {
+  return (
+    <div className="list-card">
+      <h3>{title}</h3>
+      {rows.length === 0 && <div className="muted">—</div>}
+      {rows.map((r, i) => (
+        <div key={i} className="item-row" style={{ justifyContent: "space-between" }}>
+          <span>{r.name}</span>
+          <b>{r.jobs} job · {r.conts} ตู้ · {metric === "onTime" ? `On-Time ${r.onTimePct}%` : `Delay ${r.delay} (${r.delayPct}%)`}</b>
+        </div>
+      ))}
     </div>
   );
 }
@@ -49,8 +64,8 @@ export default function ManagementView() {
         <>
           <h3 style={{ margin: "6px 4px" }}>Job Summary (เดือนที่เลือก)</h3>
           <div className="lists-grid">
-            <KPI label="Finished Jobs" value={s.finished} sub={`Import ${s.impFinished} · Export ${s.expFinished}`} />
-            <KPI label="Finished Containers" value={s.finishedConts} />
+            <KPI label="Finished Jobs" value={s.finished} sub={`Import ${s.impFinished} · Export ${s.expFinished} · เดือนก่อน ${s.lastFinished}`} />
+            <KPI label="Finished Containers" value={s.finishedConts} sub={`เดือนก่อน ${s.lastFinishedConts}`} />
             <KPI label="Active Jobs" value={s.active} />
             <KPI label="Pending Jobs" value={s.pending} />
             <KPI label="Completion Rate" value={s.completion + "%"} />
@@ -65,7 +80,7 @@ export default function ManagementView() {
             <KPI label="Pending Collection" value={s.pendingCollection} />
           </div>
 
-          <h3 style={{ margin: "14px 4px 6px" }}>Service / Internal Error</h3>
+          <h3 style={{ margin: "14px 4px 6px" }}>Service / Internal Error (รวม)</h3>
           <div className="lists-grid">
             <KPI label="Extra Service Cases" value={s.extraCases} />
             <KPI label="No Charge Cases" value={s.noChargeCases} />
@@ -88,7 +103,7 @@ export default function ManagementView() {
               {s.topSales.length === 0 && <div className="muted">—</div>}
               {s.topSales.map((c, i) => (
                 <div key={i} className="item-row" style={{ justifyContent: "space-between" }}>
-                  <span>{c.name}</span><b>{c.jobs} job · {c.pct}%</b>
+                  <span>{c.name}</span><b>{c.jobs} job · {c.conts} ตู้ · {c.pct}% · KPI {c.kpi}%</b>
                 </div>
               ))}
             </div>
@@ -97,10 +112,34 @@ export default function ManagementView() {
               {s.jobTypes.length === 0 && <div className="muted">—</div>}
               {s.jobTypes.map((c, i) => (
                 <div key={i} className="item-row" style={{ justifyContent: "space-between" }}>
-                  <span>{c.name}</span><b>{c.total} (End {c.finished})</b>
+                  <span>{c.name}</span><b>{c.total} (End {c.finished} · Pending {c.pending})</b>
                 </div>
               ))}
             </div>
+          </div>
+
+          <h3 style={{ margin: "14px 4px 6px" }}>Service Module KPI (รายโมดูล)</h3>
+          <div className="grid-wrap">
+            <table className="view-table">
+              <thead><tr className="field-row"><th>Module</th><th>Extra Cases</th><th>No Charge Cases</th><th>Lost Amount</th><th>No Charge %</th></tr></thead>
+              <tbody>
+                {s.serviceByModule.map((m, i) => (
+                  <tr key={i}><td>{m.module}</td><td>{m.extraCases}</td><td>{m.noChargeCases}</td><td>{m.lost.toLocaleString()}</td><td>{m.noChargePct}%</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style={{ margin: "14px 4px 6px" }}>Internal Error Summary (รายโมดูล)</h3>
+          <div className="grid-wrap">
+            <table className="view-table">
+              <thead><tr className="field-row"><th>Module</th><th>Internal Error Cases</th><th>Loss Amount</th><th>Error % (÷ Finished)</th></tr></thead>
+              <tbody>
+                {s.errorByModule.map((m, i) => (
+                  <tr key={i}><td>{m.module}</td><td>{m.cases}</td><td>{m.loss.toLocaleString()}</td><td>{m.pct}%</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Workflow Health (ทุกโมดูล)</h3>
@@ -113,6 +152,13 @@ export default function ManagementView() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="lists-grid" style={{ marginTop: 14 }}>
+            <SuppCard title="Transport Supplier — Top 5 On-Time" rows={s.topTransOnTime} metric="onTime" />
+            <SuppCard title="Transport Supplier — Top 5 Delay" rows={s.topTransDelay} metric="delay" />
+            <SuppCard title="Warehouse Supplier — Top 5 On-Time" rows={s.topWhOnTime} metric="onTime" />
+            <SuppCard title="Warehouse Supplier — Top 5 Delay" rows={s.topWhDelay} metric="delay" />
           </div>
         </>
       )}

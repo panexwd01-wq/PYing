@@ -6,7 +6,12 @@ import { CenterLoading } from "@/components/Spinner";
 import { PrintButton } from "@/components/PrintButton";
 import { DateTimePicker } from "@/components/DateTimePicker";
 
-const chk = (v: string) => (["Yes", "True", "1", "Lost", "Received"].includes((v || "").trim()) ? "☑" : "☐");
+const num = (v: unknown) => {
+  const n = parseFloat(String(v ?? "").replace(/,/g, ""));
+  return isNaN(n) ? 0 : n;
+};
+// กล่องติ๊กเปล่าสำหรับปริ้นไปติ๊กมือหน้างาน
+const BOX = "☐";
 
 export default function ShipDailyView() {
   const { data, loading, error, reload } = useData();
@@ -14,6 +19,18 @@ export default function ShipDailyView() {
   const [date, setDate] = useState("");
   const [jobType, setJobType] = useState("");
   const [place, setPlace] = useState(lists.place?.[0] || "LCB");
+
+  // ดึงข้อมูล CS (จำนวนตู้ 20GP/40HQ) ตาม Job No.
+  const csByJob = useMemo(() => {
+    const m = new Map<string, Record<string, string>>();
+    for (const key of ["cs-import", "cs-export"]) {
+      for (const r of data?.modules[key] || []) {
+        const j = (r.imp_job_no || r.exp_job_no || "").trim();
+        if (j) m.set(j, r);
+      }
+    }
+    return m;
+  }, [data]);
 
   // จำนวนซัพขนส่งต่อ Job (จาก 07_Transportation)
   const transConts = useMemo(() => {
@@ -34,6 +51,11 @@ export default function ShipDailyView() {
       return true;
     });
   }, [data, date, jobType]);
+
+  const contQty = (job: string) => {
+    const cs = csByJob.get(job);
+    return cs ? num(cs.cnt_20gp) + num(cs.cnt_40hq) : 0;
+  };
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -63,41 +85,50 @@ export default function ShipDailyView() {
         {error ? (
           <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={reload}>ลองใหม่</button></p>
         ) : (
-          <p className="muted">ตรวจปล่อยที่ <b>{place}</b>{date ? ` วันที่ ${date}` : ""} · {rows.length} รายการ (งานที่ยังไม่ End)</p>
+          <p className="muted">ตรวจปล่อยที่ <b>{place}</b>{date ? ` วันที่ ${date}` : ""} · {rows.length} รายการ (งานที่ยังไม่ End + งาน Pending เก่า)</p>
         )}
       </div>
 
       {!error && (
         <div className="grid-wrap">
-          <table className="view-table">
+          <table className="view-table ship-daily">
             <thead>
               <tr className="field-row">
-                <th>No.</th><th>Booking/MBL</th><th>Customer</th><th>Cust Ref</th><th>Delivery Date</th>
-                <th>Ship PIC</th><th>Trans Conts</th><th>Cs Note</th><th>Entry Remark</th><th>Extra Type</th>
-                <th>Clearance</th><th>Forgot OT</th><th>OT Req</th><th>OT Lost</th>
+                <th>No.</th><th>Booking / MBL</th><th>Customer</th><th>Cust Ref</th><th>20GP/40HC ตู้</th>
+                <th>Delivery Date</th><th>Ship PIC</th><th>Trans Conts</th><th>Cs Note</th><th>Entry Remark</th>
+                <th>Extra / Service Req</th>
+                <th>End</th><th>Red</th><th>X-ray</th><th>Pending</th>
+                <th>OT Req</th><th>OT Receipt Lost</th><th>Reason / Pending Remark</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.__id}>
-                  <td>{i + 1}</td>
-                  <td>{r.booking_mbl || "—"}</td>
-                  <td>{r.customer || "—"}</td>
-                  <td>{r.customer_ref || "—"}</td>
-                  <td>{r.delivery_date || "—"}</td>
-                  <td>{r.ship_pic || "—"}</td>
-                  <td>{transConts.get((r.job_no || "").trim()) ?? ""}</td>
-                  <td>{r.cs_note_ship || ""}</td>
-                  <td>{r.entry_remark || ""}</td>
-                  <td>{r.extra_req_type || ""}</td>
-                  <td>{r.clearance_status || ""}</td>
-                  <td style={{ textAlign: "center" }}>{chk(r.forgot_ot)}</td>
-                  <td style={{ textAlign: "center" }}>{chk(r.ot_requested)}</td>
-                  <td style={{ textAlign: "center" }}>{chk(r.ot_receipt_lost)}</td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const job = (r.job_no || "").trim();
+                return (
+                  <tr key={r.__id}>
+                    <td>{i + 1}</td>
+                    <td>{r.booking_mbl || "—"}</td>
+                    <td>{r.customer || "—"}</td>
+                    <td>{r.customer_ref || "—"}</td>
+                    <td style={{ textAlign: "center" }}>{contQty(job) || ""}</td>
+                    <td>{r.delivery_date || "—"}</td>
+                    <td>{r.ship_pic || "—"}</td>
+                    <td style={{ textAlign: "center" }}>{transConts.get(job) ?? ""}</td>
+                    <td>{r.cs_note_ship || ""}</td>
+                    <td>{r.entry_remark || ""}</td>
+                    <td>{r.extra_req_type || ""}</td>
+                    <td className="chk">{BOX}</td>
+                    <td className="chk">{BOX}</td>
+                    <td className="chk">{BOX}</td>
+                    <td className="chk">{BOX}</td>
+                    <td className="chk">{BOX}</td>
+                    <td className="chk">{BOX}</td>
+                    <td></td>
+                  </tr>
+                );
+              })}
               {rows.length === 0 && (
-                <tr><td colSpan={14} style={{ padding: 26, textAlign: "center", color: "#777" }}>ไม่มีงานตรวจปล่อยตามเงื่อนไข</td></tr>
+                <tr><td colSpan={18} style={{ padding: 26, textAlign: "center", color: "#777" }}>ไม่มีงานตรวจปล่อยตามเงื่อนไข</td></tr>
               )}
             </tbody>
           </table>
