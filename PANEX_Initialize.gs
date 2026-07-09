@@ -3,12 +3,12 @@
  * รันฟังก์ชัน PANEX_INITIALIZE() หนึ่งครั้งใน Editor ของ Google Sheets
  *
  * ทำอะไร:
- *   1) สร้าง tab ของทุกโมดูล (04–10) พร้อมหัวตาราง (คอลัมน์ A = __id ภายใน)
+ *   1) สร้าง tab ของทุกโมดูล (04–10 + เรท 13) พร้อมหัวตาราง (คอลัมน์ A = __id ภายใน)
  *   2) สร้าง tab "_lists" เก็บ dropdown แบบบล็อก (list ละ 1 คอลัมน์ เว้น 1 คอลัมน์คั่น)
  *      แล้ว seed ค่าตั้งต้น "เฉพาะเมื่อยังว่าง" (ไม่ทับของเดิม)
  *
- * ปลอดภัยกับข้อมูลเดิม: หัวตารางจะเขียนก็ต่อเมื่อยังไม่ตรง และ dropdown seed เฉพาะตอนว่าง
  * ไฟล์นี้ generate จาก schema ของเว็บโดยตรง — header ตรงกับที่เว็บอ่าน/เขียน
+ * เวอร์ชันนี้เปลี่ยนหัวตาราง 04–10 เยอะ (requirement ใหม่) → ควรเคลียร์ชีท 04–10 ก่อน Initialize
  */
 
 var LIST_SHEET = "_lists";
@@ -19,12 +19,13 @@ var PANEX_HEADERS = {
     "__id",
     "im_ops_status",
     "job_type",
-    "imp_job_no",
+    "re_export",
     "im_cs",
     "co_agent_carrier",
     "sales_bkg_by",
     "etd_imp",
     "eta_imp",
+    "imp_job_no",
     "imp_booking_mbl",
     "imp_hbl",
     "customer",
@@ -99,7 +100,7 @@ var PANEX_HEADERS = {
     "__id",
     "ex_ops_status",
     "job_type",
-    "exp_job_no",
+    "re_export",
     "ex_cs",
     "sales_bkg_by",
     "etd_exp",
@@ -107,6 +108,7 @@ var PANEX_HEADERS = {
     "customer",
     "exp_booking_mbl",
     "exp_hbl",
+    "exp_job_no",
     "pol",
     "pod",
     "cnt_4w",
@@ -141,7 +143,7 @@ var PANEX_HEADERS = {
     "transport_flag",
     "del_address",
     "delivery_date",
-    "trans_extra_require",
+    "trans_extra_type",
     "trans_supp1",
     "trans_supp1_vol",
     "trans_supp1_sts",
@@ -173,6 +175,7 @@ var PANEX_HEADERS = {
     "wh_supp1_pending",
     "cs_note_wh",
     "ex_ops_status_date",
+    "data_from_import",
     "created_at",
     "ended_at"
   ],
@@ -180,8 +183,8 @@ var PANEX_HEADERS = {
     "__id",
     "shipp_status",
     "job_type",
-    "job_no",
     "entry_pic",
+    "job_no",
     "booking_mbl",
     "hbl",
     "customer",
@@ -224,9 +227,9 @@ var PANEX_HEADERS = {
     "__id",
     "trans_status",
     "job_type",
-    "job_no",
     "trans_pic",
     "cs_pic",
+    "job_no",
     "booking_mbl",
     "customer",
     "cnt_4w",
@@ -275,9 +278,9 @@ var PANEX_HEADERS = {
     "__id",
     "wha_status",
     "job_type",
-    "job_no",
     "wh_pic",
     "cs_pic",
+    "job_no",
     "booking_mbl",
     "customer",
     "customer_ref",
@@ -404,7 +407,6 @@ var PANEX_HEADERS = {
   ]
 };
 
-// ค่า dropdown ตั้งต้น (ตรงกับ LIST_SEED)
 var PANEX_LIST_SEED = {
   "im_ops_status": [
     "Open",
@@ -593,7 +595,8 @@ var PANEX_LIST_SEED = {
   ],
   "receipt_lost": [
     "Received",
-    "Lost"
+    "Lost",
+    "N/A"
   ],
   "clearance_status": [
     "Pending",
@@ -619,12 +622,11 @@ var PANEX_LIST_SEED = {
     "No"
   ],
   "cost_module": [
-    "Import",
-    "Export",
-    "Shipping",
-    "Transportation",
-    "Warehouse",
-    "CS Operation"
+    "FREIGHT IMPORT",
+    "FREIGHT EXPORT",
+    "SHIPPING",
+    "TRANSPORT",
+    "WAREHOUSE"
   ],
   "unit_list": [
     "Trip",
@@ -726,14 +728,14 @@ function PANEX_INITIALIZE() {
   // ----- 2) _lists : seed เฉพาะเมื่อว่าง -----
   report.push(seedLists_(ss));
 
-  SpreadsheetApp.getUi().alert("PANEX Initialize เสร็จ\n\n" + report.join("\n"));
+  var NL = String.fromCharCode(10);
+  SpreadsheetApp.getUi().alert("PANEX Initialize เสร็จ" + NL + NL + report.join(NL));
 }
 
 function seedLists_(ss) {
   var sh = ss.getSheetByName(LIST_SHEET);
   if (!sh) sh = ss.insertSheet(LIST_SHEET);
 
-  // ตรวจว่ามีค่า list อยู่แล้วหรือยัง (ดูตั้งแต่แถว 2 ลงไป)
   var lastRow = sh.getLastRow();
   var lastCol = sh.getLastColumn();
   var hasAny = false;
@@ -745,12 +747,11 @@ function seedLists_(ss) {
   }
   if (hasAny) return LIST_SHEET + " : มี dropdown อยู่แล้ว (ข้าม seed)";
 
-  // สร้างบล็อก: [key, ...values] เว้น 1 คอลัมน์คั่นแต่ละ list
   var keys = Object.keys(PANEX_LIST_SEED);
   var cols = [];
   keys.forEach(function (k, i) {
     cols.push([k].concat(PANEX_LIST_SEED[k] || []));
-    if (i < keys.length - 1) cols.push([]); // คอลัมน์คั่น
+    if (i < keys.length - 1) cols.push([]);
   });
   var height = 1;
   cols.forEach(function (c) { if (c.length > height) height = c.length; });

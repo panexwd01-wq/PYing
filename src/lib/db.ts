@@ -10,7 +10,7 @@ import {
   ModuleDef,
   recordHeaders,
 } from "./schema";
-import { checkEnd } from "./endRules";
+import { checkEnd, EndCtx } from "./endRules";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
@@ -145,6 +145,9 @@ function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecor
     const count = numOf(next.count);
     next.cost_total = String(numOf(next.cost_unit) * count);
     next.margin_total = String((numOf(next.sell_unit) - numOf(next.cost_unit)) * count);
+    // Ready Acc? = Done เมื่อ Cost/Sell Sts ครบ (auto)
+    const done = (v: unknown) => ["Complete", "Completed"].includes(String(v ?? "").trim());
+    next.ready_acc = done(next.cost_sts) && done(next.sell_sts) ? "Done" : "Pending";
   }
   return next;
 }
@@ -249,14 +252,43 @@ async function makeEnricher(m: ModuleDef): Promise<Enricher> {
 }
 
 // บังคับกติกา End Lock: ถ้าจะตั้ง Status = End ต้องผ่านเงื่อนไขครบ
-function enforceEnd(m: ModuleDef, rec: JobRecord): void {
+function enforceEnd(m: ModuleDef, rec: JobRecord, ctx?: EndCtx): void {
   const statusKey = m.fields[0]?.key;
   if (!statusKey || rec[statusKey] !== "End") return;
-  const reasons = checkEnd(m, rec);
+  const reasons = checkEnd(m, rec, ctx);
   if (reasons.length) {
     const jn = rec[m.jobNoKey] || rec.__id || "";
     throw new Error(`End ไม่ได้ (${jn}): ${reasons.join(" · ")}`);
   }
+}
+
+// สร้าง EndCtx (ข้อมูลข้ามโมดูล) เฉพาะตอน CS Import/Export จะตั้ง Status = End
+async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<EndCtx | undefined> {
+  if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export") return undefined;
+  const statusKey = m.fields[0].key;
+  if (!recs.some((r) => r[statusKey] === "End")) return undefined;
+  const [expRows, shipRows, transRows, whRows, accRows] = await Promise.all([
+    rawList(EXPORT_MODULE),
+    rawList(MODULE_BY_ID["06_Shipping"]),
+    rawList(MODULE_BY_ID["07_Transportation"]),
+    rawList(MODULE_BY_ID["08_Warehouse"]),
+    rawList(MODULE_BY_ID[ACC_ID]),
+  ]);
+  const endMap = (rows: JobRecord[], sk: string) => {
+    const map = new Map<string, boolean>();
+    for (const r of rows) {
+      const j = (r.job_no || "").trim();
+      if (j) map.set(j, r[sk] === "End");
+    }
+    return map;
+  };
+  return {
+    hasAcc: new Set(accRows.map((r) => (r.job_no || "").trim()).filter(Boolean)),
+    hasExport: new Set(expRows.map((r) => (r.exp_job_no || "").trim()).filter(Boolean)),
+    shipEnd: endMap(shipRows, "shipp_status"),
+    transEnd: endMap(transRows, "trans_status"),
+    whEnd: endMap(whRows, "wha_status"),
+  };
 }
 
 // ===== record CRUD =====
@@ -384,6 +416,7 @@ export async function createJobs(
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
+  const endCtx = await buildEndCtx(m, recs);
   const stamp = nowStamp();
   const setCreated = hasField(m, "created_at");
   const out: JobRecord[] = [];
@@ -392,7 +425,7 @@ export async function createJobs(
     const withId = en({ ...rec, __id: rec.__id || genId(i + 1) } as JobRecord);
     if (setCreated && !withId.created_at) withId.created_at = stamp; // วันเปิดงาน (ครั้งเดียว)
     const final = applyAutoRules(m, withId) as JobRecord;
-    enforceEnd(m, final);
+    enforceEnd(m, final, endCtx);
     out.push(final);
     values.push(recordToRow(m, final));
   });
@@ -436,6 +469,8 @@ export async function updateJobs(
   }
 
   // ไม่ enrich ตอนบันทึก (ประหยัดโควต้าอ่าน) — ค่าที่ pull ไว้เดิมถูกเก็บไว้ครบใน existing
+  const merged0 = recs.map((rec) => ({ ...existingById.get(rec.__id || ""), ...rec }));
+  const endCtx = await buildEndCtx(m, merged0);
   const data: { range: string; values: string[][] }[] = [];
   const out: JobRecord[] = [];
   for (const rec of recs) {
@@ -444,7 +479,7 @@ export async function updateJobs(
     if (!rowNum) throw new Error(`ไม่พบระเบียนที่ต้องการแก้ไข (${rec.__id})`);
     const merged = { ...existingById.get(rec.__id), ...rec } as JobRecord;
     const withRules = applyAutoRules(m, merged) as JobRecord;
-    enforceEnd(m, withRules);
+    enforceEnd(m, withRules, endCtx);
     data.push({
       range: `${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`,
       values: [recordToRow(m, withRules)],
@@ -479,16 +514,7 @@ export async function refreshModule(m: ModuleDef): Promise<number> {
   return rows.length;
 }
 
-// ===== Sync: Extra Split + Accounting Master Queue (Workflow Rules) =====
-
-// โมดูลต้นทางที่มีช่อง Extra/Service + ป้ายชื่อโมดูลที่ใช้ในช่อง "Module"
-const EXTRA_SOURCES: { id: string; label: string }[] = [
-  { id: "04_CS_Import", label: "Import" },
-  { id: "05_CS_Export", label: "Export" },
-  { id: "06_Shipping", label: "Shipping" },
-  { id: "07_Transportation", label: "Transportation" },
-  { id: "08_Warehouse", label: "Warehouse" },
-];
+// ===== Auto-link / Sync (Workflow Rules) =====
 
 const splitTypes = (v: string) =>
   (v || "").split(" | ").map((s) => s.trim()).filter(Boolean);
@@ -501,16 +527,134 @@ const CS_FLAG_LINKS: { flag: string; id: string }[] = [
   { flag: "warehouse_flag", id: "08_Warehouse" },
 ];
 
-// โมดูลต้นทาง → ป้าย "Module" ที่ใช้ในแถว Extra (09)
+// โมดูลต้นทาง → ป้าย "Module" ที่ใช้ในแถว Extra (09) / Accounting (10)
 const EXTRA_MODULE_LABEL: Record<string, string> = {
-  "04_CS_Import": "Import",
-  "05_CS_Export": "Export",
-  "06_Shipping": "Shipping",
-  "07_Transportation": "Transportation",
-  "08_Warehouse": "Warehouse",
+  "04_CS_Import": "FREIGHT IMPORT",
+  "05_CS_Export": "FREIGHT EXPORT",
+  "06_Shipping": "SHIPPING",
+  "07_Transportation": "TRANSPORT",
+  "08_Warehouse": "WAREHOUSE",
 };
 
 const MID_MODULE_IDS = ["06_Shipping", "07_Transportation", "08_Warehouse"];
+const EXTRA_ID = "09_Extra_Service";
+const ACC_ID = "10_Accounting";
+
+// Supplier + Cost PIC ของแถว Extra ตามโมดูลต้นทาง (เติมตอนสร้าง)
+function extraMetaFromSource(m: ModuleDef, rec: JobRecord): { supplier: string; cost_pic: string } {
+  switch (m.id) {
+    case "04_CS_Import": return { supplier: "", cost_pic: rec.im_cs || "" };
+    case "05_CS_Export": return { supplier: "", cost_pic: rec.ex_cs || "" };
+    case "06_Shipping": return { supplier: rec.ship_outsourcing || "", cost_pic: rec.ship_pic || "" };
+    case "07_Transportation":
+      return { supplier: [rec.supp1, rec.supp2, rec.supp3].filter(Boolean).join(", "), cost_pic: rec.trans_pic || "" };
+    case "08_Warehouse": return { supplier: rec.wh_supp1 || "", cost_pic: rec.wh_pic || "" };
+    default: return { supplier: "", cost_pic: "" };
+  }
+}
+
+// Re-Export: CS Import re_export=Yes → สร้าง record ใน CS Export (เติม Data from Import)
+function reExportSeed(r: JobRecord, jobNo: string): Partial<JobRecord> {
+  return {
+    ex_ops_status: "Open",
+    re_export: "Yes", // ช่องนี้ใน Export เป็น auto (มาจาก Import)
+    exp_job_no: jobNo, // ใช้เลขงานเดียวกันเป็นตัวเชื่อม
+    job_type: r.job_type,
+    ex_cs: r.im_cs,
+    sales_bkg_by: r.sales_bkg_by,
+    co_agent_carrier: r.co_agent_carrier,
+    customer: r.customer,
+    exp_booking_mbl: r.imp_booking_mbl,
+    exp_hbl: r.imp_hbl,
+    exp_customer_ref: r.imp_customer_ref,
+    pol: r.pol,
+    pod: r.pod,
+    cnt_4w: r.cnt_4w,
+    cnt_6w: r.cnt_6w,
+    cnt_10w: r.cnt_10w,
+    cnt_20gp: r.cnt_20gp,
+    cnt_40hq: r.cnt_40hq,
+    vessel: r.vessel,
+    term: r.term,
+    cargo_type: r.cargo_type,
+    ex_cs_remark: r.im_cs_remark,
+    data_from_import: "Yes",
+  };
+}
+
+// สร้าง Export อัตโนมัติเมื่อ Import re_export=Yes (ยังไม่มี)
+async function reconcileReExport(rec: JobRecord): Promise<void> {
+  if ((rec.re_export || "") !== "Yes") return;
+  const jobNo = (rec.imp_job_no || "").trim();
+  if (!jobNo) return;
+  const expRows = await rawList(EXPORT_MODULE);
+  if (expRows.some((r) => (r.exp_job_no || "").trim() === jobNo)) return;
+  await createJobs(EXPORT_MODULE, [reExportSeed(rec, jobNo)], true, true);
+}
+
+// Accounting real-time: ทุก job ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09
+// สร้างที่ขาด + อัปเดตค่า AP/AR ที่ดึงจาก extra + ลบแถวที่ไม่มี extra คู่แล้ว
+async function reconcileAccounting(jobNo: string): Promise<void> {
+  if (!jobNo) return;
+  const ACC = MODULE_BY_ID[ACC_ID];
+  const EXTRA = MODULE_BY_ID[EXTRA_ID];
+  const src = await getSourceIndex();
+  const origin = src.imp.has(jobNo)
+    ? "FREIGHT IMPORT"
+    : src.exp.has(jobNo)
+    ? "FREIGHT EXPORT"
+    : "";
+  if (!origin) return; // job ไม่มีต้นทาง CS → ไม่ต้องมี Accounting
+
+  const extras = (await rawList(EXTRA)).filter((e) => (e.job_no || "").trim() === jobNo);
+  // desired: key = module||req_type → ค่าที่ต้องมี
+  interface Want { module: string; type: string; data: Partial<JobRecord> }
+  const wants: Want[] = [];
+  if (extras.length === 0) {
+    wants.push({ module: origin, type: "", data: { module: origin, acc_job_status: "Open" } });
+  } else {
+    for (const e of extras) {
+      wants.push({
+        module: e.module || origin,
+        type: e.extra_req_type || "",
+        data: {
+          module: e.module || origin,
+          acc_job_status: "Open",
+          supplier: e.supplier || "",
+          ap_extra_req_type: e.extra_req_type || "",
+          ap_root_cause: e.root_cause || "",
+          ap_cost_unit: e.cost_unit || "",
+          ap_cost_cur: e.cost_cur || "",
+          ap_total_cost: e.cost_total || "",
+          ar_sell_unit: e.sell_unit || "",
+          ar_sell_cur: e.sell_cur || "",
+          ar_total_sell: String(numOf(e.sell_unit) * numOf(e.count)),
+        },
+      });
+    }
+  }
+  const wantKeys = new Set(wants.map((w) => `${w.module}||${w.type}`));
+
+  const existing = (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo);
+  const byKey = new Map<string, JobRecord>();
+  for (const r of existing) byKey.set(`${r.module || ""}||${r.ap_extra_req_type || ""}`, r);
+
+  const toCreate: Partial<JobRecord>[] = [];
+  const toUpdate: Partial<JobRecord>[] = [];
+  for (const w of wants) {
+    const key = `${w.module}||${w.type}`;
+    const cur = byKey.get(key);
+    if (cur) toUpdate.push({ __id: cur.__id, ...w.data }); // refresh ค่าที่ดึงจาก extra (คงค่าที่กรอกเอง)
+    else toCreate.push({ job_no: jobNo, ...w.data });
+  }
+  // ลบแถว Accounting ที่ไม่มี extra/base คู่แล้ว
+  for (const r of existing) {
+    const key = `${r.module || ""}||${r.ap_extra_req_type || ""}`;
+    if (!wantKeys.has(key)) await deleteJob(ACC, r.__id!, false);
+  }
+  if (toCreate.length) await createJobs(ACC, toCreate, true, false);
+  if (toUpdate.length) await updateJobs(ACC, toUpdate, false);
+}
 
 // ปรับ record ปลายทางให้ตรงกับ flag/req type บนต้นทาง (เรียกหลัง create/update)
 // - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/Job No.)
@@ -519,7 +663,26 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
   if (!saved.length) return;
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = MID_MODULE_IDS.includes(m.id);
+
+  // Extra (09) ถูกแก้ (Cost/Sell PIC ลงค่า) → refresh Accounting ของ job นั้น
+  if (m.id === EXTRA_ID) {
+    const jobs = new Set(saved.map((r) => (r.job_no || "").trim()).filter(Boolean));
+    for (const j of jobs) await reconcileAccounting(j);
+    return;
+  }
   if (!isCS && !isMid) return;
+
+  // เก็บ Job No. ที่แตะ เพื่อ refresh Accounting ทีเดียวตอนท้าย
+  const touched = new Set<string>();
+  for (const rec of saved) {
+    const jn = (rec[m.jobNoKey] || "").trim();
+    if (jn) touched.add(jn);
+  }
+
+  // ----- 0) Re-Export (เฉพาะ CS Import): re_export=Yes → สร้าง Export -----
+  if (m.id === "04_CS_Import") {
+    for (const rec of saved) await reconcileReExport(rec);
+  }
 
   // ----- 1) CS: สร้าง/ลบ record เดี่ยวใน Shipping/Transport/Warehouse ตาม flag -----
   if (isCS) {
@@ -550,7 +713,7 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
   // ----- 2) Extra (09): สร้าง/ลบแถวตาม extra_require + req type ที่เลือก -----
   const label = EXTRA_MODULE_LABEL[m.id];
   if (label) {
-    const EXTRA = MODULE_BY_ID["09_Extra_Service"];
+    const EXTRA = MODULE_BY_ID[EXTRA_ID];
     const mineByJob = new Map<string, JobRecord[]>();
     for (const r of await rawList(EXTRA)) {
       if ((r.module || "") !== label) continue;
@@ -561,6 +724,7 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
     for (const rec of saved) {
       const jobNo = (rec[m.jobNoKey] || "").trim();
       if (!jobNo) continue;
+      const meta = extraMetaFromSource(m, rec);
       const want =
         (rec.extra_require || "") === "Yes"
           ? new Set(splitTypes(rec.extra_req_type || ""))
@@ -572,10 +736,16 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
         else await deleteJob(EXTRA, e.__id!, false); // ไม่ต้องการแล้ว / ซ้ำ → ลบ
       }
       for (const t of want) if (!have.has(t))
-        toCreate.push({ job_no: jobNo, module: label, extra_req_type: t, extra_status: "Open" });
+        toCreate.push({
+          job_no: jobNo, module: label, extra_req_type: t, extra_status: "Open",
+          supplier: meta.supplier, cost_pic: meta.cost_pic,
+        });
     }
     if (toCreate.length) await createJobs(EXTRA, toCreate, true, false);
   }
+
+  // ----- 3) Accounting: ทุก job ต้องมีแถว (real-time) -----
+  for (const jn of touched) await reconcileAccounting(jn);
 }
 
 // cascade ลบปลายทางเมื่อลบงานต้นทาง (4 โมดูลนี้ผูกกับ CS ไม่มีชีวิตอิสระ)
@@ -583,172 +753,50 @@ async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = MID_MODULE_IDS.includes(m.id);
   if (!isCS && !isMid) return;
+  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
+  if (!jobNo) return;
+
+  const EXTRA = MODULE_BY_ID[EXTRA_ID];
+  const ACC = MODULE_BY_ID[ACC_ID];
 
   if (isCS) {
-    const jobNo = (rec[m.jobNoKey] || "").trim();
-    if (!jobNo) return;
     // ลบ record ใน 06/07/08 (จะ cascade ต่อไปลบ Extra ป้ายของแต่ละโมดูลเอง)
     for (const id of MID_MODULE_IDS) {
       const tm = MODULE_BY_ID[id];
       for (const r of await rawList(tm))
         if ((r.job_no || "").trim() === jobNo) await deleteJob(tm, r.__id!);
     }
-  }
-  // ลบแถว Extra (09) ที่เป็นป้ายของโมดูลนี้ สำหรับ Job No. นี้
-  const label = EXTRA_MODULE_LABEL[m.id];
-  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
-  if (label && jobNo) {
-    const EXTRA = MODULE_BY_ID["09_Extra_Service"];
+    // ลบ Extra + Accounting ทั้งหมดของ job นี้
     for (const r of await rawList(EXTRA))
-      if ((r.job_no || "").trim() === jobNo && (r.module || "") === label)
-        await deleteJob(EXTRA, r.__id!, false);
+      if ((r.job_no || "").trim() === jobNo) await deleteJob(EXTRA, r.__id!, false);
+    for (const r of await rawList(ACC))
+      if ((r.job_no || "").trim() === jobNo) await deleteJob(ACC, r.__id!, false);
+    return;
   }
+
+  // isMid: ลบ Extra ป้ายของโมดูลนี้ แล้ว refresh Accounting ให้ตรง
+  const label = EXTRA_MODULE_LABEL[m.id];
+  for (const r of await rawList(EXTRA))
+    if ((r.job_no || "").trim() === jobNo && (r.module || "") === label)
+      await deleteJob(EXTRA, r.__id!, false);
+  await reconcileAccounting(jobNo);
 }
 
-// Re-Export: CS Import ที่ Job Type = Re-Export/* -> สร้าง record ใน CS Export (05) ให้อัตโนมัติ
-async function reExportLink(): Promise<number> {
-  const impRows = await rawList(IMPORT_MODULE);
-  const expRows = await rawList(EXPORT_MODULE);
-  const existExp = new Set(expRows.map((r) => (r.exp_job_no || "").trim()));
-  const toCreate: Partial<JobRecord>[] = [];
-  for (const r of impRows) {
-    if (!/^Re-Export/i.test(r.job_type || "")) continue;
-    const jobNo = (r.imp_job_no || "").trim();
-    if (!jobNo || existExp.has(jobNo)) continue;
-    existExp.add(jobNo);
-    toCreate.push({
-      ex_ops_status: "Open",
-      exp_job_no: jobNo, // ใช้เลขงานเดียวกันเป็นตัวเชื่อม
-      job_type: r.job_type,
-      ex_cs: r.im_cs,
-      sales_bkg_by: r.sales_bkg_by,
-      co_agent_carrier: r.co_agent_carrier,
-      customer: r.customer,
-      exp_booking_mbl: r.imp_booking_mbl,
-      exp_hbl: r.imp_hbl,
-      exp_customer_ref: r.imp_customer_ref,
-      pol: r.pol,
-      pod: r.pod,
-      cnt_4w: r.cnt_4w,
-      cnt_6w: r.cnt_6w,
-      cnt_10w: r.cnt_10w,
-      cnt_20gp: r.cnt_20gp,
-      cnt_40hq: r.cnt_40hq,
-      vessel: r.vessel,
-      term: r.term,
-      ex_cs_remark: r.im_cs_remark,
-    });
-  }
-  return (await createJobs(EXPORT_MODULE, toCreate)).length;
-}
-
-export async function syncAll(): Promise<{
-  message: string;
-  reExport: number;
-  extraCreated: number;
-  accCreated: number;
-}> {
-  const EXTRA = MODULE_BY_ID["09_Extra_Service"];
-  const ACC = MODULE_BY_ID["10_Accounting"];
-
-  // ----- 0) Re-Export link (Import -> Export) -----
-  const reExport = await reExportLink();
-
-  // ----- 1) Extra Split -> 09_Extra_Service -----
-  const existingExtra = await rawList(EXTRA);
-  const extraKeys = new Set(
-    existingExtra.map(
-      (r) => `${(r.job_no || "").trim()}||${r.module || ""}||${r.extra_req_type || ""}`
-    )
-  );
-  const newExtra: Partial<JobRecord>[] = [];
-  for (const src of EXTRA_SOURCES) {
-    const m = MODULE_BY_ID[src.id];
+// Sync / Backfill: reconcile ทุกงานต้นทางใหม่
+// ปกติ reconcile ทำ real-time ตอนบันทึกอยู่แล้ว — ปุ่มนี้ไว้ซ่อม/เติมย้อนหลังกรณีข้อมูลหลุด sync
+export async function syncAll(): Promise<{ message: string; reconciled: number }> {
+  let n = 0;
+  for (const id of ["04_CS_Import", "05_CS_Export", "06_Shipping", "07_Transportation", "08_Warehouse"]) {
+    const m = MODULE_BY_ID[id];
     const rows = await rawList(m);
-    for (const r of rows) {
-      if ((r.extra_require || "") !== "Yes") continue;
-      const jobNo = (r[m.jobNoKey] || "").trim();
-      if (!jobNo) continue;
-      for (const t of splitTypes(r.extra_req_type || "")) {
-        const key = `${jobNo}||${src.label}||${t}`;
-        if (extraKeys.has(key)) continue;
-        extraKeys.add(key);
-        newExtra.push({ job_no: jobNo, module: src.label, extra_req_type: t, extra_status: "Open" });
-      }
+    if (rows.length) {
+      await reconcileLinks(m, rows);
+      n += rows.length;
     }
   }
-  const extraCreated = (await createJobs(EXTRA, newExtra, true)).length;
-
-  // ----- 2) Accounting Master Queue -> 10_Accounting -----
-  // จัดกลุ่ม Extra (รวมที่เพิ่งสร้าง) ตาม Job No.
-  const allExtra = await rawList(EXTRA);
-  const extraByJob = new Map<string, JobRecord[]>();
-  for (const e of allExtra) {
-    const j = (e.job_no || "").trim();
-    if (!j) continue;
-    const arr = extraByJob.get(j) || [];
-    arr.push(e);
-    extraByJob.set(j, arr);
-  }
-
-  const existingAcc = await rawList(ACC);
-  const accKeys = new Set(
-    existingAcc.map(
-      (r) => `${(r.job_no || "").trim()}||${r.module || ""}||${r.ap_extra_req_type || ""}`
-    )
-  );
-
-  // ทุก Job จาก CS Import/Export ต้องมีใน Accounting
-  const csJobs: { jobNo: string; origin: string }[] = [];
-  for (const r of await rawList(IMPORT_MODULE)) {
-    const j = (r.imp_job_no || "").trim();
-    if (j) csJobs.push({ jobNo: j, origin: "Import" });
-  }
-  for (const r of await rawList(EXPORT_MODULE)) {
-    const j = (r.exp_job_no || "").trim();
-    if (j) csJobs.push({ jobNo: j, origin: "Export" });
-  }
-
-  const newAcc: Partial<JobRecord>[] = [];
-  for (const { jobNo, origin } of csJobs) {
-    const items = extraByJob.get(jobNo) || [];
-    if (items.length === 0) {
-      // ไม่มี Extra = 1 แถวหลัก
-      const key = `${jobNo}||${origin}||`;
-      if (accKeys.has(key)) continue;
-      accKeys.add(key);
-      newAcc.push({ job_no: jobNo, module: origin, acc_job_status: "Open" });
-    } else {
-      // มี Extra = แถวตาม 09 (ดึง Cost/Sell มาแสดงใน AP/AR)
-      for (const it of items) {
-        const mod = it.module || origin;
-        const type = it.extra_req_type || "";
-        const key = `${jobNo}||${mod}||${type}`;
-        if (accKeys.has(key)) continue;
-        accKeys.add(key);
-        newAcc.push({
-          job_no: jobNo,
-          module: mod,
-          acc_job_status: "Open",
-          ap_extra_req_type: type,
-          ap_root_cause: it.root_cause || "",
-          ap_cost_unit: it.cost_unit || "",
-          ap_cost_cur: it.cost_cur || "",
-          ap_total_cost: it.cost_total || "",
-          ar_sell_unit: it.sell_unit || "",
-          ar_sell_cur: it.sell_cur || "",
-          ar_total_sell: String(numOf(it.sell_unit) * numOf(it.count)),
-        });
-      }
-    }
-  }
-  const accCreated = (await createJobs(ACC, newAcc, true)).length;
-
   return {
-    message: `Sync เสร็จ — Re-Export ${reExport}, Extra ${extraCreated}, Accounting ${accCreated} แถว`,
-    reExport,
-    extraCreated,
-    accCreated,
+    message: `Sync/Backfill เสร็จ — reconcile ${n} งานต้นทาง (Re-Export/Shipping/Transport/Warehouse/Extra/Accounting)`,
+    reconciled: n,
   };
 }
 

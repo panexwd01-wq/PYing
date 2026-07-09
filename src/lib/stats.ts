@@ -343,30 +343,29 @@ export function managementDash(snap: Snapshot, year: string, month: string): Mgm
   const lostAmount = noCharge.reduce((a, r) => a + num(r.cost_total), 0);
   const internalErrCases = extra.filter((r) => isInternalErr(r.root_cause)).length;
 
-  // Service / Internal Error แยกตามโมดูลต้นทาง (Extra.module)
-  const SERVICE_MODS = ["Import", "Export", "Shipping", "Transportation", "Warehouse"];
-  const finByMod: Record<string, number> = {
-    Import: impFin.length, Export: expFin.length,
-    Shipping: workflow.find((w) => w.module === "Shipping")?.end || 0,
-    Transportation: workflow.find((w) => w.module === "Transport")?.end || 0,
-    Warehouse: workflow.find((w) => w.module === "Warehouse")?.end || 0,
-  };
-  const serviceByModule = SERVICE_MODS.map((mod) => {
-    const rs = extra.filter((r) => (r.module || "").trim() === mod);
+  // Service / Internal Error แยกตามโมดูลต้นทาง (Extra.module ใช้ป้ายใหม่ FREIGHT IMPORT ฯลฯ)
+  const SERVICE_MODS = [
+    { key: "FREIGHT IMPORT", label: "Import", fin: impFin.length },
+    { key: "FREIGHT EXPORT", label: "Export", fin: expFin.length },
+    { key: "SHIPPING", label: "Shipping", fin: workflow.find((w) => w.module === "Shipping")?.end || 0 },
+    { key: "TRANSPORT", label: "Transport", fin: workflow.find((w) => w.module === "Transport")?.end || 0 },
+    { key: "WAREHOUSE", label: "Warehouse", fin: workflow.find((w) => w.module === "Warehouse")?.end || 0 },
+  ];
+  const serviceByModule = SERVICE_MODS.map(({ key, label }) => {
+    const rs = extra.filter((r) => (r.module || "").trim() === key);
     const nc = rs.filter((r) => r.profit_sts === "No Charge");
     return {
-      module: mod,
+      module: label,
       extraCases: rs.length,
       noChargeCases: nc.length,
       lost: nc.reduce((a, r) => a + num(r.cost_total), 0),
       noChargePct: rs.length ? Math.round((nc.length / rs.length) * 100) : 0,
     };
   });
-  const errorByModule = SERVICE_MODS.map((mod) => {
-    const errs = extra.filter((r) => (r.module || "").trim() === mod && isInternalErr(r.root_cause));
-    const fin = finByMod[mod] || 0;
+  const errorByModule = SERVICE_MODS.map(({ key, label, fin }) => {
+    const errs = extra.filter((r) => (r.module || "").trim() === key && isInternalErr(r.root_cause));
     return {
-      module: mod,
+      module: label,
       cases: errs.length,
       loss: errs.reduce((a, r) => a + num(r.cost_total), 0),
       pct: fin ? Math.round((errs.length / fin) * 100) : 0,
@@ -528,18 +527,20 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   for (const [key, sk, label] of teamDefs) {
     endByTeam[label] = rowsOf(snap, key).filter((r) => (r[sk] || "") === "End").length;
   }
-  const modLabelMap: Record<string, string> = {
-    Import: "Import", Export: "Export", Shipping: "Shipping",
-    Transportation: "Transport", Warehouse: "Warehouse",
-  };
-  const errorHealth = ["Import", "Export", "Shipping", "Transportation", "Warehouse"].map((mod) => {
-    const rs = rowsOf(snap, "extra").filter((r) => (r.module || "").trim() === mod);
+  const EXTRA_MODS = [
+    { key: "FREIGHT IMPORT", team: "Import" },
+    { key: "FREIGHT EXPORT", team: "Export" },
+    { key: "SHIPPING", team: "Shipping" },
+    { key: "TRANSPORT", team: "Transport" },
+    { key: "WAREHOUSE", team: "Warehouse" },
+  ];
+  const errorHealth = EXTRA_MODS.map(({ key, team }) => {
+    const rs = rowsOf(snap, "extra").filter((r) => (r.module || "").trim() === key);
     const nc = rs.filter((r) => r.profit_sts === "No Charge");
     const errs = rs.filter((r) => isInternalErr(r.root_cause));
-    const teamLabel = modLabelMap[mod] || mod;
-    const end = endByTeam[teamLabel] || 0;
+    const end = endByTeam[team] || 0;
     return {
-      team: mod,
+      team,
       noChargeCases: nc.length,
       riskPic: topCount(errs.map((r) => pick(r, PIC_KEYS)), 1)[0]?.name || "—",
       extraType: topCount(rs.map((r) => r.extra_req_type || ""), 1)[0]?.name || "—",
