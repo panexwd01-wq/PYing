@@ -37,6 +37,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [mod]
   );
   const hasPull = useMemo(() => mod.fields.some((f) => f.pull || f.rpull), [mod]);
+  // 4 โมดูลนี้ผูกกับ CS: สร้าง/ลบอัตโนมัติเมื่อบันทึก CS Import/Export — ห้ามเพิ่ม/ลบเอง
+  const csDriven = ["shipping", "transport", "warehouse", "extra"].includes(moduleKey);
 
   const emptyRecord = useCallback(
     (id: string): JobRecord => {
@@ -232,9 +234,11 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
               ⟳ ดึงข้อมูลเชื่อม
             </button>
           )}
-          <button className="btn" onClick={addRow}>
-            ＋ เพิ่มงาน
-          </button>
+          {!csDriven && (
+            <button className="btn" onClick={addRow}>
+              ＋ เพิ่มงาน
+            </button>
+          )}
         </div>
       </div>
 
@@ -259,7 +263,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             picKey={mod.picKey}
             unlockedIds={unlocked}
             onChange={onChange}
-            onDelete={removeRow}
+            onDelete={csDriven ? undefined : removeRow}
             onUnlock={onUnlock}
           />
         </div>

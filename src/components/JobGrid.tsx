@@ -25,7 +25,7 @@ interface RowProps {
   picKey: string;
   unlocked: boolean;
   onChange: (id: string, key: string, value: string) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
 }
 
@@ -87,9 +87,11 @@ const Row = React.memo(function Row({
               {unlocked ? "🔓" : "🔒"}
             </button>
           )}
-          <button className="btn sm danger" onClick={() => onDelete(rec.__id)}>
-            ลบ
-          </button>
+          {onDelete && (
+            <button className="btn sm danger" onClick={() => onDelete(rec.__id)}>
+              ลบ
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -120,7 +122,7 @@ export function JobGrid({
   picKey: string;
   unlockedIds: Set<string>;
   onChange: (id: string, key: string, value: string) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
 }) {
   // ตำแหน่ง left ของคอลัมน์ตรึงซ้าย
@@ -192,7 +194,9 @@ export function JobGrid({
           {rows.length === 0 && (
             <tr>
               <td colSpan={fields.length + 2} style={{ padding: 30, textAlign: "center", color: "#777" }}>
-                ยังไม่มีข้อมูล — กด “＋ เพิ่มงาน” เพื่อเริ่มบันทึก
+                {onDelete
+                  ? "ยังไม่มีข้อมูล — กด “＋ เพิ่มงาน” เพื่อเริ่มบันทึก"
+                  : "ยังไม่มีข้อมูล — งานจะถูกสร้างอัตโนมัติจาก CS Import/Export"}
               </td>
             </tr>
           )}

@@ -108,6 +108,13 @@ const numOf = (v: unknown) => {
   return isNaN(n) ? 0 : n;
 };
 
+// push ค่าเข้า Map<string, T[]> (สร้าง array ถ้ายังไม่มี)
+function pushMap<T>(map: Map<string, T[]>, k: string, v: T): void {
+  const arr = map.get(k);
+  if (arr) arr.push(v);
+  else map.set(k, [v]);
+}
+
 // กติกาอัตโนมัติ: ลงวันที่เมื่อ Status = End + ช่องคำนวณของ Extra
 const hasField = (m: ModuleDef, key: string) => m.fields.some((f) => f.key === key);
 
@@ -372,7 +379,8 @@ export async function createJob(
 export async function createJobs(
   m: ModuleDef,
   recs: Partial<JobRecord>[],
-  enrich = false
+  enrich = false,
+  reconcile = true
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
@@ -389,6 +397,7 @@ export async function createJobs(
     values.push(recordToRow(m, final));
   });
   await appendRows(`${m.id}!A1`, values);
+  if (reconcile) await reconcileLinks(m, out);
   return out;
 }
 
@@ -411,7 +420,8 @@ export async function updateJob(
 // อัปเดตหลายระเบียนในครั้งเดียว (อ่านชีทรอบเดียว + เขียน batch + merge กันเขียนทับ)
 export async function updateJobs(
   m: ModuleDef,
-  recs: Partial<JobRecord>[]
+  recs: Partial<JobRecord>[],
+  reconcile = true
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
   const rows = await readRange(`${m.id}!A1:${lastCol(m)}`);
@@ -442,13 +452,22 @@ export async function updateJobs(
     out.push(withRules);
   }
   await batchWriteRanges(data);
+  if (reconcile) await reconcileLinks(m, out);
   return out;
 }
 
-export async function deleteJob(m: ModuleDef, id: string): Promise<void> {
+// cascade=true → ลบ record ปลายทางที่ผูกกันด้วย (ปิดตอน reconcile เรียกเองเพื่อกัน loop)
+export async function deleteJob(
+  m: ModuleDef,
+  id: string,
+  cascade = true
+): Promise<void> {
+  const rec = cascade
+    ? (await rawList(m)).find((r) => r.__id === id)
+    : undefined;
   const rowNum = await findRowNumber(m, id);
-  if (!rowNum) return;
-  await clearRange(`${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`);
+  if (rowNum) await clearRange(`${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`);
+  if (rec) await cascadeDelete(m, rec);
 }
 
 // Refresh: ดึงข้อมูลจาก CS ใหม่แล้วบันทึกลงชีทของโมดูล
@@ -473,6 +492,118 @@ const EXTRA_SOURCES: { id: string; label: string }[] = [
 
 const splitTypes = (v: string) =>
   (v || "").split(" | ").map((s) => s.trim()).filter(Boolean);
+
+// ===== Auto-link: CS Import/Export ↔ Shipping/Transport/Warehouse/Extra =====
+// flag บน CS → โมดูลปลายทางที่ผูกแบบ 1 record/Job No.
+const CS_FLAG_LINKS: { flag: string; id: string }[] = [
+  { flag: "shipping_flag", id: "06_Shipping" },
+  { flag: "transport_flag", id: "07_Transportation" },
+  { flag: "warehouse_flag", id: "08_Warehouse" },
+];
+
+// โมดูลต้นทาง → ป้าย "Module" ที่ใช้ในแถว Extra (09)
+const EXTRA_MODULE_LABEL: Record<string, string> = {
+  "04_CS_Import": "Import",
+  "05_CS_Export": "Export",
+  "06_Shipping": "Shipping",
+  "07_Transportation": "Transportation",
+  "08_Warehouse": "Warehouse",
+};
+
+const MID_MODULE_IDS = ["06_Shipping", "07_Transportation", "08_Warehouse"];
+
+// ปรับ record ปลายทางให้ตรงกับ flag/req type บนต้นทาง (เรียกหลัง create/update)
+// - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/Job No.)
+// - ทุกต้นทาง (04–08): extra_require + req type → สร้าง/ลบแถวใน 09 (ป้าย Module ตามต้นทาง)
+async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
+  if (!saved.length) return;
+  const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
+  const isMid = MID_MODULE_IDS.includes(m.id);
+  if (!isCS && !isMid) return;
+
+  // ----- 1) CS: สร้าง/ลบ record เดี่ยวใน Shipping/Transport/Warehouse ตาม flag -----
+  if (isCS) {
+    for (const link of CS_FLAG_LINKS) {
+      const targetM = MODULE_BY_ID[link.id];
+      const byJob = new Map<string, JobRecord[]>();
+      for (const r of await rawList(targetM)) {
+        const j = (r.job_no || "").trim();
+        if (j) pushMap(byJob, j, r);
+      }
+      const toCreate: Partial<JobRecord>[] = [];
+      for (const rec of saved) {
+        const jobNo = (rec[m.jobNoKey] || "").trim();
+        if (!jobNo) continue;
+        const existing = byJob.get(jobNo) || [];
+        if ((rec[link.flag] || "") === "Yes") {
+          if (existing.length === 0)
+            toCreate.push({ job_no: jobNo, [targetM.fields[0].key]: "Open" });
+        } else {
+          // flag→No: ลบ record ปลายทาง + cascade ลบ Extra ของโมดูลนั้นด้วย
+          for (const e of existing) await deleteJob(targetM, e.__id!);
+        }
+      }
+      if (toCreate.length) await createJobs(targetM, toCreate, true, false);
+    }
+  }
+
+  // ----- 2) Extra (09): สร้าง/ลบแถวตาม extra_require + req type ที่เลือก -----
+  const label = EXTRA_MODULE_LABEL[m.id];
+  if (label) {
+    const EXTRA = MODULE_BY_ID["09_Extra_Service"];
+    const mineByJob = new Map<string, JobRecord[]>();
+    for (const r of await rawList(EXTRA)) {
+      if ((r.module || "") !== label) continue;
+      const j = (r.job_no || "").trim();
+      if (j) pushMap(mineByJob, j, r);
+    }
+    const toCreate: Partial<JobRecord>[] = [];
+    for (const rec of saved) {
+      const jobNo = (rec[m.jobNoKey] || "").trim();
+      if (!jobNo) continue;
+      const want =
+        (rec.extra_require || "") === "Yes"
+          ? new Set(splitTypes(rec.extra_req_type || ""))
+          : new Set<string>();
+      const have = new Set<string>();
+      for (const e of mineByJob.get(jobNo) || []) {
+        const t = e.extra_req_type || "";
+        if (want.has(t) && !have.has(t)) have.add(t); // เก็บอันที่ยังต้องการ (กันซ้ำ)
+        else await deleteJob(EXTRA, e.__id!, false); // ไม่ต้องการแล้ว / ซ้ำ → ลบ
+      }
+      for (const t of want) if (!have.has(t))
+        toCreate.push({ job_no: jobNo, module: label, extra_req_type: t, extra_status: "Open" });
+    }
+    if (toCreate.length) await createJobs(EXTRA, toCreate, true, false);
+  }
+}
+
+// cascade ลบปลายทางเมื่อลบงานต้นทาง (4 โมดูลนี้ผูกกับ CS ไม่มีชีวิตอิสระ)
+async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
+  const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
+  const isMid = MID_MODULE_IDS.includes(m.id);
+  if (!isCS && !isMid) return;
+
+  if (isCS) {
+    const jobNo = (rec[m.jobNoKey] || "").trim();
+    if (!jobNo) return;
+    // ลบ record ใน 06/07/08 (จะ cascade ต่อไปลบ Extra ป้ายของแต่ละโมดูลเอง)
+    for (const id of MID_MODULE_IDS) {
+      const tm = MODULE_BY_ID[id];
+      for (const r of await rawList(tm))
+        if ((r.job_no || "").trim() === jobNo) await deleteJob(tm, r.__id!);
+    }
+  }
+  // ลบแถว Extra (09) ที่เป็นป้ายของโมดูลนี้ สำหรับ Job No. นี้
+  const label = EXTRA_MODULE_LABEL[m.id];
+  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
+  if (label && jobNo) {
+    const EXTRA = MODULE_BY_ID["09_Extra_Service"];
+    for (const r of await rawList(EXTRA))
+      if ((r.job_no || "").trim() === jobNo && (r.module || "") === label)
+        await deleteJob(EXTRA, r.__id!, false);
+  }
+}
 
 // Re-Export: CS Import ที่ Job Type = Re-Export/* -> สร้าง record ใน CS Export (05) ให้อัตโนมัติ
 async function reExportLink(): Promise<number> {

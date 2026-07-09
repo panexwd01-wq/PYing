@@ -726,10 +726,7 @@ function PANEX_INITIALIZE() {
   // ----- 2) _lists : seed เฉพาะเมื่อว่าง -----
   report.push(seedLists_(ss));
 
-  SpreadsheetApp.getUi().alert("PANEX Initialize เสร็จ
-
-" + report.join("
-"));
+  SpreadsheetApp.getUi().alert("PANEX Initialize เสร็จ\n\n" + report.join("\n"));
 }
 
 function seedLists_(ss) {
