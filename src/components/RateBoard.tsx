@@ -13,7 +13,18 @@ function tempId() {
 }
 
 // ตารางเรท (Cost/Sell) — แก้ไขในตาราง + ค้นหา + บันทึก
-export function RateBoard({ moduleKey }: { moduleKey: string }) {
+// compact/title/saveBarOffset ใช้ตอนวาง 2 ตารางเทียบกัน (Cost บน / Sell ล่าง)
+export function RateBoard({
+  moduleKey,
+  compact = false,
+  title,
+  saveBarOffset = 0,
+}: {
+  moduleKey: string;
+  compact?: boolean;
+  title?: string;
+  saveBarOffset?: number;
+}) {
   const mod = MODULE_BY_KEY[moduleKey];
   const { data, loading, reload } = useData();
   const lists = data?.lists || {};
@@ -112,9 +123,10 @@ export function RateBoard({ moduleKey }: { moduleKey: string }) {
   }, [rows, q, mod]);
 
   return (
-    <div>
+    <div className={"board-section" + (compact ? " compact" : "")}>
       <SavingOverlay show={saving} message="กำลังบันทึกเรท…" />
       <div className="toolbar" style={{ marginBottom: 10 }}>
+        {title && <span className="section-tag">{title}</span>}
         <div className="field grow">
           <label>ค้นหา (Supplier / Customer / Port / Cargo / …)</label>
           <input value={q} placeholder="พิมพ์เพื่อค้นหา…" onChange={(e) => setQ(e.target.value)} />
@@ -168,7 +180,7 @@ export function RateBoard({ moduleKey }: { moduleKey: string }) {
         </table>
       </div>
 
-      <SaveBar count={dirty.size} onSave={save} saving={saving} label="เรท" />
+      <SaveBar count={dirty.size} onSave={save} saving={saving} label={title ? title + " " : "เรท"} offset={saveBarOffset} />
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </div>
   );

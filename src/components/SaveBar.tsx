@@ -10,18 +10,20 @@ export function SaveBar({
   onSave,
   saving,
   label = "รายการ",
+  offset = 0,
 }: {
   count: number;
   onSave: () => void;
   saving: boolean;
   label?: string;
+  offset?: number; // ยกสูงขึ้นจากขอบล่าง (px) — กันซ้อนกันเมื่อมีหลายแถบ
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || count <= 0) return null;
 
   return createPortal(
-    <div className="save-bar" role="status">
+    <div className="save-bar" role="status" style={offset ? { bottom: 22 + offset } : undefined}>
       <span className="save-bar-dot">●</span>
       <span>มีการแก้ไข <b>{count}</b> {label}ที่ยังไม่บันทึก</span>
       <button className="btn primary" onClick={onSave} disabled={saving}>
