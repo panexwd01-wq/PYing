@@ -8,7 +8,8 @@ import { SaveBar } from "@/components/SaveBar";
 import { CenterLoading } from "@/components/Spinner";
 import { useData } from "@/components/DataProvider";
 import { MODULE_BY_KEY, moduleGroups, recordHeaders } from "@/lib/schema";
-import { JobRecord } from "@/lib/types";
+import { Field } from "@/lib/fields";
+import { JobRecord, Lists } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
 const SEARCH_KEYS = [
@@ -20,6 +21,98 @@ const SEARCH_KEYS = [
 
 function tempId() {
   return "J" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+}
+
+// ===== 1 section = filter + ตาราง (ใช้ซ้ำได้ 2 อันตอนโหมดเทียบ) =====
+interface SectionMeta {
+  fields: Field[];
+  groups: string[];
+  statusKey: string;
+  statusList?: string;
+  picKey: string;
+  csField?: Field;
+  dateField?: Field;
+  searchKeys: string[];
+  years: string[];
+  lists: Lists;
+}
+
+function BoardSection({
+  rows,
+  meta,
+  collapsed,
+  compact,
+  title,
+  dirty,
+  news,
+  unlocked,
+  onChange,
+  onDelete,
+  onUnlock,
+}: {
+  rows: JobRecord[];
+  meta: SectionMeta;
+  collapsed: boolean;
+  compact: boolean;
+  title?: string;
+  dirty: Set<string>;
+  news: Set<string>;
+  unlocked: Set<string>;
+  onChange: (id: string, key: string, value: string) => void;
+  onDelete?: (id: string) => void;
+  onUnlock: (id: string) => void;
+}) {
+  const [filters, setFilters] = useState<Filters>({ year: "", month: "", status: "", cs: "", q: "" });
+  const { fields, groups, statusKey, statusList, picKey, csField, dateField, searchKeys, years, lists } = meta;
+
+  const filtered = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return rows.filter((r) => {
+      const d = (dateField ? r[dateField.key] : "") || "";
+      if (dateField && filters.year && d.slice(0, 4) !== filters.year) return false;
+      if (dateField && filters.month && d.slice(5, 7) !== filters.month) return false;
+      if (filters.status && r[statusKey] !== filters.status) return false;
+      if (csField && filters.cs && r[csField.key] !== filters.cs) return false;
+      if (q) {
+        const hay = searchKeys.map((k) => r[k] || "").join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, filters, dateField, statusKey, csField, searchKeys]);
+
+  return (
+    <div className={"board-section" + (compact ? " compact" : "")}>
+      <div className="toolbar section-toolbar">
+        {title && <span className="section-tag">{title}</span>}
+        <FilterBar
+          filters={filters}
+          setFilters={setFilters}
+          statusOptions={(statusList && lists[statusList]) || []}
+          csOptions={(csField?.list && lists[csField.list]) || []}
+          csLabel={csField?.label || "CS"}
+          years={years}
+          showDate={!!dateField}
+        />
+        <span className="count-pill">{filtered.length} / {rows.length} รายการ</span>
+      </div>
+      <JobGrid
+        fields={fields}
+        groups={groups}
+        rows={filtered}
+        lists={lists}
+        dirtyIds={dirty}
+        newIds={news}
+        statusKey={statusKey}
+        picKey={picKey}
+        unlockedIds={unlocked}
+        collapsed={collapsed}
+        onChange={onChange}
+        onDelete={onDelete}
+        onUnlock={onUnlock}
+      />
+    </div>
+  );
 }
 
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
@@ -58,7 +151,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const [news, setNews] = useState<Set<string>>(new Set());
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
-  const [filters, setFilters] = useState<Filters>({ year: "", month: "", status: "", cs: "", q: "" });
+  const [collapsed, setCollapsed] = useState(true); // เริ่มที่โหมดย่อ
+  const [compare, setCompare] = useState(false);
 
   const flash = useCallback((text: string, err = false) => {
     setToast({ text, err });
@@ -181,7 +275,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     }
   }, [moduleKey, reload, flash]);
 
-  // ===== filter =====
+  // ===== ปีสำหรับ filter (ใช้ร่วมทุก section) =====
   const years = useMemo(() => {
     const s = new Set<string>();
     if (dateField) {
@@ -194,37 +288,50 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     return Array.from(s).sort().reverse();
   }, [rows, dateField]);
 
-  const filtered = useMemo(() => {
-    const q = filters.q.trim().toLowerCase();
-    return rows.filter((r) => {
-      const d = (dateField ? r[dateField.key] : "") || "";
-      if (dateField && filters.year && d.slice(0, 4) !== filters.year) return false;
-      if (dateField && filters.month && d.slice(5, 7) !== filters.month) return false;
-      if (filters.status && r[statusKey] !== filters.status) return false;
-      if (csField && filters.cs && r[csField.key] !== filters.cs) return false;
-      if (q) {
-        const hay = searchKeys.map((k) => r[k] || "").join(" ").toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [rows, filters, dateField, statusKey, csField, searchKeys]);
+  const meta: SectionMeta = useMemo(
+    () => ({
+      fields: mod.fields,
+      groups,
+      statusKey,
+      statusList,
+      picKey: mod.picKey,
+      csField,
+      dateField,
+      searchKeys,
+      years,
+      lists,
+    }),
+    [mod.fields, mod.picKey, groups, statusKey, statusList, csField, dateField, searchKeys, years, lists]
+  );
+
+  const sectionProps = {
+    rows,
+    meta,
+    collapsed,
+    dirty,
+    news,
+    unlocked,
+    onChange,
+    onDelete: csDriven ? undefined : removeRow,
+    onUnlock,
+  };
 
   return (
     <main className="page fade-in">
       <SavingOverlay show={saving} message={savingMsg} />
 
-      <div className="toolbar">
-        <FilterBar
-          filters={filters}
-          setFilters={setFilters}
-          statusOptions={(statusList && lists[statusList]) || []}
-          csOptions={(csField?.list && lists[csField.list]) || []}
-          csLabel={csField?.label || "CS"}
-          years={years}
-          showDate={!!dateField}
-        />
-        <span className="count-pill">{filtered.length} / {rows.length} รายการ</span>
+      <div className="toolbar top-toolbar">
+        <div className="view-toggle" role="group" aria-label="โหมดแสดงผล">
+          <button className={"btn" + (collapsed ? " primary" : "")} onClick={() => setCollapsed(true)} title="โชว์แค่คอลัมน์สำคัญ กดกางดูรายละเอียดต่อแถว">
+            ▤ ย่อ
+          </button>
+          <button className={"btn" + (!collapsed ? " primary" : "")} onClick={() => setCollapsed(false)} title="โชว์ทุกคอลัมน์ (เลื่อนซ้าย-ขวา)">
+            ▦ เต็ม
+          </button>
+        </div>
+        <button className={"btn" + (compare ? " primary" : "")} onClick={() => setCompare((v) => !v)} title="แบ่งจอบน/ล่างเป็น 2 ตาราง เปิดคนละรายการเทียบกัน">
+          ⇅ เทียบ 2 รายการ {compare ? "(เปิด)" : ""}
+        </button>
         <div className="actions">
           <button className="btn" onClick={reload} disabled={dataLoading}>
             รีเฟรช
@@ -246,26 +353,19 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         <span className="item"><span className="sw" style={{ background: "var(--c-mandatory)", borderColor: "var(--c-mandatory-bd)" }} /> ฟ้า = ต้องกรอก</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้ (ต้องมี PIC)</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-locked)", borderColor: "var(--c-locked-bd)" }} /> เทา = Auto / ดึงจาก Module อื่น</span>
+        {collapsed && <span className="item hint">กด ▸ หน้าแถวเพื่อกางรายละเอียดที่เหลือ</span>}
       </div>
 
       {dataLoading && !data ? (
         <CenterLoading />
+      ) : compare ? (
+        <div className="compare-wrap">
+          <BoardSection {...sectionProps} compact title="รายการที่ 1" />
+          <BoardSection {...sectionProps} compact title="รายการที่ 2" />
+        </div>
       ) : (
         <div style={{ marginTop: 12 }}>
-          <JobGrid
-            fields={mod.fields}
-            groups={groups}
-            rows={filtered}
-            lists={lists}
-            dirtyIds={dirty}
-            newIds={news}
-            statusKey={statusKey}
-            picKey={mod.picKey}
-            unlockedIds={unlocked}
-            onChange={onChange}
-            onDelete={csDriven ? undefined : removeRow}
-            onUnlock={onUnlock}
-          />
+          <BoardSection {...sectionProps} compact={false} />
         </div>
       )}
 

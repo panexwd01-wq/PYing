@@ -3,13 +3,13 @@ import { Field } from "../fields";
 // ===== 06_Shipping — ปลายทาง: สร้างอัตโนมัติจาก CS Import/Export, ดึงหัว Job ด้วย Job No. =====
 export const SHIPPING_FIELDS: Field[] = [
   // ----- Job Info -----
-  { key: "shipp_status", label: "SHIPP Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
-  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
+  { key: "shipp_status", label: "SHIPP Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
+  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
   { key: "entry_pic", label: "Entry PIC", group: "Job Info", type: "dropdown", list: "entry_pic", mandatory: true, width: 120 },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "hbl", label: "HBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 140, pull: { imp: "imp_hbl", exp: "exp_hbl" } },
-  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "customer", exp: "customer" } },
+  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "cargo_type", label: "Cargo Type", group: "Job Info", type: "dropdown", list: "cargo_type", mandatory: true, width: 130 },
   { key: "customer_ref", label: "Customer Ref / No. (IMP/EXP)", group: "Job Info", type: "auto", width: 150, pull: { imp: "imp_customer_ref", exp: "exp_customer_ref" } },
   { key: "cs_pic", label: "CS PIC", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },
@@ -39,14 +39,14 @@ export const SHIPPING_FIELDS: Field[] = [
   { key: "exp_pol", label: "EXP/POL", group: "Operation Schedule", type: "auto", width: 110, pull: { exp: "pol" } },
 
   // ----- Shipping Execution -----
-  { key: "ship_pic", label: "Ship PIC", group: "Shipping Execution", type: "dropdown", list: "ship_pic", mandatory: true, width: 130, help: "ถ้าเลือก Outsourcing ต้องเลือก Ship Outsourcing ด้วย" },
+  { key: "ship_pic", label: "Ship PIC", group: "Shipping Execution", type: "dropdown", list: "ship_pic", mandatory: true, summary: true, width: 130, help: "ถ้าเลือก Outsourcing ต้องเลือก Ship Outsourcing ด้วย" },
   { key: "ship_outsourcing", label: "Ship Outsourcing", group: "Shipping Execution", type: "dropdown", list: "supplier_transport", width: 150 },
   { key: "forgot_ot", label: "Forgot OT", group: "Shipping Execution", type: "toggle", mandatory: true, width: 100 },
   { key: "ot_requested", label: "OT Requested", group: "Shipping Execution", type: "toggle", mandatory: true, width: 110 },
   { key: "ot_receipt_lost", label: "OT Receipt Lost", group: "Shipping Execution", type: "dropdown", list: "receipt_lost", mandatory: true, width: 120 },
 
   // ----- Clearance Monitoring -----
-  { key: "clearance_status", label: "Clearance Status", group: "Clearance Monitoring", type: "dropdown", list: "clearance_status", mandatory: true, width: 140 },
+  { key: "clearance_status", label: "Clearance Status", group: "Clearance Monitoring", type: "dropdown", list: "clearance_status", mandatory: true, summary: true, width: 140 },
   { key: "clearance_pending_reason", label: "Clearance Pending Reason", group: "Clearance Monitoring", type: "text", mandatory: true, width: 170 },
   { key: "clearance_end_date", label: "Clearance Status End Date", group: "Clearance Monitoring", type: "auto", width: 160, help: "Auto เมื่อ Clearance Status = Cleared/Completed" },
 

@@ -3,19 +3,19 @@ import { Field } from "../fields";
 // ===== 08_Warehouse — ปลายทาง: สร้างอัตโนมัติจาก CS, ดึงหัว Job ด้วย Job No. =====
 export const WAREHOUSE_FIELDS: Field[] = [
   // ----- Job Info -----
-  { key: "wha_status", label: "WHA Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
-  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
-  { key: "wh_pic", label: "WH PIC", group: "Job Info", type: "dropdown", list: "wh_pic", mandatory: true, width: 120 },
+  { key: "wha_status", label: "WHA Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
+  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
+  { key: "wh_pic", label: "WH PIC", group: "Job Info", type: "dropdown", list: "wh_pic", mandatory: true, summary: true, width: 120 },
   { key: "cs_pic", label: "CS (IMP/EXP)", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
-  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "customer", exp: "customer" } },
+  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "customer_ref", label: "Customer Ref / No. (IMP/EXP)", group: "Job Info", type: "auto", width: 150, pull: { imp: "imp_customer_ref", exp: "exp_customer_ref" } },
   { key: "cs_note_wh", label: "Cs Note for WH Pic", group: "Job Info", type: "auto", width: 180, pull: { imp: "cs_note_wh", exp: "cs_note_wh" } },
 
   // ----- Operation Schedule -----
   { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" } },
-  { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
+  { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", summary: true, width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
   { key: "wh_address", label: "WH Address", group: "Operation Schedule", type: "auto", width: 140, pull: { imp: "wh_address", exp: "wh_address" } },
 
   // ----- Extra Service -----

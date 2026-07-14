@@ -978,3 +978,161 @@ tr.row-locked td {
     box-shadow: 0 0 0 5px rgba(20, 100, 110, 0);
   }
 }
+
+/* ===== โหมดย่อ / กางรายละเอียด / เทียบ 2 รายการ ===== */
+/* toolbar บนสุด (ปุ่มโหมด + action) แยกจาก filter ของแต่ละ section */
+.top-toolbar {
+  align-items: center;
+}
+.view-toggle {
+  display: inline-flex;
+  gap: 6px;
+}
+.section-toolbar {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 0;
+}
+.section-tag {
+  align-self: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+  background: var(--petrol);
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ปุ่มกางรายละเอียดหน้าแถว */
+.grid-wrap.collapsed table.grid thead tr.field-row th {
+  top: 0; /* ไม่มี group-row แล้ว หัวตารางอยู่บนสุด */
+}
+th.expand-col,
+td.expand-col {
+  width: 34px;
+  min-width: 34px;
+  text-align: center;
+  padding: 0;
+}
+.expand-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--petrol);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.expand-btn:hover {
+  border-color: var(--petrol);
+  background: var(--petrol-tint);
+}
+.expand-btn.on {
+  transform: rotate(90deg);
+  background: var(--petrol);
+  color: #fff;
+  border-color: var(--petrol);
+}
+tr.row-expanded > td {
+  border-bottom-color: var(--petrol);
+}
+
+/* แผงรายละเอียดที่กางออก */
+tr.detail-row > td.detail-cell {
+  padding: 0;
+  background: #f7fafb;
+  box-shadow: inset 0 3px 6px -4px rgba(10, 50, 55, 0.25);
+}
+.detail-panel {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.detail-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--petrol-dark);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 5px 7px 6px;
+  background: #fff;
+}
+.detail-item > label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: normal;
+  line-height: 1.25;
+}
+.detail-item.tint-mandatory {
+  background: var(--c-mandatory);
+  border-color: var(--c-mandatory-bd);
+}
+.detail-item.tint-editable {
+  background: var(--c-editable);
+  border-color: var(--c-editable-bd);
+}
+.detail-item.tint-locked {
+  background: var(--c-locked);
+  border-color: var(--c-locked-bd);
+}
+/* cell ภายในแผงรายละเอียด: ให้เต็มกล่อง ไม่มี td styling ของ table.grid */
+.detail-item td {
+  display: block;
+  border: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+.detail-item .cellbox {
+  padding: 2px 2px;
+  min-height: 28px;
+}
+.detail-item input.cell,
+.detail-item select.cell {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 6px;
+  background: #fff;
+}
+
+/* legend hint */
+.legend .item.hint {
+  color: var(--petrol);
+  font-weight: 600;
+}
+
+/* โหมดเทียบ: 2 section วางบน/ล่าง */
+.compare-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+.board-section.compact .grid-wrap {
+  max-height: calc(50vh - 120px);
+}

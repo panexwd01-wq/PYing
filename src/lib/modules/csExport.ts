@@ -3,17 +3,17 @@ import { Field } from "../fields";
 // ===== 05_CS_Export — ตรงตาม requirement (Google Sheet ล่าสุด) =====
 export const EXPORT_FIELDS: Field[] = [
   // ----- OPS -----
-  { key: "ex_ops_status", label: "EX/OPS Status", group: "OPS", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, width: 130, help: "กด End ต้องผ่านเงื่อนไขครบ · แก้หลัง End ต้องติดต่อ Supervisor" },
-  { key: "job_type", label: "Job Type", group: "OPS", type: "dropdown", list: "job_type", mandatory: true, sticky: true, width: 140 },
+  { key: "ex_ops_status", label: "EX/OPS Status", group: "OPS", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "กด End ต้องผ่านเงื่อนไขครบ · แก้หลัง End ต้องติดต่อ Supervisor" },
+  { key: "job_type", label: "Job Type", group: "OPS", type: "dropdown", list: "job_type", mandatory: true, sticky: true, summary: true, width: 140 },
   { key: "re_export", label: "Re-Export?", group: "OPS", type: "auto", sticky: true, width: 100, help: "Auto = Yes ถ้าถูกสร้างจาก CS Import (Re-Export? = Yes) — แก้เองไม่ได้" },
-  { key: "ex_cs", label: "EX/CS", group: "OPS", type: "dropdown", list: "ex_cs", mandatory: true, width: 110 },
+  { key: "ex_cs", label: "EX/CS", group: "OPS", type: "dropdown", list: "ex_cs", mandatory: true, summary: true, width: 110 },
   { key: "sales_bkg_by", label: "Sales / BKG by", group: "OPS", type: "dropdown", list: "sales", mandatory: true, width: 130 },
-  { key: "etd_exp", label: "ETD (EXP)", group: "OPS", type: "datetime", width: 160 },
+  { key: "etd_exp", label: "ETD (EXP)", group: "OPS", type: "datetime", summary: true, width: 160 },
   { key: "co_agent_carrier", label: "Co-Agent / Carrier", group: "OPS", type: "dropdown", list: "carrier", width: 150 },
-  { key: "customer", label: "Customer", group: "OPS", type: "dropdown", list: "customer", width: 150 },
+  { key: "customer", label: "Customer", group: "OPS", type: "dropdown", list: "customer", summary: true, width: 150 },
   { key: "exp_booking_mbl", label: "EXP/Booking / MBL No.", group: "OPS", type: "text", width: 170 },
   { key: "exp_hbl", label: "EXP/HBL No.", group: "OPS", type: "text", width: 140 },
-  { key: "exp_job_no", label: "EXP/Job No.", group: "OPS", type: "text", sticky: true, width: 130 },
+  { key: "exp_job_no", label: "EXP/Job No.", group: "OPS", type: "text", sticky: true, summary: true, width: 130 },
   { key: "pol", label: "POL", group: "OPS", type: "dropdown", list: "pol", width: 110 },
   { key: "pod", label: "POD", group: "OPS", type: "dropdown", list: "pod", width: 110 },
   { key: "cnt_4w", label: "4W", group: "OPS", type: "number", width: 70 },

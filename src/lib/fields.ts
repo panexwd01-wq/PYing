@@ -35,6 +35,7 @@ export interface Field {
   list?: string; // ชื่อ list ใน _lists (สำหรับ dropdown/multiselect)
   width?: number; // ความกว้างคอลัมน์ (px)
   sticky?: boolean; // ตรึงคอลัมน์ซ้าย
+  summary?: boolean; // แสดงในโหมดย่อ (ที่เหลือซ่อนไว้ใต้ปุ่มกางรายละเอียด)
   help?: string;
   pull?: PullSpec; // ถ้ามี = ช่องนี้ถูกเติมอัตโนมัติจากโมดูลต้นทาง (CS Import/Export)
   rpull?: RPullSpec; // ถ้ามี = ช่องนี้ดึงย้อนจากโมดูลปลายทางด้วย Job No.

@@ -15,13 +15,13 @@ const supplier = (n: number): Field[] => [
 
 export const TRANSPORT_FIELDS: Field[] = [
   // ----- Job Info -----
-  { key: "trans_status", label: "Trans Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
-  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
-  { key: "trans_pic", label: "Trans PIC", group: "Job Info", type: "dropdown", list: "trans_pic", mandatory: true, width: 120 },
+  { key: "trans_status", label: "Trans Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
+  { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
+  { key: "trans_pic", label: "Trans PIC", group: "Job Info", type: "dropdown", list: "trans_pic", mandatory: true, summary: true, width: 120 },
   { key: "cs_pic", label: "CS (IMP/EXP)", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
-  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "customer", exp: "customer" } },
+  { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "cnt_4w", label: "4W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_4w", exp: "cnt_4w" } },
   { key: "cnt_6w", label: "6W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_6w", exp: "cnt_6w" } },
   { key: "cnt_10w", label: "10W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_10w", exp: "cnt_10w" } },
@@ -32,7 +32,7 @@ export const TRANSPORT_FIELDS: Field[] = [
 
   // ----- Operation Schedule -----
   { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" } },
-  { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
+  { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", summary: true, width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
   { key: "del_address", label: "Del Address", group: "Operation Schedule", type: "auto", width: 150, pull: { imp: "del_address", exp: "del_address" } },
 
   // ----- Extra Service -----
