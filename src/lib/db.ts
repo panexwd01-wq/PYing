@@ -631,18 +631,22 @@ function reExportSeed(r: JobRecord): Partial<JobRecord> {
   };
 }
 
-// สร้าง Export อัตโนมัติเมื่อ Import re_export=Yes (ครั้งเดียว)
-// กันซ้ำด้วย Import Job No. ที่ฝังใน Data from Import (เพราะ exp_job_no ว่าง)
+// Sync Export ตาม Re-Export? ของ Import (จับคู่ด้วย Import Job No. ที่ฝังใน Data from Import)
+// - re_export=Yes → สร้างแถวเปล่าใน Export (ถ้ายังไม่มี)
+// - re_export=No  → ลบแถว Export ที่สร้างอัตโนมัติทิ้ง
 async function reconcileReExport(rec: JobRecord): Promise<void> {
-  if ((rec.re_export || "") !== "Yes") return;
   const jobNo = (rec.imp_job_no || "").trim();
   if (!jobNo) return;
   const expRows = await rawList(EXPORT_MODULE);
-  const exists = expRows.some(
+  const matches = expRows.filter(
     (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
   );
-  if (exists) return;
-  await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+  if ((rec.re_export || "") === "Yes") {
+    if (!matches.length) await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+  } else {
+    // Re-Export? กลับเป็น No → ลบรายการ Export ที่สร้างอัตโนมัติ
+    for (const m of matches) await deleteJob(EXPORT_MODULE, m.__id!, false);
+  }
 }
 
 // Accounting real-time: ทุก job ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09
