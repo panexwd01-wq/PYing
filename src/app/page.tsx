@@ -6,6 +6,17 @@ import { SyncButton } from "@/components/SyncButton";
 import { CenterLoading } from "@/components/Spinner";
 import { dashboardStats } from "@/lib/stats";
 
+// จับคู่ Status → สีจุด (ใช้กับ CSS .st-*)
+function statusClass(name: string): string {
+  const s = name.toLowerCase();
+  if (s === "end") return "end";
+  if (s.includes("progress")) return "progress";
+  if (s === "pending") return "pending";
+  if (s === "cancel") return "cancel";
+  if (s === "open") return "open";
+  return "other";
+}
+
 export default function Dashboard() {
   const { data, loading, error, reload } = useData();
 
@@ -43,9 +54,18 @@ export default function Dashboard() {
             <Link key={s.key} href={`/m/${s.key}`} className="list-card dash-card">
               <h3>{s.label}</h3>
               <div className="dash-total">{s.total}</div>
-              <div className="dash-sub">
-                <span className="pill open">Open {s.open}</span>
-                <span className="pill end">End {s.ended}</span>
+              <div className="dash-status-list">
+                {s.byStatus.length === 0 ? (
+                  <div className="dash-status-row empty">— ยังไม่มีงาน —</div>
+                ) : (
+                  s.byStatus.map((st) => (
+                    <div key={st.name} className={"dash-status-row st-" + statusClass(st.name)}>
+                      <span className="st-dot" />
+                      <span className="st-name">{st.name}</span>
+                      <span className="st-count">{st.count}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </Link>
           ))}

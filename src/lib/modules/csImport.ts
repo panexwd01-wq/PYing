@@ -34,7 +34,7 @@ export const IMPORT_FIELDS: Field[] = [
   { key: "im_doc", label: "IM/DOC", group: "Documentation", type: "dropdown", list: "im_doc", mandatory: true, width: 110 },
   { key: "enter_doc_cutoff", label: "Enter Doc Cut off", group: "Documentation", type: "datetime", width: 160 },
   { key: "enter_doc", label: "Enter Doc", group: "Documentation", type: "dropdown", list: "enter_doc_status", width: 120 },
-  { key: "check_deposit", label: "Check Deposit", group: "Documentation", type: "dropdown", list: "done_pending", width: 120 },
+  { key: "check_deposit", label: "Check Deposit", group: "Documentation", type: "dropdown", list: "check_deposit", width: 120 },
   { key: "scan_file", label: "Scan File", group: "Documentation", type: "dropdown", list: "done_pending", width: 110 },
   { key: "imp_customer_ref", label: "IMP Customer Ref", group: "Documentation", type: "text", width: 150 },
   { key: "im_doc_remark", label: "IM/DOC Remark", group: "Documentation", type: "text", width: 200 },

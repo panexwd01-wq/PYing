@@ -497,6 +497,11 @@ var PANEX_LIST_SEED = {
     "Done",
     "Pending"
   ],
+  "check_deposit": [
+    "Done",
+    "Pending",
+    "N/A"
+  ],
   "extra_service_type": [
     "ตรวจปล่อย",
     "เอกสารเพิ่ม",

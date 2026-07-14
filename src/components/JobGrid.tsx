@@ -35,6 +35,7 @@ interface RowProps {
   statusKey: string;
   picKey: string;
   unlocked: boolean;
+  canDelete: boolean;
   onToggleExpand: (id: string) => void;
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
@@ -56,6 +57,7 @@ const Row = React.memo(function Row({
   statusKey,
   picKey,
   unlocked,
+  canDelete,
   onToggleExpand,
   onChange,
   onDelete,
@@ -130,7 +132,7 @@ const Row = React.memo(function Row({
                 {unlocked ? "🔓" : "🔒"}
               </button>
             )}
-            {onDelete && (
+            {onDelete && canDelete && (
               <button className="btn sm danger" onClick={() => onDelete(rec.__id)}>
                 ลบ
               </button>
@@ -178,6 +180,8 @@ export function JobGrid({
   picKey,
   unlockedIds,
   collapsed = false,
+  collapsedKeys,
+  hideDeleteFor,
   onChange,
   onDelete,
   onUnlock,
@@ -192,6 +196,8 @@ export function JobGrid({
   picKey: string;
   unlockedIds: Set<string>;
   collapsed?: boolean;
+  collapsedKeys?: string[]; // คอลัมน์ที่โชว์ตอนย่อ (ตั้งค่าส่วนกลาง) — ไม่ส่ง = ใช้ summary จาก schema
+  hideDeleteFor?: (rec: JobRecord) => boolean; // แถวที่ไม่ให้ลบ (เช่น Export ที่มาจาก Re-Export)
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
@@ -206,8 +212,16 @@ export function JobGrid({
     });
   }, []);
 
-  // ในโหมดย่อ: แสดงเฉพาะ summary; detail = ที่เหลือ (โชว์ตอนกาง)
-  const displayFields = useMemo(() => (collapsed ? summaryFields(fields) : fields), [collapsed, fields]);
+  // ในโหมดย่อ: แสดงคอลัมน์ตามที่ตั้งค่าไว้ (collapsedKeys) ถ้าไม่มีก็ใช้ summary จาก schema
+  const displayFields = useMemo(() => {
+    if (!collapsed) return fields;
+    if (collapsedKeys && collapsedKeys.length) {
+      const set = new Set(collapsedKeys);
+      const chosen = fields.filter((f) => set.has(f.key)); // คงลำดับตาม schema
+      return chosen.length ? chosen : summaryFields(fields);
+    }
+    return summaryFields(fields);
+  }, [collapsed, fields, collapsedKeys]);
   const detailFields = useMemo(() => {
     if (!collapsed) return [];
     const shown = new Set(displayFields.map((f) => f.key));
@@ -295,6 +309,7 @@ export function JobGrid({
               statusKey={statusKey}
               picKey={picKey}
               unlocked={unlockedIds.has(rec.__id)}
+              canDelete={!hideDeleteFor || !hideDeleteFor(rec)}
               onToggleExpand={onToggleExpand}
               onChange={onChange}
               onDelete={onDelete}

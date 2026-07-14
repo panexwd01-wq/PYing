@@ -6,6 +6,7 @@ export type Lists = Record<string, string[]>;
 export interface Snapshot {
   modules: Record<string, JobRecord[]>;
   lists: Lists;
+  collapse?: Record<string, string[]>; // moduleKey → field key ที่โชว์ตอนย่อ (ตั้งค่าส่วนกลาง)
 }
 
 export interface ApiError {

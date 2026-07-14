@@ -41,12 +41,21 @@ export function RateBoard({
     setTimeout(() => setToast(null), 2400);
   }, []);
 
-  useEffect(() => {
-    if (!data) return;
-    setRows(data.modules[moduleKey] || []);
+  const resetFromData = useCallback(() => {
+    setRows(data?.modules[moduleKey] || []);
     setDirty(new Set());
     setNews(new Set());
   }, [data, moduleKey]);
+
+  useEffect(() => {
+    if (!data) return;
+    resetFromData();
+  }, [data, moduleKey, resetFromData]);
+
+  const cancelAll = useCallback(() => {
+    resetFromData();
+    flash("ยกเลิกการแก้ไขแล้ว");
+  }, [resetFromData, flash]);
 
   const onChange = useCallback((id: string, key: string, value: string) => {
     setRows((prev) => prev.map((r) => (r.__id === id ? { ...r, [key]: value } : r)));
@@ -180,7 +189,7 @@ export function RateBoard({
         </table>
       </div>
 
-      <SaveBar count={dirty.size} onSave={save} saving={saving} label={title ? title + " " : "เรท"} offset={saveBarOffset} />
+      <SaveBar count={dirty.size} onSave={save} onCancel={cancelAll} saving={saving} label={title ? title + " " : "เรท"} offset={saveBarOffset} />
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </div>
   );

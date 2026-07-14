@@ -30,19 +30,40 @@ function topCount(vals: string[], n = 6): { name: string; count: number }[] {
 const rowsOf = (snap: Snapshot, key: string) => snap.modules[key] || [];
 
 // ===== Dashboard =====
+export interface DashStatusCount {
+  name: string;
+  count: number;
+}
 export interface DashStat {
   key: string;
   label: string;
   total: number;
   ended: number;
   open: number;
+  byStatus: DashStatusCount[]; // นับแยกทุก Status (เรียงตามลำดับใน list)
 }
 export function dashboardStats(snap: Snapshot): DashStat[] {
+  const order = snap.lists?.im_ops_status || [];
   return MODULES.map((m) => {
     const statusKey = m.fields[0].key;
     const rows = rowsOf(snap, m.key);
-    const ended = rows.filter((r) => (r[statusKey] || "") === "End").length;
-    return { key: m.key, label: m.label, total: rows.length, ended, open: rows.length - ended };
+    // นับแต่ละค่า Status
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const s = (r[statusKey] || "").trim() || "(ว่าง)";
+      counts.set(s, (counts.get(s) || 0) + 1);
+    }
+    // เรียงตามลำดับใน list ก่อน แล้วต่อด้วยค่าที่ไม่อยู่ใน list
+    const seen = new Set<string>();
+    const byStatus: DashStatusCount[] = [];
+    for (const name of order) {
+      if (counts.has(name)) { byStatus.push({ name, count: counts.get(name)! }); seen.add(name); }
+    }
+    for (const [name, count] of counts) {
+      if (!seen.has(name)) byStatus.push({ name, count });
+    }
+    const ended = counts.get("End") || 0;
+    return { key: m.key, label: m.label, total: rows.length, ended, open: rows.length - ended, byStatus };
   });
 }
 

@@ -83,6 +83,28 @@ export async function seedListsIfEmpty(): Promise<void> {
   await writeLists(LIST_SEED);
 }
 
+// ===== _settings : เก็บค่าตั้งค่าส่วนกลาง (JSON) เช่น คอลัมน์ตอนย่อของแต่ละโมดูล =====
+const SETTINGS_SHEET = "_settings";
+export type CollapseConfig = Record<string, string[]>; // moduleKey → รายชื่อ field key ที่โชว์ตอนย่อ
+
+// อ่านแบบกันพัง: ถ้าชีท/ค่าไม่มี คืน {} (ไม่ให้ snapshot ล้ม)
+export async function readCollapseConfig(): Promise<CollapseConfig> {
+  try {
+    const rows = await readRange(`${SETTINGS_SHEET}!A1`);
+    const raw = rows?.[0]?.[0];
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function writeCollapseConfig(cfg: CollapseConfig): Promise<void> {
+  await ensureSheet(SETTINGS_SHEET);
+  await writeRange(`${SETTINGS_SHEET}!A1`, [[JSON.stringify(cfg)]]);
+}
+
 // ===== record helpers =====
 
 function rowToRecord(headers: string[], row: string[]): JobRecord {
@@ -387,9 +409,18 @@ export async function getSnapshot(): Promise<Snapshot> {
     let rows = rawById[m.id] || [];
     if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
     else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
+    // Export: ช่อง Data from Import คำนวณสดจาก Import ที่ผูกด้วย Job No. (re_export=Yes)
+    if (m.id === "05_CS_Export") {
+      rows = rows.map((r) => {
+        if ((r.re_export || "") !== "Yes") return r;
+        const imp = srcIdx.imp.get((r.exp_job_no || "").trim());
+        return imp ? { ...r, data_from_import: composeDataFromImport(imp) } : r;
+      });
+    }
     modules[m.key] = rows;
   }
-  return { modules, lists };
+  const collapse = await readCollapseConfig();
+  return { modules, lists, collapse };
 }
 
 function genId(salt = 0): string {
@@ -553,6 +584,32 @@ function extraMetaFromSource(m: ModuleDef, rec: JobRecord): { supplier: string; 
   }
 }
 
+// สรุปข้อมูลจาก CS Import สำหรับช่อง "Data from Import" ใน Export (read-only)
+// แสดงตามรายการที่กำหนด: Job Type / IM/CS / Job No. / Customer Ref / Co-Agent / ETA(IMP) /
+// Booking-MBL / HBL / จำนวนตู้ / Vessel / Term / CS Remark
+export function composeDataFromImport(r: Partial<JobRecord>): string {
+  const g = (k: string) => (r[k] ?? "").toString().trim();
+  const conts = [
+    ["4W", g("cnt_4w")], ["6W", g("cnt_6w")], ["10W", g("cnt_10w")],
+    ["20GP", g("cnt_20gp")], ["40HQ", g("cnt_40hq")],
+  ].filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" / ");
+  const lines: [string, string][] = [
+    ["Job Type", g("job_type")],
+    ["IM/CS", g("im_cs")],
+    ["Job No.", g("imp_job_no")],
+    ["Customer Ref", g("imp_customer_ref")],
+    ["Co-Agent / Carrier", g("co_agent_carrier")],
+    ["ETA (IMP)", g("eta_imp")],
+    ["Booking / MBL No.", g("imp_booking_mbl")],
+    ["HBL No.", g("imp_hbl")],
+    ["จำนวนตู้", conts],
+    ["Vessel", g("vessel")],
+    ["Term", g("term")],
+    ["CS Remark", g("im_cs_remark")],
+  ];
+  return lines.map(([k, v]) => `${k}: ${v || "-"}`).join("\n");
+}
+
 // Re-Export: CS Import re_export=Yes → สร้าง record ใน CS Export (เติม Data from Import)
 function reExportSeed(r: JobRecord, jobNo: string): Partial<JobRecord> {
   return {
@@ -578,7 +635,7 @@ function reExportSeed(r: JobRecord, jobNo: string): Partial<JobRecord> {
     term: r.term,
     cargo_type: r.cargo_type,
     ex_cs_remark: r.im_cs_remark,
-    data_from_import: "Yes",
+    data_from_import: composeDataFromImport(r),
   };
 }
 
@@ -805,6 +862,7 @@ export async function initializeWorkbook(): Promise<{ message: string }> {
   for (const m of ALL_MODULES) {
     await ensureDataSheet(m);
   }
+  await ensureSheet(SETTINGS_SHEET); // ชีทเก็บค่าตั้งค่าส่วนกลาง (คอลัมน์ตอนย่อ)
   await seedListsIfEmpty();
   return {
     message: `ตั้งค่าชีทเรียบร้อย — สร้าง ${ALL_MODULES.length} ชีท + dropdown ตั้งต้น`,

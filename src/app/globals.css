@@ -292,7 +292,7 @@ table.grid td .cellbox {
   min-height: 34px;
   display: flex;
   align-items: center;
-  white-space: normal;
+  white-space: pre-line; /* คงบรรทัดใหม่ (เช่น Data from Import) */
   word-break: break-word;
   line-height: 1.35;
 }
@@ -539,12 +539,26 @@ tr.row-new td.sticky-col {
   box-shadow: var(--shadow);
   animation: slideup 0.22s ease;
 }
+/* error เด้งกลางบนจอ (เห็นชัด เช่น End ไม่ครบเงื่อนไข) */
 .toast.err {
   background: var(--danger);
+  bottom: auto;
+  right: auto;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 24px));
+  animation: slidedown 0.22s ease;
 }
 @keyframes slideup {
   from {
     transform: translateY(14px);
+    opacity: 0;
+  }
+}
+@keyframes slidedown {
+  from {
+    transform: translate(-50%, -14px);
     opacity: 0;
   }
 }
@@ -642,9 +656,13 @@ tr.row-new td.sticky-col {
 .list-card .item-row input {
   font: inherit;
   flex: 1;
+  min-width: 0; /* ให้ input หดได้ ไม่งั้นดันปุ่มลบทะลุขอบ/โดน scroll ตัด */
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 4px 7px;
+}
+.list-card .item-row .btn.sm {
+  flex: none;
 }
 
 /* ===== dashboard ===== */
@@ -690,6 +708,53 @@ tr.row-new td.sticky-col {
   background: #e8f5ea;
   border-color: #b7ddc0;
 }
+
+/* ===== Dashboard: รายการ Status แนวตั้ง (ทุกสถานะ) ===== */
+.dash-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.dash-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f4f6f8;
+}
+.dash-status-row.empty {
+  color: var(--ink-soft);
+  font-size: 12px;
+  background: transparent;
+  padding-left: 0;
+}
+.dash-status-row .st-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  flex: none;
+}
+.dash-status-row .st-name {
+  flex: 1;
+  color: var(--ink);
+}
+.dash-status-row .st-count {
+  font-weight: 700;
+  color: var(--petrol-dark);
+  font-variant-numeric: tabular-nums;
+}
+.st-open .st-dot { background: #e0a92e; }
+.st-progress .st-dot { background: #2f74c0; }
+.st-pending .st-dot { background: #b06a00; }
+.st-end .st-dot { background: #2f9e52; }
+.st-cancel .st-dot { background: #b23b3b; }
+.st-other .st-dot { background: #8a94a0; }
+.dash-status-row.st-end { background: #edf7ef; }
+.dash-status-row.st-cancel { background: #fbeded; }
 
 /* ===== view tables (Supervisor / Action / Management / Sales / Ship Daily) ===== */
 .view-table {
@@ -1229,8 +1294,10 @@ tr.detail-row > td.detail-cell {
   max-height: 408px;
   overflow-y: auto;
   overflow-x: hidden;
-  margin: 0 -4px 6px 0;
-  padding-right: 4px;
+  /* เผื่อที่ให้ scrollbar ไม่ทับปุ่มลบ */
+  padding-right: 10px;
+  scrollbar-gutter: stable;
+  margin-bottom: 6px;
 }
 .list-items::-webkit-scrollbar {
   width: 8px;
@@ -1241,4 +1308,110 @@ tr.detail-row > td.detail-cell {
 }
 .list-items::-webkit-scrollbar-thumb:hover {
   background: var(--petrol);
+}
+
+/* ===== sort box (เรียงตามวันที่) ===== */
+.sort-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sort-box .field select {
+  min-width: 150px;
+}
+
+/* ===== modal (ตั้งค่าย่อ) ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 25, 40, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.15s ease both;
+}
+.modal {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(10, 30, 45, 0.35);
+  width: 100%;
+  max-width: 760px;
+  max-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-head h3 {
+  margin: 0;
+  flex: 1;
+  font-size: 16px;
+  color: var(--petrol-dark);
+}
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.cs-err {
+  background: #fdecec;
+  border: 1px solid #e6a5a5;
+  color: #a12b2b;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.cs-groups {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+}
+.cs-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--petrol-dark);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 3px;
+  margin-bottom: 7px;
+}
+.cs-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 5px;
+}
+.cs-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.cs-item:hover {
+  border-color: var(--petrol);
+}
+.cs-item.on {
+  background: var(--petrol-tint);
+  border-color: #a9d3d6;
+}
+.cs-item input {
+  accent-color: var(--petrol);
 }
