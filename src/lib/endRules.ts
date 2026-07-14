@@ -37,8 +37,8 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type อย่างน้อย 1");
     downstreamEnd(r, jn, ctx, m);
-    // Re-Export ดูจาก toggle Re-Export? เท่านั้น (ไม่ดูจาก Job Type แล้ว)
-    if (isOne(r.re_export, "Yes") && ctx && !ctx.hasExport.has(jn)) m.push("Re-Export: ยังไม่มีรายการนี้ที่ tab Export");
+    // หมายเหตุ: ไม่เช็ค "ต้องมีรายการที่ tab Export" อีกต่อไป —
+    // Export ที่สร้างจาก Re-Export? เป็นแถวอิสระ (exp_job_no ว่าง) ตรวจย้อนไม่ได้
     return m;
   },
   "05_CS_Export": (r, ctx) => {

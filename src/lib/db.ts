@@ -409,11 +409,13 @@ export async function getSnapshot(): Promise<Snapshot> {
     let rows = rawById[m.id] || [];
     if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
     else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
-    // Export: ช่อง Data from Import คำนวณสดจาก Import ที่ผูกด้วย Job No. (re_export=Yes)
+    // Export: ช่อง Data from Import อัปเดตสด (live) จาก Import ที่อ้างถึง
+    // exp_job_no ว่าง — ใช้ Job No. ที่ฝังใน readout เดิมเป็นตัว lookup
     if (m.id === "05_CS_Export") {
       rows = rows.map((r) => {
         if ((r.re_export || "") !== "Yes") return r;
-        const imp = srcIdx.imp.get((r.exp_job_no || "").trim());
+        const jn = impJobNoFromReadout(r.data_from_import || "");
+        const imp = jn ? srcIdx.imp.get(jn) : undefined;
         return imp ? { ...r, data_from_import: composeDataFromImport(imp) } : r;
       });
     }
@@ -610,43 +612,37 @@ export function composeDataFromImport(r: Partial<JobRecord>): string {
   return lines.map(([k, v]) => `${k}: ${v || "-"}`).join("\n");
 }
 
-// Re-Export: CS Import re_export=Yes → สร้าง record ใน CS Export (เติม Data from Import)
-function reExportSeed(r: JobRecord, jobNo: string): Partial<JobRecord> {
+// อ่าน Import Job No. ที่ฝังในข้อความ Data from Import ("Job No.: XXX")
+// ใช้เป็นตัวเชื่อมแบบ soft (exp_job_no ปล่อยว่างตามสเปก — ไม่ลิงก์ตรง ๆ)
+function impJobNoFromReadout(dfi: string): string {
+  const m = /Job No\.:\s*(.+)/.exec(dfi || "");
+  const v = (m?.[1] || "").trim();
+  return v === "-" ? "" : v;
+}
+
+// Re-Export: CS Import re_export=Yes → สร้าง "แถวเปล่า" ใน CS Export
+// ตามสเปก: กรอกแค่ EX/OPS Status=Open, Re-Export?=Yes, Data from Import, Job Create Date(auto)
+// ช่องอื่นว่างหมด — exp_job_no ก็ว่าง (ไม่ลิงก์กับ Import)
+function reExportSeed(r: JobRecord): Partial<JobRecord> {
   return {
     ex_ops_status: "Open",
-    re_export: "Yes", // ช่องนี้ใน Export เป็น auto (มาจาก Import)
-    exp_job_no: jobNo, // ใช้เลขงานเดียวกันเป็นตัวเชื่อม
-    job_type: r.job_type,
-    ex_cs: r.im_cs,
-    sales_bkg_by: r.sales_bkg_by,
-    co_agent_carrier: r.co_agent_carrier,
-    customer: r.customer,
-    exp_booking_mbl: r.imp_booking_mbl,
-    exp_hbl: r.imp_hbl,
-    exp_customer_ref: r.imp_customer_ref,
-    pol: r.pol,
-    pod: r.pod,
-    cnt_4w: r.cnt_4w,
-    cnt_6w: r.cnt_6w,
-    cnt_10w: r.cnt_10w,
-    cnt_20gp: r.cnt_20gp,
-    cnt_40hq: r.cnt_40hq,
-    vessel: r.vessel,
-    term: r.term,
-    cargo_type: r.cargo_type,
-    ex_cs_remark: r.im_cs_remark,
+    re_export: "Yes",
     data_from_import: composeDataFromImport(r),
   };
 }
 
-// สร้าง Export อัตโนมัติเมื่อ Import re_export=Yes (ยังไม่มี)
+// สร้าง Export อัตโนมัติเมื่อ Import re_export=Yes (ครั้งเดียว)
+// กันซ้ำด้วย Import Job No. ที่ฝังใน Data from Import (เพราะ exp_job_no ว่าง)
 async function reconcileReExport(rec: JobRecord): Promise<void> {
   if ((rec.re_export || "") !== "Yes") return;
   const jobNo = (rec.imp_job_no || "").trim();
   if (!jobNo) return;
   const expRows = await rawList(EXPORT_MODULE);
-  if (expRows.some((r) => (r.exp_job_no || "").trim() === jobNo)) return;
-  await createJobs(EXPORT_MODULE, [reExportSeed(rec, jobNo)], true, true);
+  const exists = expRows.some(
+    (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
+  );
+  if (exists) return;
+  await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
 }
 
 // Accounting real-time: ทุก job ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09

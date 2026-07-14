@@ -53,11 +53,12 @@ export function dashboardStats(snap: Snapshot): DashStat[] {
       const s = (r[statusKey] || "").trim() || "(ว่าง)";
       counts.set(s, (counts.get(s) || 0) + 1);
     }
-    // เรียงตามลำดับใน list ก่อน แล้วต่อด้วยค่าที่ไม่อยู่ใน list
+    // แสดงทุก Status ตามลำดับใน list เสมอ (ไม่มี = 0) แล้วต่อด้วยค่าที่ไม่อยู่ใน list
     const seen = new Set<string>();
     const byStatus: DashStatusCount[] = [];
     for (const name of order) {
-      if (counts.has(name)) { byStatus.push({ name, count: counts.get(name)! }); seen.add(name); }
+      byStatus.push({ name, count: counts.get(name) || 0 });
+      seen.add(name);
     }
     for (const [name, count] of counts) {
       if (!seen.has(name)) byStatus.push({ name, count });
