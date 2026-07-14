@@ -18,6 +18,7 @@ import {
   batchWriteRanges,
   clearRange,
   ensureSheet,
+  primeReadCache,
   readRange,
   writeRange,
 } from "./sheets";
@@ -289,6 +290,7 @@ async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<En
   if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export") return undefined;
   const statusKey = m.fields[0].key;
   if (!recs.some((r) => r[statusKey] === "End")) return undefined;
+  await primeWorkModules(); // ดึงรวดเดียวก่อนอ่านหลายชีท
   const [expRows, shipRows, transRows, whRows, accRows] = await Promise.all([
     rawList(EXPORT_MODULE),
     rawList(MODULE_BY_ID["06_Shipping"]),
@@ -323,6 +325,12 @@ export async function ensureDataSheet(m: ModuleDef): Promise<void> {
   if (header.join("|") !== headers.join("|")) {
     await writeRange(`${m.id}!A1`, [headers]);
   }
+}
+
+// เติม cache ของชีทงานทั้งหมด (04–10) ด้วย batchGet ก้อนเดียว
+// เรียกก่อน reconcile/buildEndCtx เพื่อให้ rawList ต่อ ๆ ไปใช้ cache (ลด API จาก ~7 read เหลือ 1 batch)
+async function primeWorkModules(): Promise<void> {
+  await primeReadCache(MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`));
 }
 
 // อ่านดิบ (ไม่ pull) — ใช้ภายในสร้าง source index
@@ -520,7 +528,11 @@ export async function updateJobs(
     out.push(withRules);
   }
   await batchWriteRanges(data);
-  if (reconcile) await reconcileLinks(m, out);
+  // reconcile เฉพาะแถวที่ช่องขับลิงก์เปลี่ยนจริง (แก้ remark/วันที่/status ฯลฯ ไม่ต้อง reconcile)
+  if (reconcile) {
+    const changed = out.filter((rec) => reconcileNeeded(m, existingById.get(rec.__id!), rec));
+    if (changed.length) await reconcileLinks(m, changed);
+  }
   return out;
 }
 
@@ -572,6 +584,25 @@ const EXTRA_MODULE_LABEL: Record<string, string> = {
 const MID_MODULE_IDS = ["06_Shipping", "07_Transportation", "08_Warehouse"];
 const EXTRA_ID = "09_Extra_Service";
 const ACC_ID = "10_Accounting";
+
+// ช่องที่ "ขับ" การ reconcile (สร้าง/ลบ/อัปเดตโมดูลปลายทาง) ของแต่ละโมดูล
+// ตอน UPDATE ถ้าไม่มีช่องพวกนี้เปลี่ยน = ไม่ต้อง reconcile (ลดจำนวน API call ต่อการเซฟมาก)
+// โมดูลที่ไม่อยู่ใน map นี้ (Accounting/Rates) ไม่ต้อง reconcile อยู่แล้ว
+const RECON_KEYS: Record<string, string[]> = {
+  "04_CS_Import": ["re_export", "shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "imp_job_no"],
+  "05_CS_Export": ["shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "exp_job_no"],
+  "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
+  "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3"],
+  "08_Warehouse": ["extra_require", "extra_req_type", "job_no", "wh_pic", "wh_supp1"],
+  "09_Extra_Service": ["job_no", "module", "extra_req_type", "supplier", "root_cause", "cost_unit", "cost_cur", "count", "sell_unit", "sell_cur"],
+};
+
+function reconcileNeeded(m: ModuleDef, oldRec: JobRecord | undefined, newRec: JobRecord): boolean {
+  const keys = RECON_KEYS[m.id];
+  if (!keys) return false; // โมดูลนี้ไม่มี reconcile
+  if (!oldRec) return true; // กันพลาด (ไม่พบของเดิม)
+  return keys.some((k) => (oldRec[k] || "") !== (newRec[k] || ""));
+}
 
 // Supplier + Cost PIC ของแถว Extra ตามโมดูลต้นทาง (เติมตอนสร้าง)
 function extraMetaFromSource(m: ModuleDef, rec: JobRecord): { supplier: string; cost_pic: string } {
@@ -718,6 +749,7 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
 // - ทุกต้นทาง (04–08): extra_require + req type → สร้าง/ลบแถวใน 09 (ป้าย Module ตามต้นทาง)
 async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
   if (!saved.length) return;
+  await primeWorkModules(); // ดึงชีทงานทั้งหมดรวดเดียว แล้วค่อยทำงานจาก cache
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = MID_MODULE_IDS.includes(m.id);
 
