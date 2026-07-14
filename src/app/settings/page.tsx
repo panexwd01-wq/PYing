@@ -115,34 +115,39 @@ export default function SettingsPage() {
         <div className="lists-grid">
           {ALL_LISTS.map((key) => (
             <div className="list-card" key={key}>
-              <h3>{LIST_LABEL[key] || key}</h3>
-              {(lists[key] || []).map((v, i) => (
-                <div
-                  className={"item-row" + (drag && drag.key === key && drag.idx === i ? " dragging" : "")}
-                  key={i}
-                  onDragOver={(e) => {
-                    if (drag && drag.key === key) e.preventDefault();
-                  }}
-                  onDrop={() => {
-                    if (drag && drag.key === key) moveItem(key, drag.idx, i);
-                    setDrag(null);
-                  }}
-                >
-                  <span
-                    className="drag-handle"
-                    draggable
-                    onDragStart={() => setDrag({ key, idx: i })}
-                    onDragEnd={() => setDrag(null)}
-                    title="ลากเพื่อจัดลำดับ"
+              <h3>
+                {LIST_LABEL[key] || key}
+                <span className="list-count">{(lists[key] || []).length}</span>
+              </h3>
+              <div className="list-items">
+                {(lists[key] || []).map((v, i) => (
+                  <div
+                    className={"item-row" + (drag && drag.key === key && drag.idx === i ? " dragging" : "")}
+                    key={i}
+                    onDragOver={(e) => {
+                      if (drag && drag.key === key) e.preventDefault();
+                    }}
+                    onDrop={() => {
+                      if (drag && drag.key === key) moveItem(key, drag.idx, i);
+                      setDrag(null);
+                    }}
                   >
-                    ≡
-                  </span>
-                  <input value={v} onChange={(e) => setItem(key, i, e.target.value)} />
-                  <button className="btn sm danger" onClick={() => removeItem(key, i)}>
-                    ลบ
-                  </button>
-                </div>
-              ))}
+                    <span
+                      className="drag-handle"
+                      draggable
+                      onDragStart={() => setDrag({ key, idx: i })}
+                      onDragEnd={() => setDrag(null)}
+                      title="ลากเพื่อจัดลำดับ"
+                    >
+                      ≡
+                    </span>
+                    <input value={v} onChange={(e) => setItem(key, i, e.target.value)} />
+                    <button className="btn sm danger" onClick={() => removeItem(key, i)}>
+                      ลบ
+                    </button>
+                  </div>
+                ))}
+              </div>
               <button className="btn sm" onClick={() => addItem(key)}>
                 ＋ เพิ่มตัวเลือก
               </button>
