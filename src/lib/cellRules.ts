@@ -50,7 +50,12 @@ export interface CellCue {
   locked?: boolean;
 }
 
-export function cellCue(moduleId: string, fieldKey: string, rec: JobRecord): CellCue {
+export function cellCue(
+  moduleId: string,
+  fieldKey: string,
+  rec: JobRecord,
+  carrierColors?: Record<string, string>
+): CellCue {
   // ----- Export: กฎล็อก (มาก่อนกฎสีอื่น) -----
   if (moduleId === "05_CS_Export") {
     // EX/OPS Status = Cancel → ล็อกทั้งแถวเป็นเทา (แก้ได้แค่ Status)
@@ -82,6 +87,12 @@ export function cellCue(moduleId: string, fieldKey: string, rec: JobRecord): Cel
   if (fieldKey === "pv_status") {
     const bg = PV_COLORS[(rec.pv_status || "").trim()];
     if (bg) return { bg };
+  }
+
+  // ----- Co-Agent / Carrier → สีตามที่ตั้งค่าไว้ต่อรายการ (settings) -----
+  if (fieldKey === "co_agent_carrier" && carrierColors) {
+    const c = carrierColors[(rec.co_agent_carrier || "").trim()];
+    if (c) return { bg: c };
   }
 
   // ----- ปุ่มสี MBL (Import) → พื้นตามสีที่กดไว้ -----

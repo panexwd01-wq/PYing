@@ -1439,3 +1439,21 @@ tr.detail-row > td.detail-cell {
 .color-btn:hover {
   outline: 1px solid #555;
 }
+
+/* ===== Phase C: color picker ต่อรายการ Co-Agent/Carrier (หน้า settings) ===== */
+.color-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.color-pick input[type="color"] {
+  width: 30px;
+  height: 26px;
+  min-width: 30px;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}

@@ -107,6 +107,26 @@ export async function writeCollapseConfig(cfg: CollapseConfig): Promise<void> {
   await writeRange(`${SETTINGS_SHEET}!A1`, [[JSON.stringify(cfg)]]);
 }
 
+// สีของแต่ละค่าใน Co-Agent/Carrier (เก็บ JSON ที่ _settings!A2) → ระบายช่อง co_agent_carrier ทุก tab
+export type CarrierColors = Record<string, string>; // ชื่อ carrier → สี hex
+
+export async function readCarrierColors(): Promise<CarrierColors> {
+  try {
+    const rows = await readRange(`${SETTINGS_SHEET}!A2`);
+    const raw = rows?.[0]?.[0];
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function writeCarrierColors(colors: CarrierColors): Promise<void> {
+  await ensureSheet(SETTINGS_SHEET);
+  await writeRange(`${SETTINGS_SHEET}!A2`, [[JSON.stringify(colors)]]);
+}
+
 // ===== record helpers =====
 
 function rowToRecord(headers: string[], row: string[]): JobRecord {
@@ -439,7 +459,8 @@ export async function getSnapshot(): Promise<Snapshot> {
     modules[m.key] = rows;
   }
   const collapse = await readCollapseConfig();
-  return { modules, lists, collapse };
+  const carrierColors = await readCarrierColors();
+  return { modules, lists, collapse, carrierColors };
 }
 
 function genId(salt = 0): string {

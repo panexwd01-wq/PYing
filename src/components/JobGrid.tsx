@@ -25,6 +25,7 @@ interface RowProps {
   rec: JobRecord;
   index: number;
   moduleId: string;
+  carrierColors?: Record<string, string>;
   displayFields: Field[];
   detailFields: Field[]; // ช่องที่ซ่อน (โชว์ตอนกาง) — ว่าง = โหมดเต็ม
   detailGroups: string[];
@@ -48,6 +49,7 @@ const Row = React.memo(function Row({
   rec,
   index,
   moduleId,
+  carrierColors,
   displayFields,
   detailFields,
   detailGroups,
@@ -70,7 +72,7 @@ const Row = React.memo(function Row({
   const endLocked = isEnd && !unlocked; // งาน End -> ล็อกทั้งแถวจนกว่าจะปลดล็อก (Supervisor)
   const picFilled = (rec[picKey] || "") !== "";
 
-  const cueFor = (f: Field) => cellCue(moduleId, f.key, rec);
+  const cueFor = (f: Field) => cellCue(moduleId, f.key, rec, carrierColors);
 
   // Cell ดิบ + logic ล็อก/สี (ใช้ทั้งในตารางและแผงรายละเอียด)
   const bareCell = (f: Field) => {
@@ -197,6 +199,7 @@ export function JobGrid({
   groups,
   rows,
   lists,
+  carrierColors,
   dirtyIds,
   newIds,
   statusKey,
@@ -212,6 +215,7 @@ export function JobGrid({
   moduleId: string;
   fields: Field[];
   groups: string[];
+  carrierColors?: Record<string, string>;
   rows: JobRecord[];
   lists: Lists;
   dirtyIds: Set<string>;
@@ -325,6 +329,7 @@ export function JobGrid({
               rec={rec}
               index={i}
               moduleId={moduleId}
+              carrierColors={carrierColors}
               displayFields={displayFields}
               detailFields={detailFields}
               detailGroups={detailGroups}

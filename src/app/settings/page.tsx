@@ -7,9 +7,12 @@ import { useData } from "@/components/DataProvider";
 import { ALL_LISTS, LIST_LABEL } from "@/lib/schema";
 import { Lists } from "@/lib/types";
 
+const CARRIER_KEY = "carrier"; // list ที่มี color picker ต่อรายการ
+
 export default function SettingsPage() {
   const { data, loading, error, reload: reloadApp } = useData();
   const [lists, setLists] = useState<Lists>({});
+  const [colors, setColors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
@@ -34,8 +37,23 @@ export default function SettingsPage() {
     const base: Lists = {};
     for (const k of ALL_LISTS) base[k] = data.lists[k] ? [...data.lists[k]] : [];
     setLists(base);
+    setColors({ ...(data.carrierColors || {}) });
     setDirty(false);
   }, [data]);
+
+  // สีของรายการ Co-Agent/Carrier (คีย์ = ชื่อรายการ)
+  const setColor = (value: string, color: string) => {
+    markDirty();
+    setColors((prev) => ({ ...prev, [value]: color }));
+  };
+  const clearColor = (value: string) => {
+    markDirty();
+    setColors((prev) => {
+      const n = { ...prev };
+      delete n[value];
+      return n;
+    });
+  };
 
   const setItem = (key: string, idx: number, value: string) => {
     markDirty();
@@ -74,9 +92,19 @@ export default function SettingsPage() {
         body: JSON.stringify({ lists: clean }),
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
+      // บันทึกสี Co-Agent/Carrier — เก็บเฉพาะรายการที่ยังมีในลิสต์ (ตัด orphan)
+      const carrierSet = new Set(clean[CARRIER_KEY] || []);
+      const cleanColors: Record<string, string> = {};
+      for (const [name, c] of Object.entries(colors)) if (carrierSet.has(name) && c) cleanColors[name] = c;
+      const rc = await fetch("/api/carrier-colors", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carrierColors: cleanColors }),
+      }).then((x) => x.json());
+      if (rc.error) throw new Error(rc.error);
       setDirty(false);
       await reloadApp();
-      flash("บันทึก dropdown เรียบร้อย");
+      flash("บันทึก dropdown + สีเรียบร้อย");
     } catch (e: any) {
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
     } finally {
@@ -100,7 +128,7 @@ export default function SettingsPage() {
           </button>
         </div>
         <p className="muted">
-          แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ
+          แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> เลือกสีต่อรายการได้ (ระบายช่องทุก tab)
         </p>
       </div>
 
@@ -142,6 +170,21 @@ export default function SettingsPage() {
                       ≡
                     </span>
                     <input value={v} onChange={(e) => setItem(key, i, e.target.value)} />
+                    {key === CARRIER_KEY && (
+                      <span className="color-pick" title="เลือกสีของรายการนี้ (ระบายช่อง Co-Agent/Carrier ทุก tab)">
+                        <input
+                          type="color"
+                          value={colors[v.trim()] || "#ffffff"}
+                          onChange={(e) => setColor(v.trim(), e.target.value)}
+                          aria-label="เลือกสี"
+                        />
+                        {colors[v.trim()] && (
+                          <button className="btn sm" onClick={() => clearColor(v.trim())} title="ล้างสี">
+                            ล้าง
+                          </button>
+                        )}
+                      </span>
+                    )}
                     <button className="btn sm danger" onClick={() => removeItem(key, i)}>
                       ลบ
                     </button>

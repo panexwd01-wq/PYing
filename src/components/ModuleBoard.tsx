@@ -342,6 +342,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             groups={groups}
             rows={filtered}
             lists={lists}
+            carrierColors={data?.carrierColors}
             dirtyIds={dirty}
             newIds={news}
             statusKey={statusKey}

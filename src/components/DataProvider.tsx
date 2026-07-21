@@ -30,7 +30,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const r = await fetch("/api/snapshot").then((x) => x.json());
       if (r.error) throw new Error(r.error);
-      setData({ modules: r.modules || {}, lists: r.lists || {}, collapse: r.collapse || {} });
+      setData({ modules: r.modules || {}, lists: r.lists || {}, collapse: r.collapse || {}, carrierColors: r.carrierColors || {} });
     } catch (e: any) {
       setError(e.message);
     } finally {
