@@ -22,6 +22,35 @@ export function withSheetCache<T>(fn: () => Promise<T>): Promise<T> {
   return als.run({ reads: new Map(), meta: null }, fn);
 }
 
+// ===== retry เมื่อชน quota (429) / server ไม่ว่าง (503) =====
+// quota Sheets = 60 read/60 write ต่อนาที/ต่อ user แชร์กันทั้งทีม → เจอ 429 บ่อย
+// exponential backoff + jitter ให้คำขอที่ชนรอแล้วลองใหม่แทนที่จะ error ทันที
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isRetryable(e: unknown): boolean {
+  const err = e as {
+    code?: number | string;
+    status?: number;
+    response?: { status?: number };
+  };
+  const raw = err?.response?.status ?? err?.status ?? err?.code;
+  const code = typeof raw === "string" ? parseInt(raw, 10) : raw;
+  return code === 429 || code === 503;
+}
+
+async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
+  let delay = 600;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt >= tries - 1 || !isRetryable(e)) throw e;
+      await sleep(delay + Math.floor(Math.random() * 300)); // jitter กันชนพร้อมกัน
+      delay = Math.min(delay * 2, 8000);
+    }
+  }
+}
+
 const sheetOf = (range: string) => range.split("!")[0].replace(/^'|'$/g, "");
 
 function invalidateSheet(range: string) {
@@ -66,11 +95,13 @@ export async function readRange(range: string): Promise<string[][]> {
   const hit = ctx?.reads.get(range);
   if (hit) return hit;
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getSheetId(),
-    range,
-    valueRenderOption: "FORMATTED_VALUE",
-  });
+  const res = await withRetry(() =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range,
+      valueRenderOption: "FORMATTED_VALUE",
+    })
+  );
   const val = (res.data.values as string[][]) || [];
   ctx?.reads.set(range, val);
   return val;
@@ -79,11 +110,13 @@ export async function readRange(range: string): Promise<string[][]> {
 // อ่านหลายช่วงพร้อมกันใน 1 request (ใช้ทำ snapshot ทั้งระบบ)
 export async function batchGetRanges(ranges: string[]): Promise<string[][][]> {
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId: getSheetId(),
-    ranges,
-    valueRenderOption: "FORMATTED_VALUE",
-  });
+  const res = await withRetry(() =>
+    sheets.spreadsheets.values.batchGet({
+      spreadsheetId: getSheetId(),
+      ranges,
+      valueRenderOption: "FORMATTED_VALUE",
+    })
+  );
   const vr = res.data.valueRanges || [];
   return ranges.map((_, i) => (vr[i]?.values as string[][]) || []);
 }
@@ -96,11 +129,13 @@ export async function primeReadCache(ranges: string[]): Promise<void> {
   const need = ranges.filter((r) => !ctx.reads.has(r));
   if (!need.length) return;
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId: getSheetId(),
-    ranges: need,
-    valueRenderOption: "FORMATTED_VALUE",
-  });
+  const res = await withRetry(() =>
+    sheets.spreadsheets.values.batchGet({
+      spreadsheetId: getSheetId(),
+      ranges: need,
+      valueRenderOption: "FORMATTED_VALUE",
+    })
+  );
   const vr = res.data.valueRanges || [];
   need.forEach((range, i) => ctx.reads.set(range, (vr[i]?.values as string[][]) || []));
 }
@@ -109,21 +144,25 @@ export async function primeReadCache(ranges: string[]): Promise<void> {
 export async function batchClearRanges(ranges: string[]): Promise<void> {
   if (!ranges.length) return;
   const sheets = getSheets();
-  await sheets.spreadsheets.values.batchClear({
-    spreadsheetId: getSheetId(),
-    requestBody: { ranges },
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.values.batchClear({
+      spreadsheetId: getSheetId(),
+      requestBody: { ranges },
+    })
+  );
   for (const r of ranges) invalidateSheet(r);
 }
 
 export async function writeRange(range: string, values: (string | number)[][]) {
   const sheets = getSheets();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: getSheetId(),
-    range,
-    valueInputOption: "RAW",
-    requestBody: { values },
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId: getSheetId(),
+      range,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    })
+  );
   invalidateSheet(range);
 }
 
@@ -133,31 +172,37 @@ export async function batchWriteRanges(
 ) {
   if (!data.length) return;
   const sheets = getSheets();
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: getSheetId(),
-    requestBody: { valueInputOption: "RAW", data },
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: getSheetId(),
+      requestBody: { valueInputOption: "RAW", data },
+    })
+  );
   for (const d of data) invalidateSheet(d.range);
 }
 
 export async function appendRows(range: string, values: (string | number)[][]) {
   const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: getSheetId(),
-    range,
-    valueInputOption: "RAW",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values },
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId: getSheetId(),
+      range,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values },
+    })
+  );
   invalidateSheet(range);
 }
 
 export async function clearRange(range: string) {
   const sheets = getSheets();
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: getSheetId(),
-    range,
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.values.clear({
+      spreadsheetId: getSheetId(),
+      range,
+    })
+  );
   invalidateSheet(range);
 }
 
@@ -168,10 +213,12 @@ export async function getMeta() {
   if (ctx?.metaPending) return ctx.metaPending; // มีคนกำลังดึงอยู่ → รอผลเดียวกัน
   const fetchMeta = async () => {
     const sheets = getSheets();
-    const res = await sheets.spreadsheets.get({
-      spreadsheetId: getSheetId(),
-      fields: "sheets.properties",
-    });
+    const res = await withRetry(() =>
+      sheets.spreadsheets.get({
+        spreadsheetId: getSheetId(),
+        fields: "sheets.properties",
+      })
+    );
     const list = res.data.sheets || [];
     if (ctx) {
       ctx.meta = list;
@@ -190,12 +237,14 @@ export async function ensureSheet(title: string) {
   const exists = meta.some((s) => s.properties?.title === title);
   if (exists) return;
   const sheets = getSheets();
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: getSheetId(),
-    requestBody: {
-      requests: [{ addSheet: { properties: { title } } }],
-    },
-  });
+  await withRetry(() =>
+    sheets.spreadsheets.batchUpdate({
+      spreadsheetId: getSheetId(),
+      requestBody: {
+        requests: [{ addSheet: { properties: { title } } }],
+      },
+    })
+  );
   // อัปเดต cache meta ให้เห็นชีทใหม่ (กัน ensureSheet ซ้ำสร้างซ้ำ)
   const ctx = als.getStore();
   if (ctx?.meta) ctx.meta.push({ properties: { title } });

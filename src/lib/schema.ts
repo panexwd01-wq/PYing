@@ -131,6 +131,8 @@ export const LIST_LABEL: Record<string, string> = {
   service_type: "Service Type (Rate)",
   sell_confirmed: "Sell Confirmed",
   place: "สถานที่ตรวจปล่อย (Place)",
+  pv_status: "PV Status",
+  form_e: "Form E",
 };
 
 const CS_NAMES = ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"];
@@ -186,6 +188,8 @@ export const LIST_SEED: Record<string, string[]> = {
   service_type: ["Freight", "Shipping", "Transportation", "Warehouse"],
   sell_confirmed: ["Yes", "No", "Waiting"],
   place: ["LCB", "BANGKOK", "LAT KRABANG", "ICD"],
+  pv_status: ["รอจ่าย", "จ่ายแล้ว", "จบแล้ว"],
+  form_e: ["CFM", "RECEIVED ORI", "CHECKING", "NEED REVISE", "CFM-PRINT", "CFM-SCAN FE", "Customer Confirm"],
 };
 
 // list ทั้งหมดที่ต้อง seed/อ่าน

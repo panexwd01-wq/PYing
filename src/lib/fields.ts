@@ -39,6 +39,9 @@ export interface Field {
   help?: string;
   pull?: PullSpec; // ถ้ามี = ช่องนี้ถูกเติมอัตโนมัติจากโมดูลต้นทาง (CS Import/Export)
   rpull?: RPullSpec; // ถ้ามี = ช่องนี้ดึงย้อนจากโมดูลปลายทางด้วย Job No.
+  hidden?: boolean; // เก็บเป็นคอลัมน์ในชีทแต่ไม่แสดงในตาราง (เช่นช่องเก็บสีปุ่ม)
+  colorToggle?: string[]; // ปุ่มสลับสีข้างช่อง (เก็บค่าใน field <key>_color) — วนตามลิสต์สีนี้
+  range?: boolean; // datetime แบบเลือกช่วงวันที่ (เก็บ "YYYY-MM-DD ~ YYYY-MM-DD")
 }
 
 // คอลัมน์ภายใน (เก็บในชีท record คอลัมน์แรก) ใช้ผูก row -> ระเบียน

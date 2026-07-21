@@ -22,61 +22,89 @@ function parseStore(s: string): Date | null {
 
 const TH_MONTHS = Thai.months.shorthand as string[];
 
+const RANGE_SEP = " ~ ";
+
+// range: เก็บ "YYYY-MM-DD ~ YYYY-MM-DD" (dateOnly เสมอ)
+function parseRange(s: string): Date[] {
+  if (!s) return [];
+  return s
+    .split(RANGE_SEP)
+    .map((p) => parseStore(p.trim()))
+    .filter((d): d is Date => !!d);
+}
+
 export function DateTimePicker({
   value,
   onChange,
   disabled,
   dateOnly = false,
+  range = false,
+  bg,
   className = "cell",
 }: {
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   dateOnly?: boolean;
+  range?: boolean;
+  bg?: string;
   className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fpRef = useRef<flatpickr.Instance | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const dOnly = dateOnly || range; // โหมด range เก็บวันที่อย่างเดียว
 
   useEffect(() => {
     if (!inputRef.current) return;
     const fp = flatpickr(inputRef.current, {
       locale: Thai,
-      enableTime: !dateOnly,
+      mode: range ? "range" : "single",
+      enableTime: !dOnly,
       time_24hr: true,
-      dateFormat: dateOnly ? "Y-m-d" : "Y-m-d H:i",
+      dateFormat: dOnly ? "Y-m-d" : "Y-m-d H:i",
       allowInput: false,
-      defaultDate: parseStore(value) || undefined,
+      defaultDate: range ? parseRange(value) : parseStore(value) || undefined,
       formatDate: (date) => {
         const d = `${date.getDate()} ${TH_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`;
-        return dateOnly ? d : `${d} ${p2(date.getHours())}:${p2(date.getMinutes())} น.`;
+        return dOnly ? d : `${d} ${p2(date.getHours())}:${p2(date.getMinutes())} น.`;
       },
       onChange: (dates) => {
-        onChangeRef.current(dates[0] ? toStore(dates[0], dateOnly) : "");
+        if (range) {
+          // เก็บเมื่อเลือกครบช่วง (2 วัน); เลือกวันเดียว = ยังไม่บันทึก (รอวันปิดช่วง)
+          if (dates.length === 2) onChangeRef.current(dates.map((d) => toStore(d, true)).join(RANGE_SEP));
+          else if (dates.length === 0) onChangeRef.current("");
+        } else {
+          onChangeRef.current(dates[0] ? toStore(dates[0], dOnly) : "");
+        }
       },
     });
     fpRef.current = fp;
     return () => fp.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateOnly]);
+  }, [dOnly, range]);
 
   // sync เมื่อค่าเปลี่ยนจากภายนอก
   useEffect(() => {
     const fp = fpRef.current;
     if (!fp) return;
+    if (range) {
+      fp.setDate(parseRange(value), false);
+      return;
+    }
     const d = parseStore(value);
     const cur = fp.selectedDates[0];
     const same = d && cur && d.getTime() === cur.getTime();
     if (!same) fp.setDate(d || "", false);
-  }, [value]);
+  }, [value, range]);
 
   return (
     <input
       ref={inputRef}
       className={className}
-      placeholder={dateOnly ? "เลือกวันที่" : "เลือกวันที่/เวลา"}
+      style={bg ? { background: bg } : undefined}
+      placeholder={range ? "เลือกช่วงวันที่" : dOnly ? "เลือกวันที่" : "เลือกวันที่/เวลา"}
       disabled={disabled}
       readOnly
     />

@@ -11,6 +11,7 @@ export const SHIPPING_FIELDS: Field[] = [
   { key: "hbl", label: "HBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 140, pull: { imp: "imp_hbl", exp: "exp_hbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "cargo_type", label: "Cargo Type", group: "Job Info", type: "dropdown", list: "cargo_type", mandatory: true, width: 130 },
+  { key: "import_port", label: "IMPORT PORT", group: "Job Info", type: "auto", width: 140, pull: { imp: "import_port" }, help: "ดึงจาก CS Import (ห้ามแก้)" },
   { key: "customer_ref", label: "Customer Ref / No. (IMP/EXP)", group: "Job Info", type: "auto", width: 150, pull: { imp: "imp_customer_ref", exp: "exp_customer_ref" } },
   { key: "cs_pic", label: "CS PIC", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },
   { key: "cs_note_ship", label: "Cs Note for Ship Pic", group: "Job Info", type: "auto", width: 180, pull: { imp: "cs_note_ship", exp: "cs_note_ship" } },

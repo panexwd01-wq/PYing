@@ -1415,3 +1415,27 @@ tr.detail-row > td.detail-cell {
 .cs-item input {
   accent-color: var(--petrol);
 }
+
+/* ===== Phase B: ปุ่มสลับสีข้างช่อง (MBL) ===== */
+.cell-color-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cell-color-wrap .cell {
+  flex: 1;
+  min-width: 0;
+}
+.color-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #999;
+  background: #fff;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+}
+.color-btn:hover {
+  outline: 1px solid #555;
+}

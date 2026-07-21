@@ -7,7 +7,7 @@ import { Field } from "@/lib/fields";
 // ป็อปอัปตั้งค่า "คอลัมน์ตอนย่อ" ของโมดูลนี้ (ค่าส่วนกลาง — มีผลกับทุกคน)
 export function CollapseSettings({
   moduleLabel,
-  fields,
+  fields: allFields,
   defaultKeys,
   currentKeys,
   fullConfig,
@@ -27,6 +27,8 @@ export function CollapseSettings({
   const [sel, setSel] = useState<Set<string>>(new Set(currentKeys.length ? currentKeys : defaultKeys));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  const fields = useMemo(() => allFields.filter((f) => !f.hidden), [allFields]);
 
   const groups = useMemo(() => {
     const seen: string[] = [];

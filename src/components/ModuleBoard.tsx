@@ -337,6 +337,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       ) : (
         <div style={{ marginTop: 12 }}>
           <JobGrid
+            moduleId={mod.id}
             fields={mod.fields}
             groups={groups}
             rows={filtered}

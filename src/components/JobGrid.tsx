@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
+import { cellCue } from "@/lib/cellRules";
 import { Cell } from "./Cell";
 
 const ROWNUM_W = 48;
@@ -23,6 +24,7 @@ function summaryFields(fields: Field[]): Field[] {
 interface RowProps {
   rec: JobRecord;
   index: number;
+  moduleId: string;
   displayFields: Field[];
   detailFields: Field[]; // ช่องที่ซ่อน (โชว์ตอนกาง) — ว่าง = โหมดเต็ม
   detailGroups: string[];
@@ -45,6 +47,7 @@ interface RowProps {
 const Row = React.memo(function Row({
   rec,
   index,
+  moduleId,
   displayFields,
   detailFields,
   detailGroups,
@@ -67,12 +70,28 @@ const Row = React.memo(function Row({
   const endLocked = isEnd && !unlocked; // งาน End -> ล็อกทั้งแถวจนกว่าจะปลดล็อก (Supervisor)
   const picFilled = (rec[picKey] || "") !== "";
 
-  // Cell ดิบ + logic ล็อก (ใช้ทั้งในตารางและแผงรายละเอียด)
+  const cueFor = (f: Field) => cellCue(moduleId, f.key, rec);
+
+  // Cell ดิบ + logic ล็อก/สี (ใช้ทั้งในตารางและแผงรายละเอียด)
   const bareCell = (f: Field) => {
+    const cue = cueFor(f);
     const isYellow = !f.mandatory && f.type !== "auto";
     const needPic = isYellow && f.key !== picKey && !picFilled;
-    const locked = endLocked || needPic;
-    const hint = endLocked ? "งาน End แล้ว — ต้องปลดล็อก (Supervisor) ก่อนแก้" : "ต้องระบุ PIC ของโมดูลก่อนจึงจะแก้ช่องนี้ได้";
+    const locked = endLocked || needPic || !!cue.locked;
+    const hint = cue.locked
+      ? "ล็อกตามสถานะ (Cancel / Done) — เปลี่ยนสถานะก่อนจึงจะแก้ได้"
+      : endLocked
+      ? "งาน End แล้ว — ต้องปลดล็อก (Supervisor) ก่อนแก้"
+      : "ต้องระบุ PIC ของโมดูลก่อนจึงจะแก้ช่องนี้ได้";
+    const cycle =
+      f.colorToggle && f.colorToggle.length
+        ? () => {
+            const pal = f.colorToggle!;
+            const cur = rec[`${f.key}_color`] || "";
+            const next = pal[(pal.indexOf(cur) + 1) % pal.length]; // ว่าง→สีแรก แล้ววน
+            onChange(rec.__id, `${f.key}_color`, next);
+          }
+        : undefined;
     return (
       <Cell
         field={f}
@@ -81,17 +100,20 @@ const Row = React.memo(function Row({
         onChange={(v) => onChange(rec.__id, f.key, v)}
         locked={locked}
         lockHint={hint}
+        bg={cue.bg}
+        onColorCycle={cycle}
       />
     );
   };
 
   const cellFor = (f: Field, useSticky: boolean) => {
     const sticky = useSticky && f.sticky;
+    const cue = cueFor(f);
     return (
       <td
         key={f.key}
         className={tintClass(f) + (sticky ? " sticky-col" : "")}
-        style={sticky ? { left: stickyLeft[f.key] } : undefined}
+        style={{ ...(sticky ? { left: stickyLeft[f.key] } : {}), ...(cue.bg ? { background: cue.bg } : {}) }}
       >
         {bareCell(f)}
       </td>
@@ -170,7 +192,8 @@ const Row = React.memo(function Row({
 });
 
 export function JobGrid({
-  fields,
+  moduleId,
+  fields: allFields,
   groups,
   rows,
   lists,
@@ -186,6 +209,7 @@ export function JobGrid({
   onDelete,
   onUnlock,
 }: {
+  moduleId: string;
   fields: Field[];
   groups: string[];
   rows: JobRecord[];
@@ -211,6 +235,9 @@ export function JobGrid({
       return n;
     });
   }, []);
+
+  // ซ่อนช่อง hidden (เก็บเป็นคอลัมน์ในชีทแต่ไม่แสดง เช่นช่องเก็บสีปุ่ม)
+  const fields = useMemo(() => allFields.filter((f) => !f.hidden), [allFields]);
 
   // ในโหมดย่อ: แสดงคอลัมน์ตามที่ตั้งค่าไว้ (collapsedKeys) ถ้าไม่มีก็ใช้ summary จาก schema
   const displayFields = useMemo(() => {
@@ -297,6 +324,7 @@ export function JobGrid({
               key={rec.__id}
               rec={rec}
               index={i}
+              moduleId={moduleId}
               displayFields={displayFields}
               detailFields={detailFields}
               detailGroups={detailGroups}

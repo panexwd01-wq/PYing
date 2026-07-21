@@ -14,6 +14,7 @@ import { checkEnd, EndCtx } from "./endRules";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
+  batchClearRanges,
   batchGetRanges,
   batchWriteRanges,
   clearRange,
@@ -151,6 +152,14 @@ function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecor
       if (!next[dateField.key]) next[dateField.key] = nowStamp();
     } else {
       next[dateField.key] = "";
+    }
+  }
+  // Check Deposit Done Date: ลงวัน+เวลาอัตโนมัติเมื่อ Check Deposit = Done
+  if (hasField(m, "check_deposit_done_date")) {
+    if ((next.check_deposit || "") === "Done") {
+      if (!next.check_deposit_done_date) next.check_deposit_done_date = nowStamp();
+    } else {
+      next.check_deposit_done_date = "";
     }
   }
   // ช่องระบบ: ended_at (วันปิดงาน) ตาม Status = End
@@ -550,6 +559,19 @@ export async function deleteJob(
   if (rec) await cascadeDelete(m, rec);
 }
 
+// ลบหลายแถวรวดเดียว (ไม่ cascade) — ใช้ในเส้น reconcile ที่ลบลูกหลายแถว
+// อ่านคอลัมน์ __id รอบเดียว (cache hit ถ้า prime แล้ว) → batchClear 1 request แทน clearRange ทีละแถว
+async function deleteRows(m: ModuleDef, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const idSet = new Set(ids);
+  const col = await readRange(`${m.id}!A1:A`);
+  const ranges: string[] = [];
+  for (let i = 1; i < col.length; i++) {
+    if (idSet.has(col[i]?.[0] || "")) ranges.push(`${m.id}!A${i + 1}:${lastCol(m)}${i + 1}`);
+  }
+  await batchClearRanges(ranges);
+}
+
 // Refresh: ดึงข้อมูลจาก CS ใหม่แล้วบันทึกลงชีทของโมดูล
 export async function refreshModule(m: ModuleDef): Promise<number> {
   if (!moduleHasPull(m) && !moduleHasRPull(m)) return 0;
@@ -592,7 +614,7 @@ const RECON_KEYS: Record<string, string[]> = {
   "04_CS_Import": ["re_export", "shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "imp_job_no"],
   "05_CS_Export": ["shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "exp_job_no"],
   "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
-  "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3"],
+  "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
   "08_Warehouse": ["extra_require", "extra_req_type", "job_no", "wh_pic", "wh_supp1"],
   "09_Extra_Service": ["job_no", "module", "extra_req_type", "supplier", "root_cause", "cost_unit", "cost_cur", "count", "sell_unit", "sell_cur"],
 };
@@ -610,8 +632,14 @@ function extraMetaFromSource(m: ModuleDef, rec: JobRecord): { supplier: string; 
     case "04_CS_Import": return { supplier: "", cost_pic: rec.im_cs || "" };
     case "05_CS_Export": return { supplier: "", cost_pic: rec.ex_cs || "" };
     case "06_Shipping": return { supplier: rec.ship_outsourcing || "", cost_pic: rec.ship_pic || "" };
-    case "07_Transportation":
-      return { supplier: [rec.supp1, rec.supp2, rec.supp3].filter(Boolean).join(", "), cost_pic: rec.trans_pic || "" };
+    case "07_Transportation": {
+      // ดึงชื่อ Trans Supp 1/2/3 — เฉพาะตัวที่กรอก Fuel Rate แล้ว (= supplier ที่ใช้จริง)
+      const names = [1, 2, 3]
+        .filter((n) => (rec[`supp${n}_fuel`] || "").toString().trim())
+        .map((n) => (rec[`supp${n}`] || "").toString().trim())
+        .filter(Boolean);
+      return { supplier: names.join(", "), cost_pic: rec.trans_pic || "" };
+    }
     case "08_Warehouse": return { supplier: rec.wh_supp1 || "", cost_pic: rec.wh_pic || "" };
     default: return { supplier: "", cost_pic: "" };
   }
@@ -675,8 +703,8 @@ async function reconcileReExport(rec: JobRecord): Promise<void> {
   if ((rec.re_export || "") === "Yes") {
     if (!matches.length) await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
   } else {
-    // Re-Export? กลับเป็น No → ลบรายการ Export ที่สร้างอัตโนมัติ
-    for (const m of matches) await deleteJob(EXPORT_MODULE, m.__id!, false);
+    // Re-Export? กลับเป็น No → ลบรายการ Export ที่สร้างอัตโนมัติ (batch)
+    await deleteRows(EXPORT_MODULE, matches.map((m) => m.__id!));
   }
 }
 
@@ -735,11 +763,13 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
     if (cur) toUpdate.push({ __id: cur.__id, ...w.data }); // refresh ค่าที่ดึงจาก extra (คงค่าที่กรอกเอง)
     else toCreate.push({ job_no: jobNo, ...w.data });
   }
-  // ลบแถว Accounting ที่ไม่มี extra/base คู่แล้ว
-  for (const r of existing) {
-    const key = `${r.module || ""}||${r.ap_extra_req_type || ""}`;
-    if (!wantKeys.has(key)) await deleteJob(ACC, r.__id!, false);
-  }
+  // ลบแถว Accounting ที่ไม่มี extra/base คู่แล้ว (batch)
+  await deleteRows(
+    ACC,
+    existing
+      .filter((r) => !wantKeys.has(`${r.module || ""}||${r.ap_extra_req_type || ""}`))
+      .map((r) => r.__id!)
+  );
   if (toCreate.length) await createJobs(ACC, toCreate, true, false);
   if (toUpdate.length) await updateJobs(ACC, toUpdate, false);
 }
@@ -810,6 +840,8 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
       if (j) pushMap(mineByJob, j, r);
     }
     const toCreate: Partial<JobRecord>[] = [];
+    const toUpdate: Partial<JobRecord>[] = [];
+    const toDelete: string[] = [];
     for (const rec of saved) {
       const jobNo = (rec[m.jobNoKey] || "").trim();
       if (!jobNo) continue;
@@ -821,8 +853,12 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
       const have = new Set<string>();
       for (const e of mineByJob.get(jobNo) || []) {
         const t = e.extra_req_type || "";
-        if (want.has(t) && !have.has(t)) have.add(t); // เก็บอันที่ยังต้องการ (กันซ้ำ)
-        else await deleteJob(EXTRA, e.__id!, false); // ไม่ต้องการแล้ว / ซ้ำ → ลบ
+        if (want.has(t) && !have.has(t)) {
+          have.add(t); // เก็บอันที่ยังต้องการ (กันซ้ำ)
+          // supplier/cost_pic เป็น auto — รีเฟรชให้ตรงต้นทางปัจจุบัน (เผื่อกรอก supplier ทีหลัง)
+          if ((e.supplier || "") !== meta.supplier || (e.cost_pic || "") !== meta.cost_pic)
+            toUpdate.push({ __id: e.__id, supplier: meta.supplier, cost_pic: meta.cost_pic });
+        } else toDelete.push(e.__id!); // ไม่ต้องการแล้ว / ซ้ำ → ลบ (batch ทีเดียว)
       }
       for (const t of want) if (!have.has(t))
         toCreate.push({
@@ -830,6 +866,8 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
           supplier: meta.supplier, cost_pic: meta.cost_pic,
         });
     }
+    await deleteRows(EXTRA, toDelete);
+    if (toUpdate.length) await updateJobs(EXTRA, toUpdate, false);
     if (toCreate.length) await createJobs(EXTRA, toCreate, true, false);
   }
 
@@ -855,19 +893,26 @@ async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
       for (const r of await rawList(tm))
         if ((r.job_no || "").trim() === jobNo) await deleteJob(tm, r.__id!);
     }
-    // ลบ Extra + Accounting ทั้งหมดของ job นี้
-    for (const r of await rawList(EXTRA))
-      if ((r.job_no || "").trim() === jobNo) await deleteJob(EXTRA, r.__id!, false);
-    for (const r of await rawList(ACC))
-      if ((r.job_no || "").trim() === jobNo) await deleteJob(ACC, r.__id!, false);
+    // ลบ Extra + Accounting ทั้งหมดของ job นี้ (batch ต่อชีท)
+    await deleteRows(
+      EXTRA,
+      (await rawList(EXTRA)).filter((r) => (r.job_no || "").trim() === jobNo).map((r) => r.__id!)
+    );
+    await deleteRows(
+      ACC,
+      (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo).map((r) => r.__id!)
+    );
     return;
   }
 
-  // isMid: ลบ Extra ป้ายของโมดูลนี้ แล้ว refresh Accounting ให้ตรง
+  // isMid: ลบ Extra ป้ายของโมดูลนี้ แล้ว refresh Accounting ให้ตรง (batch)
   const label = EXTRA_MODULE_LABEL[m.id];
-  for (const r of await rawList(EXTRA))
-    if ((r.job_no || "").trim() === jobNo && (r.module || "") === label)
-      await deleteJob(EXTRA, r.__id!, false);
+  await deleteRows(
+    EXTRA,
+    (await rawList(EXTRA))
+      .filter((r) => (r.job_no || "").trim() === jobNo && (r.module || "") === label)
+      .map((r) => r.__id!)
+  );
   await reconcileAccounting(jobNo);
 }
 

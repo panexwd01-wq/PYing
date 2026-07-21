@@ -12,6 +12,8 @@ export function Cell({
   onChange,
   locked,
   lockHint,
+  bg,
+  onColorCycle,
 }: {
   field: Field;
   value: string;
@@ -19,11 +21,15 @@ export function Cell({
   onChange: (v: string) => void;
   locked?: boolean;
   lockHint?: string;
+  bg?: string; // สีพื้น (จาก cellRules)
+  onColorCycle?: () => void; // ปุ่มสลับสี (MBL)
 }) {
-  // ล็อกจากภายนอก (ยังไม่มี PIC / งาน End แล้ว) -> แสดงแบบอ่านอย่างเดียว
+  const bgStyle = bg ? { background: bg } : undefined;
+
+  // ล็อกจากภายนอก (ยังไม่มี PIC / งาน End / Cancel / SI-VGM Done) -> แสดงแบบอ่านอย่างเดียว
   if (locked && field.type !== "auto") {
     return (
-      <div className="cellbox locked-ext" title={lockHint || "ล็อกอยู่"}>
+      <div className="cellbox locked-ext" style={bgStyle} title={lockHint || "ล็อกอยู่"}>
         {field.type === "toggle" ? value || "No" : value || "—"}
       </div>
     );
@@ -31,12 +37,16 @@ export function Cell({
 
   switch (field.type) {
     case "auto":
-      // ดึงจาก Module อื่น -> read-only (เทา)
-      return <div className="cellbox" title={value}>{value || "—"}</div>;
+      // ดึงจาก Module อื่น -> read-only (เทา) — แต่ยังระบายสี cue ได้ (เช่น Entry Status แดง)
+      return (
+        <div className="cellbox" style={bgStyle} title={value}>
+          {value || "—"}
+        </div>
+      );
 
     case "toggle":
       return (
-        <div className="cellbox">
+        <div className="cellbox" style={bgStyle}>
           <Toggle value={value === "Yes"} onChange={(v) => onChange(v ? "Yes" : "No")} />
         </div>
       );
@@ -44,13 +54,13 @@ export function Cell({
     case "datetime":
       return (
         <div className="cellbox">
-          <DateTimePicker value={value} onChange={onChange} />
+          <DateTimePicker value={value} onChange={onChange} range={field.range} bg={bg} />
         </div>
       );
 
     case "dropdown":
       return (
-        <select className="cell" title={value} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select className="cell" style={bgStyle} title={value} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">—</option>
           {options.map((o) => (
             <option key={o} value={o}>
@@ -70,6 +80,7 @@ export function Cell({
         <input
           className="cell"
           type="number"
+          style={bgStyle}
           title={value}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -77,8 +88,24 @@ export function Cell({
       );
 
     default:
+      // text — ถ้ามีปุ่มสลับสี (MBL) แสดงปุ่มสีข้างช่อง
+      if (field.colorToggle && onColorCycle) {
+        return (
+          <div className="cell-color-wrap">
+            <input className="cell" style={bgStyle} title={value} value={value} onChange={(e) => onChange(e.target.value)} />
+            <button
+              type="button"
+              className="color-btn"
+              style={bg ? { background: bg } : undefined}
+              onClick={onColorCycle}
+              title="สลับสี: ชมพู=รอลูกค้าจ่ายภาษี / เขียว=รอเงินมัดจำกับสายเรือ"
+              aria-label="สลับสี"
+            />
+          </div>
+        );
+      }
       return (
-        <input className="cell" title={value} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input className="cell" style={bgStyle} title={value} value={value} onChange={(e) => onChange(e.target.value)} />
       );
   }
 }
