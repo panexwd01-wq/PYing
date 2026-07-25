@@ -53,7 +53,7 @@ export function Cell({
 
     case "datetime":
       return (
-        <div className="cellbox">
+        <div className="cellbox" style={bgStyle}>
           <DateTimePicker value={value} onChange={onChange} range={field.range} bg={bg} />
         </div>
       );

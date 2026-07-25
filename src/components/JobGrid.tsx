@@ -171,12 +171,20 @@ const Row = React.memo(function Row({
                   <div className="detail-group" key={g}>
                     <div className="detail-group-title">{g}</div>
                     <div className="detail-grid">
-                      {gf.map((f) => (
-                        <div className={"detail-item " + tintClass(f)} key={f.key}>
-                          <label title={f.help || f.label}>{f.label}</label>
-                          {bareCell(f)}
-                        </div>
-                      ))}
+                      {gf.map((f) => {
+                        // กติกาสี (Form E / PERMIT / PV / Carrier …) ให้ระบายทั้งกล่อง ไม่ใช่แค่ช่องกรอก
+                        const cueBg = cueFor(f).bg;
+                        return (
+                          <div
+                            className={"detail-item " + tintClass(f) + (cueBg ? " has-cue" : "")}
+                            key={f.key}
+                            style={cueBg ? { background: cueBg, borderColor: cueBg } : undefined}
+                          >
+                            <label title={f.help || f.label}>{f.label}</label>
+                            {bareCell(f)}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

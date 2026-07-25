@@ -57,7 +57,12 @@ export function RecordPanel({
                 const st = cellState(moduleId, rec, f, { statusKey, picKey, unlocked, readOnly }, carrierColors);
                 const tint = f.type === "auto" ? "tint-locked" : f.mandatory ? "tint-mandatory" : "tint-editable";
                 return (
-                  <div className={"detail-item " + tint} key={f.key}>
+                  // กติกาสีของช่อง (เช่น PERMIT แดง) ระบายทั้งกล่อง ไม่ใช่แค่ช่องกรอก
+                  <div
+                    className={"detail-item " + tint + (st.bg ? " has-cue" : "")}
+                    key={f.key}
+                    style={st.bg ? { background: st.bg, borderColor: st.bg } : undefined}
+                  >
                     <label title={f.help || f.label}>{f.label}</label>
                     <Cell
                       field={f}

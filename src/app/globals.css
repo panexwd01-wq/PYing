@@ -1973,3 +1973,19 @@ tr.wl-min td {
     font-size: 15px;
   }
 }
+
+/* ===== ช่องที่มีกติกาสี (Form E / PERMIT / PV Status / Carrier / ETD ตามวัน) ===== */
+/* ระบายสีทั้งกล่อง ไม่ใช่แค่ช่องกรอกด้านใน — ให้เห็นชัดจากระยะไกล */
+.detail-item.has-cue {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.detail-item.has-cue > label {
+  color: #23313d;
+}
+.detail-item.has-cue input.cell,
+.detail-item.has-cue select.cell {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+.detail-item.has-cue .cellbox {
+  background: transparent;
+}
