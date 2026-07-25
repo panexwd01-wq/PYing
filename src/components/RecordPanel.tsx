@@ -7,6 +7,9 @@ import { Cell } from "./Cell";
 
 // แผงรายละเอียดของ "1 ระเบียน" — จัดกลุ่มตาม section ของ schema
 // ใช้ตอนกาง (Expand) ในมุมมองที่รวบหลายแถวเป็น 1 Job No.
+//
+// applyToIds  = ถ้าส่งมา แก้ 1 ครั้งจะเขียนลงทุกแถวของ Job No. นั้น (ช่องพวกนี้ผูกกับ Job ไม่ใช่ราย Type)
+// valueOverride = ค่าที่ให้แสดงแทนค่าดิบของแถว (ใช้กับยอดรวมของทั้ง Job)
 export function RecordPanel({
   moduleId,
   rec,
@@ -18,6 +21,8 @@ export function RecordPanel({
   unlocked,
   readOnly,
   onChange,
+  applyToIds,
+  valueOverride,
 }: {
   moduleId: string;
   rec: JobRecord;
@@ -29,7 +34,12 @@ export function RecordPanel({
   unlocked: boolean;
   readOnly?: boolean;
   onChange: (id: string, key: string, value: string) => void;
+  applyToIds?: string[];
+  valueOverride?: Record<string, string>;
 }) {
+  const change = (key: string, v: string) => {
+    for (const id of applyToIds && applyToIds.length ? applyToIds : [rec.__id]) onChange(id, key, v);
+  };
   const visible = fields.filter((f) => !f.hidden);
   const groups: string[] = [];
   for (const f of visible) if (!groups.includes(f.group)) groups.push(f.group);
@@ -51,9 +61,9 @@ export function RecordPanel({
                     <label title={f.help || f.label}>{f.label}</label>
                     <Cell
                       field={f}
-                      value={rec[f.key] || ""}
+                      value={valueOverride?.[f.key] ?? (rec[f.key] || "")}
                       options={f.list ? lists[f.list] || [] : []}
-                      onChange={(v) => onChange(rec.__id, f.key, v)}
+                      onChange={(v) => change(f.key, v)}
                       locked={st.locked}
                       lockHint={st.hint}
                       bg={st.bg}

@@ -80,13 +80,42 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     return marked.length ? marked : visible.filter((f) => f.sticky);
   }, [mod, collapsedKeys]);
 
-  // ช่องที่แสดงในแผงแยกราย Type (ตัดหัว Job ที่ซ้ำกันทั้งกลุ่มออก)
-  const perTypeFields = useMemo(() => {
-    if (moduleKey === "extra")
-      return mod.fields.filter((f) => f.group !== "Job Info" || f.key === "extra_status");
-    const dup = new Set(["job_type", "job_no", "booking_mbl", "customer", "cs_pic", "sales_bkg_by"]);
-    return mod.fields.filter((f) => !dup.has(f.key));
-  }, [mod, moduleKey]);
+  // ช่องในแผงตอนกาง — ผูกกับ Job No. ชุดเดียว (แก้ทีเดียวเขียนลงทุกแถวของ Job นั้น)
+  // ยกเว้นช่องของตาราง Sell / Job Cost ที่ยังแยกราย Type (hidden อยู่แล้ว)
+  const panelFields = useMemo(() => mod.fields, [mod]);
+
+  // ค่าที่ต้องแสดงเป็น "ของทั้ง Job" ในแผงเดียว — ยอดรวม + ค่าที่ต่างกันราย Type ให้รวมข้อความ
+  const groupTotals = useCallback(
+    (rs: JobRecord[]): Record<string, string> => {
+      const sum = (k: string) => rs.reduce((a, r) => a + (parseFloat((r[k] || "0").replace(/,/g, "")) || 0), 0);
+      const merge = (k: string) => {
+        const seen: string[] = [];
+        for (const r of rs) {
+          const v = (r[k] || "").trim();
+          if (v && !seen.includes(v)) seen.push(v);
+        }
+        return seen.join(" · ");
+      };
+      if (moduleKey === "extra") {
+        const cost = sum("cost_baht");
+        return {
+          cost_total: String(cost),
+          margin_total: String(sum("sell_baht") - cost),
+          extra_req_type: merge("extra_req_type"),
+          module: merge("module"),
+          supplier: merge("supplier"),
+        };
+      }
+      return {
+        ap_total_cost: String(sum("ap_total_cost")),
+        ar_total_sell: String(sum("ar_total_sell")),
+        ap_extra_req_type: merge("ap_extra_req_type"),
+        module: merge("module"),
+        supplier: merge("supplier"),
+      };
+    },
+    [moduleKey]
+  );
 
   const emptyRecord = useCallback(
     (id: string): JobRecord => {
@@ -411,26 +440,29 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       onChange={onChange}
                     />
                   )}
-                  {rs.map((r) => (
-                    <div className="group-rec" key={r.__id}>
-                      <div className="group-rec-title">
-                        {r.extra_req_type || r.ap_extra_req_type || "รายละเอียด"}
-                        {r.module && <span className="mod-tag">{r.module}</span>}
-                      </div>
-                      <RecordPanel
-                        moduleId={mod.id}
-                        rec={r}
-                        fields={perTypeFields}
-                        lists={lists}
-                        carrierColors={data?.carrierColors}
-                        statusKey={statusKey}
-                        picKey={mod.picKey}
-                        unlocked={unlocked.has(r.__id)}
-                        readOnly={!mayEdit}
-                        onChange={onChange}
-                      />
+                  <div className="group-rec">
+                    <div className="group-rec-title">
+                      Job No. {rs[0].job_no || "—"}
+                      <span className="mod-tag">{rs.length} Type</span>
+                      <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
+                        แก้ที่นี่ครั้งเดียว มีผลกับทุก Type ของ Job นี้
+                      </span>
                     </div>
-                  ))}
+                    <RecordPanel
+                      moduleId={mod.id}
+                      rec={rs[0]}
+                      fields={panelFields}
+                      lists={lists}
+                      carrierColors={data?.carrierColors}
+                      statusKey={statusKey}
+                      picKey={mod.picKey}
+                      unlocked={unlocked.has(rs[0].__id)}
+                      readOnly={!mayEdit}
+                      onChange={onChange}
+                      applyToIds={rs.map((r) => r.__id)}
+                      valueOverride={groupTotals(rs)}
+                    />
+                  </div>
                 </div>
               )}
             />

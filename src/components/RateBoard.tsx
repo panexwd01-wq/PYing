@@ -170,7 +170,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
           </div>
           <div className="rate-form-actions">
             <span className="muted">
-              บันทึกแล้ว <b>แก้ไขไม่ได้</b> — หากต้องการแก้ไขให้ติดต่อฝ่ายบัญชี
+              ช่องที่มี <b style={{ color: "var(--danger)" }}>*</b> ต้องกรอก · บันทึกแล้ว <b>แก้ไขไม่ได้</b> — หากต้องการแก้ไขให้ติดต่อฝ่ายบัญชี
             </span>
             <button className="btn" onClick={() => setDraft(emptyDraft())}>ล้างฟอร์ม</button>
             <button className="btn primary" onClick={addRate} disabled={saving}>＋ เพิ่มเรท</button>
@@ -232,7 +232,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
                 <tr key={rec.__id} className={isEditing ? "dirty" : ""}>
                   <td className="rownum">{i + 1}</td>
                   {mod.fields.map((f) => (
-                    <td key={f.key} className={f.type === "auto" ? "tint-locked" : "tint-locked"}>
+                    <td key={f.key} className={f.type === "auto" ? "tint-locked" : undefined}>
                       {isEditing && f.type !== "auto" ? (
                         <Cell
                           field={f}

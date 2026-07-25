@@ -1692,57 +1692,65 @@ table.extra-lines tfoot .tot {
 
 /* ===== Rate Checker (PANEX COST / SELL CHECKER) ===== */
 .rate-section {
-  margin-top: 16px;
-  border: 1px solid #cfd9e4;
-  border-radius: 12px;
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 .rate-head {
-  background: #17527f;
+  background: var(--petrol-dark);
   color: #fff;
   font-weight: 700;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
   text-align: center;
-  padding: 7px 12px;
+  padding: 10px 16px;
   font-size: 14px;
 }
 .rate-block {
-  border-bottom: 1px solid #dde4ec;
-  padding: 0 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 16px;
 }
 .rate-block-title {
-  background: #cfe3f5;
-  color: #14406e;
-  font-weight: 600;
-  font-size: 12px;
-  padding: 4px 12px;
-  margin-bottom: 10px;
+  background: #dcebf8;
+  color: var(--petrol-dark);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 7px 18px;
+  margin-bottom: 16px;
 }
 .rate-block.filter .rate-block-title {
-  background: #e3eef8;
+  background: #eaf2fa;
 }
 .rate-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 8px 14px;
-  padding: 0 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px 28px;
+  padding: 0 18px;
+  align-items: start;
 }
 .rate-form .field {
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
 }
 .rate-form .field > label {
-  flex: 0 0 40%;
+  flex: 0 0 148px;
   text-align: right;
-  font-size: 12px;
-  color: #33475b;
-  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  font-weight: 600;
+  letter-spacing: 0.2px;
   margin: 0;
+  overflow-wrap: break-word;
 }
 .rate-form .field > label .req-star {
-  color: #c0392b;
+  color: var(--danger);
 }
 .rate-form .field > select,
 .rate-form .field > input,
@@ -1751,24 +1759,83 @@ table.extra-lines tfoot .tot {
 .rate-form .field > .chips {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
+}
+.rate-form .field > .cellbox {
+  min-height: 32px;
+  padding: 6px 9px;
+  border-radius: 6px;
 }
 .rate-form-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 10px 12px 0;
+  gap: 12px;
+  padding: 16px 18px 0;
+  margin-top: 4px;
+  border-top: 1px dashed var(--line-soft);
   flex-wrap: wrap;
 }
 .rate-form-actions .muted {
   margin-right: auto;
   font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ตารางผลลัพธ์ — ให้กลืนเป็นส่วนหนึ่งของการ์ด ไม่ซ้อนขอบ */
+.rate-section .grid-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: 58vh;
+}
+table.grid.rate-grid thead tr.field-row th {
+  top: 0; /* ตารางเรทไม่มีแถวชื่อกลุ่ม หัวตารางจึงอยู่บนสุด */
+  padding: 9px 10px;
+}
+table.grid.rate-grid td {
+  padding: 2px 0;
+}
+table.grid.rate-grid tbody tr:nth-child(even) td {
+  background: #fafcfe;
+}
+table.grid.rate-grid tbody tr:hover td {
+  background: #f1f7fd;
 }
 .rate-grid .cellbox {
   background: transparent;
+  padding: 5px 10px;
+  min-height: 30px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.rate-grid .cell {
+  margin: 0 6px;
+  width: calc(100% - 12px);
+}
+.rate-grid td.rownum,
+.rate-grid th.rownum {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .rate-form {
+    grid-template-columns: 1fr;
+    gap: 10px 0;
+  }
+  .rate-form .field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .rate-form .field > label {
+    flex: none;
+    text-align: left;
+  }
 }
 
 /* ===== Supervisor: Team Workload กางรายชื่อพนักงาน ===== */
@@ -1827,8 +1894,9 @@ tr.wl-min td {
     padding: 0;
     margin-bottom: 6px;
   }
+  /* ตัวหนังสือใหญ่อ่านง่าย (ผู้ใช้งานหน้างานอ่านบนกระดาษ) */
   .pd-sheet {
-    font-size: 11px;
+    font-size: 14px;
     color: #000;
   }
   .pd-head {
@@ -1837,49 +1905,50 @@ tr.wl-min td {
     align-items: baseline;
     gap: 12px;
     border-bottom: 2px solid #000;
-    padding-bottom: 3px;
-    margin-bottom: 6px;
-    font-size: 12px;
+    padding-bottom: 5px;
+    margin-bottom: 8px;
+    font-size: 16px;
   }
   .pd-rec {
     display: flex;
-    border: 1px solid #333;
-    margin-bottom: 4px;
+    border: 1.5px solid #000;
+    margin-bottom: 7px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
   .pd-no {
-    flex: 0 0 24px;
+    flex: 0 0 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-right: 1px solid #333;
+    border-right: 1.5px solid #000;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 17px;
   }
   .pd-fields {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     min-width: 0;
   }
   .pd-cell {
-    border-right: 1px dotted #999;
-    border-bottom: 1px dotted #999;
-    padding: 1px 4px 2px;
-    min-height: 24px;
+    border-right: 1px dotted #888;
+    border-bottom: 1px dotted #888;
+    padding: 3px 7px 4px;
+    min-height: 36px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    gap: 1px;
     min-width: 0;
   }
   .pd-cell.wide {
     grid-column: span 2;
   }
   .pd-cell .k {
-    font-size: 7.5px;
-    line-height: 1.15;
-    color: #555;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #444;
     letter-spacing: 0.2px;
     text-transform: uppercase;
     white-space: nowrap;
@@ -1887,17 +1956,20 @@ tr.wl-min td {
     text-overflow: ellipsis;
   }
   .pd-cell .v {
-    font-size: 11px;
-    line-height: 1.25;
+    font-size: 15px;
+    line-height: 1.3;
+    font-weight: 500;
     white-space: pre-wrap;
     word-break: break-word;
   }
   .pd-cell.chk .v {
-    font-size: 14px;
+    font-size: 22px;
+    line-height: 1.1;
     text-align: center;
   }
   .pd-empty {
     padding: 20px;
     text-align: center;
+    font-size: 15px;
   }
 }
