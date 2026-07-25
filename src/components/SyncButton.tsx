@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { SavingOverlay } from "./SavingOverlay";
 import { useData } from "./DataProvider";
+import { useAuth } from "./AuthProvider";
 
-// ปุ่ม Sync: สร้าง Extra (09) + Accounting queue (10) ตาม Workflow Rules
+// ปุ่ม Sync: สร้าง Extra (09) + Accounting queue (10) ตาม Workflow Rules — admin เท่านั้น
 export function SyncButton() {
   const { reload } = useData();
+  const { isAdmin } = useAuth();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
 
@@ -25,6 +27,8 @@ export function SyncButton() {
       setBusy(false);
     }
   };
+
+  if (!isAdmin) return null;
 
   return (
     <>

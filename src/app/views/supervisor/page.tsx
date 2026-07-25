@@ -1,17 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
+import { RequireTab } from "@/components/RequireTab";
 import { supervisorDash, MONTHS_TH, yearsInData } from "@/lib/stats";
 
-export default function SupervisorView() {
+export default function SupervisorPage() {
+  return (
+    <RequireTab tab="supervisor">
+      <SupervisorView />
+    </RequireTab>
+  );
+}
+
+function SupervisorView() {
   const { data, loading, error, reload } = useData();
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [team, setTeam] = useState("");
   const [pic, setPic] = useState("");
+  const [openTeams, setOpenTeams] = useState<Set<string>>(new Set()); // ทีมที่กางดูรายชื่อพนักงาน
+
+  const toggleTeam = (t: string) =>
+    setOpenTeams((prev) => {
+      const n = new Set(prev);
+      if (n.has(t)) n.delete(t);
+      else n.add(t);
+      return n;
+    });
 
   const years = useMemo(() => (data ? yearsInData(data) : [year]), [data, year]);
   const s = useMemo(() => (data ? supervisorDash(data, year, month) : null), [data, year, month]);
@@ -102,13 +120,73 @@ export default function SupervisorView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Team Workload</h3>
+          <p className="muted" style={{ margin: "0 4px 6px", fontSize: 12 }}>
+            กด ▸ หน้าแถวทีม เพื่อดูรายชื่อพนักงานทุกคนในทีมนั้น (เรียงจากงานมากสุด → น้อยสุด)
+          </p>
           <div className="grid-wrap">
-            <table className="view-table">
-              <thead><tr className="field-row"><th>Team</th><th>งานเดือนนี้</th><th>Active</th><th>End วันนี้</th><th>End เดือนนี้</th></tr></thead>
+            <table className="view-table team-workload">
+              <thead><tr className="field-row"><th style={{ width: 40 }} /><th>Team</th><th>งานเดือนนี้</th><th>Active</th><th>End วันนี้</th><th>End เดือนนี้</th></tr></thead>
               <tbody>
-                {s.team.map((t, i) => (
-                  <tr key={i}><td>{t.team}</td><td>{t.total}</td><td>{t.active}</td><td>{t.endToday}</td><td>{t.endMonth}</td></tr>
-                ))}
+                {s.team.map((t, i) => {
+                  const open = openTeams.has(t.team);
+                  // พนักงานในทีมนี้ เรียงจากงานมาก → น้อย
+                  const members = s.staff.filter((x) => x.team === t.team).sort((a, b) => b.total - a.total);
+                  const max = members.length ? members[0].total : 0;
+                  const min = members.length ? members[members.length - 1].total : 0;
+                  return (
+                    <React.Fragment key={i}>
+                      <tr className={open ? "row-expanded" : undefined}>
+                        <td style={{ textAlign: "center" }}>
+                          <button
+                            className={"expand-btn" + (open ? " on" : "")}
+                            onClick={() => toggleTeam(t.team)}
+                            title={open ? "ย่อ" : "ดูรายชื่อพนักงานในทีมนี้"}
+                            aria-label="กางรายชื่อพนักงาน"
+                          >
+                            ▸
+                          </button>
+                        </td>
+                        <td><b>{t.team}</b> <span className="count-pill sm">{members.length} คน</span></td>
+                        <td>{t.total}</td><td>{t.active}</td><td>{t.endToday}</td><td>{t.endMonth}</td>
+                      </tr>
+                      {open && (
+                        <tr className="detail-row">
+                          <td className="detail-cell" colSpan={6}>
+                            <div className="team-members">
+                              <table className="view-table">
+                                <thead>
+                                  <tr className="field-row">
+                                    <th>อันดับ</th><th>พนักงาน (PIC)</th><th>Total</th><th>Active</th><th>End</th><th>Delay (&gt;7 วัน)</th><th>Internal Error</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {members.map((mbr, j) => {
+                                    const hot = members.length > 1 && mbr.total === max && max > 0;
+                                    const cold = members.length > 1 && mbr.total === min;
+                                    return (
+                                      <tr key={mbr.pic} className={hot ? "wl-max" : cold ? "wl-min" : undefined}>
+                                        <td>{j + 1}</td>
+                                        <td>
+                                          {mbr.pic}
+                                          {hot && <span className="wl-tag hot">งานมากสุด</span>}
+                                          {cold && !hot && <span className="wl-tag cold">งานน้อยสุด</span>}
+                                        </td>
+                                        <td>{mbr.total}</td><td>{mbr.active}</td><td>{mbr.end}</td><td>{mbr.delay}</td><td>{mbr.error}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {members.length === 0 && (
+                                    <tr><td colSpan={7} style={{ padding: 14, textAlign: "center", color: "#777" }}>ยังไม่มีพนักงานที่มีงานในทีมนี้เดือนนี้</td></tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

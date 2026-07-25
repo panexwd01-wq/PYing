@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useData } from "@/components/DataProvider";
 import { SyncButton } from "@/components/SyncButton";
 import { CenterLoading } from "@/components/Spinner";
+import { RequireTab } from "@/components/RequireTab";
 import { dashboardStats } from "@/lib/stats";
 
 // จับคู่ Status → สีจุด (ใช้กับ CSS .st-*)
@@ -17,7 +18,15 @@ function statusClass(name: string): string {
   return "other";
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
+  return (
+    <RequireTab tab="dashboard">
+      <Dashboard />
+    </RequireTab>
+  );
+}
+
+function Dashboard() {
   const { data, loading, error, reload } = useData();
 
   if (loading && !data) {

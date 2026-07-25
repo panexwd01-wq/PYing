@@ -71,7 +71,7 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "ship_outsourcing", label: "Ship Outsourcing", group: "Shipping", type: "auto", width: 150, rpull: { from: "06_Shipping", field: "ship_outsourcing" } },
   { key: "duty_vat_amount", label: "DUTY/VAT AMOUNT", group: "Shipping", type: "auto", width: 140, rpull: { from: "06_Shipping", field: "duty_vat_amount" } },
   { key: "entry_status", label: "Entry Status", group: "Shipping", type: "auto", width: 120, rpull: { from: "06_Shipping", field: "entry_status" }, help: "ดึงจาก Shipping · Done = แดง" },
-  { key: "permit", label: "PERMIT", group: "Shipping", type: "text", width: 130, help: "(รอสเปกเพิ่มเติม)" },
+  { key: "permit", label: "PERMIT", group: "Shipping", type: "auto", width: 130, rpull: { from: "06_Shipping", field: "permit" }, help: "ดึงจาก Shipping (แก้ที่ tab Shipping) · ไม่ใช่ว่าง/N/A = แดง" },
   { key: "form_e", label: "Form E", group: "Shipping", type: "dropdown", list: "form_e", width: 150, help: "มีสีตามค่าที่เลือก" },
 
   // ----- Transport -----

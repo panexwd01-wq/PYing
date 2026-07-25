@@ -22,7 +22,8 @@ export const SHIPPING_FIELDS: Field[] = [
   { key: "duty_vat_amount", label: "DUTY/VAT AMOUNT", group: "Clearance Information", type: "text", width: 140 },
   { key: "entry_status", label: "Entry Status", group: "Clearance Information", type: "dropdown", list: "enter_doc_status", width: 120 },
   { key: "tisi", label: "TISI", group: "Clearance Information", type: "dropdown", list: "enter_doc_status", width: 110 },
-  { key: "form_e", label: "Form E", group: "Clearance Information", type: "dropdown", list: "enter_doc_status", width: 110 },
+  { key: "permit", label: "PERMIT", group: "Clearance Information", type: "dropdown", list: "permit", width: 130, help: "เลือกใบอนุญาตที่ต้องขอ — ถ้าไม่ใช่ว่าง/N/A ช่องจะเป็นสีแดง และ CS Import/Export จะเห็นค่านี้ (แก้ไม่ได้)" },
+  { key: "form_e", label: "Form E", group: "Clearance Information", type: "auto", width: 150, pull: { imp: "form_e", exp: "form_e" }, help: "ดึงจาก CS Import/Export (แก้ที่ต้นทางเท่านั้น)" },
   { key: "co_form", label: "C/O Form", group: "Clearance Information", type: "dropdown", list: "enter_doc_status", width: 110 },
   { key: "entry_remark", label: "Entry Remark", group: "Clearance Information", type: "text", width: 180 },
 

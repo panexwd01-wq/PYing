@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
+import { RequireTab } from "@/components/RequireTab";
 import { managementDash, MONTHS_TH, yearsInData, SupplierStat } from "@/lib/stats";
 
 function KPI({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
@@ -30,7 +31,15 @@ function SuppCard({ title, rows, metric }: { title: string; rows: SupplierStat[]
   );
 }
 
-export default function ManagementView() {
+export default function ManagementPage() {
+  return (
+    <RequireTab tab="management">
+      <ManagementView />
+    </RequireTab>
+  );
+}
+
+function ManagementView() {
   const { data, loading, error, reload } = useData();
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));

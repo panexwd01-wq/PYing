@@ -4,13 +4,25 @@ import { useEffect, useState } from "react";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { CenterLoading } from "@/components/Spinner";
 import { useData } from "@/components/DataProvider";
+import { RequireTab } from "@/components/RequireTab";
+import { useAuth } from "@/components/AuthProvider";
 import { ALL_LISTS, LIST_LABEL } from "@/lib/schema";
 import { Lists } from "@/lib/types";
 
 const CARRIER_KEY = "carrier"; // list ที่มี color picker ต่อรายการ
 
 export default function SettingsPage() {
+  return (
+    <RequireTab tab="settings">
+      <SettingsView />
+    </RequireTab>
+  );
+}
+
+function SettingsView() {
   const { data, loading, error, reload: reloadApp } = useData();
+  const { canLists } = useAuth();
+  const editable = canLists(); // ไม่มีสิทธิ์ = ดูได้อย่างเดียว
   const [lists, setLists] = useState<Lists>({});
   const [colors, setColors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -123,12 +135,18 @@ export default function SettingsPage() {
           <button className="btn" onClick={reloadApp} disabled={loading || saving}>
             รีเฟรช
           </button>
-          <button className={"btn primary" + (dirty ? " pulse" : "")} onClick={saveLists} disabled={loading || saving}>
-            บันทึก Dropdown
-          </button>
+          {editable && (
+            <button className={"btn primary" + (dirty ? " pulse" : "")} onClick={saveLists} disabled={loading || saving}>
+              บันทึก Dropdown
+            </button>
+          )}
         </div>
         <p className="muted">
-          แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> เลือกสีต่อรายการได้ (ระบายช่องทุก tab)
+          {editable ? (
+            <>แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> เลือกสีต่อรายการได้ (ระบายช่องทุก tab)</>
+          ) : (
+            <>บัญชีนี้<b>ดูได้อย่างเดียว</b> — สิทธิ์แก้ไข Dropdown ตั้งค่าได้ที่หน้า “ผู้ใช้” โดย admin</>
+          )}
         </p>
       </div>
 
@@ -162,15 +180,15 @@ export default function SettingsPage() {
                   >
                     <span
                       className="drag-handle"
-                      draggable
-                      onDragStart={() => setDrag({ key, idx: i })}
+                      draggable={editable}
+                      onDragStart={() => editable && setDrag({ key, idx: i })}
                       onDragEnd={() => setDrag(null)}
                       title="ลากเพื่อจัดลำดับ"
                     >
                       ≡
                     </span>
-                    <input value={v} onChange={(e) => setItem(key, i, e.target.value)} />
-                    {key === CARRIER_KEY && (
+                    <input value={v} readOnly={!editable} onChange={(e) => setItem(key, i, e.target.value)} />
+                    {key === CARRIER_KEY && editable && (
                       <span className="color-pick" title="เลือกสีของรายการนี้ (ระบายช่อง Co-Agent/Carrier ทุก tab)">
                         <input
                           type="color"
@@ -185,15 +203,19 @@ export default function SettingsPage() {
                         )}
                       </span>
                     )}
-                    <button className="btn sm danger" onClick={() => removeItem(key, i)}>
-                      ลบ
-                    </button>
+                    {editable && (
+                      <button className="btn sm danger" onClick={() => removeItem(key, i)}>
+                        ลบ
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
-              <button className="btn sm" onClick={() => addItem(key)}>
-                ＋ เพิ่มตัวเลือก
-              </button>
+              {editable && (
+                <button className="btn sm" onClick={() => addItem(key)}>
+                  ＋ เพิ่มตัวเลือก
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -1457,3 +1457,447 @@ tr.detail-row > td.detail-cell {
   background: #fff;
   cursor: pointer;
 }
+
+/* ===== Login / ผู้ใช้ / สิทธิ์ ===== */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(160deg, #eef3f8 0%, #dfe8f2 100%);
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border: 1px solid #d6dee8;
+  border-radius: 14px;
+  padding: 26px 24px 20px;
+  box-shadow: 0 12px 34px rgba(20, 45, 80, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-brand {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #14406e;
+}
+.login-brand .full {
+  color: #2c7fc9;
+}
+.login-card .field {
+  width: 100%;
+}
+.login-card .field input {
+  width: 100%;
+}
+.login-err {
+  background: #ffe6e6;
+  border: 1px solid #f0b4b4;
+  color: #a12020;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.login-hint {
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+.btn.lg {
+  padding: 10px 14px;
+  font-size: 15px;
+}
+
+.user-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.user-name {
+  color: #eaf2fb;
+  font-size: 13px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.role-pill {
+  background: #2c7fc9;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.modal.wide {
+  max-width: 900px;
+  width: 94vw;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.user-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+.user-form .field input,
+.user-form .field select {
+  width: 100%;
+}
+.perm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.perm-table th,
+.perm-table td {
+  text-align: center;
+  white-space: nowrap;
+}
+.perm-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ===== มุมมองรวบกลุ่ม (Extra / Accounting) ===== */
+.grid.grouped td.tint-locked .cellbox {
+  background: transparent;
+}
+.count-pill.sm {
+  font-size: 11px;
+  padding: 1px 7px;
+}
+.group-detail {
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.group-rec {
+  border: 1px solid #dde4ec;
+  border-radius: 10px;
+  background: #fbfdff;
+  overflow: hidden;
+}
+.group-rec-title {
+  background: #eef4fa;
+  border-bottom: 1px solid #dde4ec;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #1d4f7d;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mod-tag {
+  background: #d8e6f4;
+  color: #16558c;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ----- ตาราง Sell / Job Cost ตามฟอร์มเอกสาร ----- */
+.extra-lines-wrap {
+  border: 1px solid #cfd9e4;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px 12px;
+  overflow-x: auto;
+}
+.extra-origin {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  color: #14406e;
+  margin-bottom: 8px;
+}
+.extra-side + .extra-side {
+  margin-top: 14px;
+}
+table.extra-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 940px;
+}
+table.extra-lines th {
+  background: #fff;
+  border-bottom: 2px solid #333;
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+}
+table.extra-lines th.lead,
+table.extra-lines td.lead {
+  text-align: left;
+  min-width: 190px;
+  max-width: 260px;
+}
+table.extra-lines th.lead {
+  border-bottom: 2px solid #333;
+  font-weight: 700;
+}
+table.extra-lines td {
+  padding: 2px 4px;
+  border-bottom: 1px solid #e6ebf1;
+  vertical-align: middle;
+}
+table.extra-lines td.lead {
+  font-weight: 500;
+  color: #24384d;
+  display: table-cell;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+table.extra-lines td.num .cell,
+table.extra-lines td.num .cellbox {
+  text-align: right;
+}
+table.extra-lines .cell,
+table.extra-lines .cellbox {
+  min-height: 24px;
+  padding: 2px 5px;
+  font-size: 12px;
+  width: 100%;
+}
+table.extra-lines tfoot td {
+  border-top: 2px solid #333;
+  border-bottom: none;
+  padding: 5px 6px;
+  font-weight: 600;
+}
+table.extra-lines tfoot .tot-label {
+  text-align: right;
+  white-space: nowrap;
+}
+table.extra-lines tfoot .tot {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ===== Rate Checker (PANEX COST / SELL CHECKER) ===== */
+.rate-section {
+  margin-top: 16px;
+  border: 1px solid #cfd9e4;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.rate-head {
+  background: #17527f;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-align: center;
+  padding: 7px 12px;
+  font-size: 14px;
+}
+.rate-block {
+  border-bottom: 1px solid #dde4ec;
+  padding: 0 0 10px;
+}
+.rate-block-title {
+  background: #cfe3f5;
+  color: #14406e;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 4px 12px;
+  margin-bottom: 10px;
+}
+.rate-block.filter .rate-block-title {
+  background: #e3eef8;
+}
+.rate-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px 14px;
+  padding: 0 12px;
+}
+.rate-form .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rate-form .field > label {
+  flex: 0 0 40%;
+  text-align: right;
+  font-size: 12px;
+  color: #33475b;
+  font-weight: 500;
+  margin: 0;
+}
+.rate-form .field > label .req-star {
+  color: #c0392b;
+}
+.rate-form .field > select,
+.rate-form .field > input,
+.rate-form .field > .cell,
+.rate-form .field > .cellbox,
+.rate-form .field > .chips {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.rate-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 12px 0;
+  flex-wrap: wrap;
+}
+.rate-form-actions .muted {
+  margin-right: auto;
+  font-size: 12px;
+}
+.rate-grid .cellbox {
+  background: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== Supervisor: Team Workload กางรายชื่อพนักงาน ===== */
+.team-workload .expand-btn {
+  margin: 0 auto;
+}
+.team-members {
+  padding: 8px 10px 10px;
+  background: #f7fafd;
+}
+.team-members .view-table {
+  background: #fff;
+}
+tr.wl-max td {
+  background: #fff2cf !important;
+  font-weight: 600;
+}
+tr.wl-min td {
+  background: #e8f5ec !important;
+}
+.wl-tag {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-left: 8px;
+  font-weight: 500;
+}
+.wl-tag.hot {
+  background: #f0a828;
+  color: #40260a;
+}
+.wl-tag.cold {
+  background: #7fc094;
+  color: #123420;
+}
+
+/* ===== Ship Daily: เลย์เอาต์เฉพาะตอนพิมพ์ (คอลัมน์ที่เกินหน้าไหลลงบรรทัดถัดไปของรายการเดิม) ===== */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  .screen-only {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .panel {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 6px;
+  }
+  .pd-sheet {
+    font-size: 11px;
+    color: #000;
+  }
+  .pd-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .pd-rec {
+    display: flex;
+    border: 1px solid #333;
+    margin-bottom: 4px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .pd-no {
+    flex: 0 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #333;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .pd-fields {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    min-width: 0;
+  }
+  .pd-cell {
+    border-right: 1px dotted #999;
+    border-bottom: 1px dotted #999;
+    padding: 1px 4px 2px;
+    min-height: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+  .pd-cell.wide {
+    grid-column: span 2;
+  }
+  .pd-cell .k {
+    font-size: 7.5px;
+    line-height: 1.15;
+    color: #555;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pd-cell .v {
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .pd-cell.chk .v {
+    font-size: 14px;
+    text-align: center;
+  }
+  .pd-empty {
+    padding: 20px;
+    text-align: center;
+  }
+}

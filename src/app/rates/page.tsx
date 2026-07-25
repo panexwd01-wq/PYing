@@ -1,21 +1,24 @@
 "use client";
 
 import { RateBoard } from "@/components/RateBoard";
+import { RequireTab } from "@/components/RequireTab";
 
 export default function RatesPage() {
   return (
-    <main className="page fade-in">
-      <div className="panel">
-        <h2>Rate Checker — ฐานเรทค่าขนส่ง / ราคาขาย</h2>
-        <p className="muted">
-          ต้นทุน (Cost) ด้านบน · ราคาขาย (Sell) ด้านล่าง — วางเทียบกันได้เลย · เพิ่ม/แก้/ค้นหาแยกกัน · วันที่อัปเดตลงอัตโนมัติ
-        </p>
-      </div>
+    <RequireTab tab="rates">
+      <main className="page fade-in">
+        <div className="panel">
+          <h2>Rate Checker — ฐานเรทต้นทุน / ราคาขาย</h2>
+          <p className="muted">
+            ต้นทุน (COST CHECKER) ด้านบน · ราคาขาย (SELL CHECKER) ด้านล่าง — อยู่หน้าเดียวกัน ·
+            ช่อง <b>Cost Checked by / Sale Quoted by</b> ระบบล็อกตามบัญชีที่เข้าสู่ระบบ ·
+            บันทึกแล้ว <b>แก้ไขไม่ได้</b> หากต้องการแก้ไขให้ติดต่อฝ่ายบัญชี
+          </p>
+        </div>
 
-      <div className="compare-wrap">
-        <RateBoard moduleKey="cost-rates" compact title="ต้นทุน (Cost)" />
-        <RateBoard moduleKey="sell-rates" compact title="ราคาขาย (Sell)" saveBarOffset={64} />
-      </div>
-    </main>
+        <RateBoard moduleKey="cost-rates" title="PANEX COST CHECKER" />
+        <RateBoard moduleKey="sell-rates" title="PANEX SELL CHECKER" />
+      </main>
+    </RequireTab>
   );
 }

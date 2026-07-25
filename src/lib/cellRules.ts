@@ -77,6 +77,13 @@ export function cellCue(
   // ----- Entry Status (Import/Export) = Done → แดง -----
   if (fieldKey === "entry_status" && (rec.entry_status || "") === "Done") return { bg: C.red };
 
+  // ----- PERMIT → แดงเมื่อมีใบอนุญาตที่ต้องขอจริง (ไม่ใช่ค่าว่าง / N/A) -----
+  // แสดงผลเหมือนกันทุก tab (Shipping กรอกเอง · CS Import/Export ดึงไปแสดงแบบอ่านอย่างเดียว)
+  if (fieldKey === "permit") {
+    const v = (rec.permit || "").trim();
+    if (v && v.toUpperCase() !== "N/A") return { bg: C.red };
+  }
+
   // ----- Form E → สีตามค่า -----
   if (fieldKey === "form_e") {
     const bg = FORM_E_COLORS[(rec.form_e || "").trim()];

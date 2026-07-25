@@ -3,9 +3,18 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
+import { RequireTab } from "@/components/RequireTab";
 import { actionRows } from "@/lib/stats";
 
-export default function ActionView() {
+export default function ActionPage() {
+  return (
+    <RequireTab tab="action">
+      <ActionView />
+    </RequireTab>
+  );
+}
+
+function ActionView() {
   const { data, loading, error, reload } = useData();
   const lists = data?.lists || {};
   const [q, setQ] = useState("");

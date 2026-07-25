@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
 import { cellCue } from "@/lib/cellRules";
+import { cellState } from "@/lib/cellState";
 import { Cell } from "./Cell";
 
 const ROWNUM_W = 48;
@@ -39,6 +40,8 @@ interface RowProps {
   picKey: string;
   unlocked: boolean;
   canDelete: boolean;
+  readOnly: boolean; // ไม่มีสิทธิ์แก้ไข tab นี้ → ทุกช่องอ่านอย่างเดียว
+  canUnlock: boolean; // มีสิทธิ์จัดการงานที่ End (ปุ่ม 🔒)
   onToggleExpand: (id: string) => void;
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
@@ -63,6 +66,8 @@ const Row = React.memo(function Row({
   picKey,
   unlocked,
   canDelete,
+  readOnly,
+  canUnlock,
   onToggleExpand,
   onChange,
   onDelete,
@@ -70,21 +75,12 @@ const Row = React.memo(function Row({
 }: RowProps) {
   const isEnd = (rec[statusKey] || "") === "End";
   const endLocked = isEnd && !unlocked; // งาน End -> ล็อกทั้งแถวจนกว่าจะปลดล็อก (Supervisor)
-  const picFilled = (rec[picKey] || "") !== "";
 
   const cueFor = (f: Field) => cellCue(moduleId, f.key, rec, carrierColors);
 
   // Cell ดิบ + logic ล็อก/สี (ใช้ทั้งในตารางและแผงรายละเอียด)
   const bareCell = (f: Field) => {
-    const cue = cueFor(f);
-    const isYellow = !f.mandatory && f.type !== "auto";
-    const needPic = isYellow && f.key !== picKey && !picFilled;
-    const locked = endLocked || needPic || !!cue.locked;
-    const hint = cue.locked
-      ? "ล็อกตามสถานะ (Cancel / Done) — เปลี่ยนสถานะก่อนจึงจะแก้ได้"
-      : endLocked
-      ? "งาน End แล้ว — ต้องปลดล็อก (Supervisor) ก่อนแก้"
-      : "ต้องระบุ PIC ของโมดูลก่อนจึงจะแก้ช่องนี้ได้";
+    const { locked, hint, bg } = cellState(moduleId, rec, f, { statusKey, picKey, unlocked, readOnly }, carrierColors);
     const cycle =
       f.colorToggle && f.colorToggle.length
         ? () => {
@@ -102,7 +98,7 @@ const Row = React.memo(function Row({
         onChange={(v) => onChange(rec.__id, f.key, v)}
         locked={locked}
         lockHint={hint}
-        bg={cue.bg}
+        bg={bg}
         onColorCycle={cycle}
       />
     );
@@ -147,7 +143,7 @@ const Row = React.memo(function Row({
         {displayFields.map((f) => cellFor(f, !collapsed))}
         <td>
           <div className="row-actions">
-            {isEnd && (
+            {isEnd && canUnlock && (
               <button
                 className={"btn sm" + (unlocked ? " primary" : "")}
                 onClick={() => onUnlock(rec.__id)}
@@ -208,6 +204,8 @@ export function JobGrid({
   collapsed = false,
   collapsedKeys,
   hideDeleteFor,
+  readOnly = false,
+  canUnlock = true,
   onChange,
   onDelete,
   onUnlock,
@@ -226,6 +224,8 @@ export function JobGrid({
   collapsed?: boolean;
   collapsedKeys?: string[]; // คอลัมน์ที่โชว์ตอนย่อ (ตั้งค่าส่วนกลาง) — ไม่ส่ง = ใช้ summary จาก schema
   hideDeleteFor?: (rec: JobRecord) => boolean; // แถวที่ไม่ให้ลบ (เช่น Export ที่มาจาก Re-Export)
+  readOnly?: boolean; // ไม่มีสิทธิ์แก้ไข → ทั้งตารางอ่านอย่างเดียว
+  canUnlock?: boolean; // มีสิทธิ์จัดการงานที่ End
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
@@ -343,6 +343,8 @@ export function JobGrid({
               picKey={picKey}
               unlocked={unlockedIds.has(rec.__id)}
               canDelete={!hideDeleteFor || !hideDeleteFor(rec)}
+              readOnly={readOnly}
+              canUnlock={canUnlock}
               onToggleExpand={onToggleExpand}
               onChange={onChange}
               onDelete={onDelete}

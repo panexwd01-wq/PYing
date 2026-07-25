@@ -133,6 +133,7 @@ export const LIST_LABEL: Record<string, string> = {
   place: "สถานที่ตรวจปล่อย (Place)",
   pv_status: "PV Status",
   form_e: "Form E",
+  permit: "PERMIT (ใบอนุญาต)",
 };
 
 const CS_NAMES = ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"];
@@ -190,6 +191,7 @@ export const LIST_SEED: Record<string, string[]> = {
   place: ["LCB", "BANGKOK", "LAT KRABANG", "ICD"],
   pv_status: ["รอจ่าย", "จ่ายแล้ว", "จบแล้ว"],
   form_e: ["CFM", "RECEIVED ORI", "CHECKING", "NEED REVISE", "CFM-PRINT", "CFM-SCAN FE", "Customer Confirm"],
+  permit: ["TISI", "PHYTO", "อาหารและยา", "N/A"],
 };
 
 // list ทั้งหมดที่ต้อง seed/อ่าน

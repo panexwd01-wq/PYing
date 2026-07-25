@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JobGrid } from "@/components/JobGrid";
+import { GroupedGrid } from "@/components/GroupedGrid";
+import { RecordPanel } from "@/components/RecordPanel";
+import { ExtraLinesTable } from "@/components/ExtraLinesTable";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { SaveBar } from "@/components/SaveBar";
 import { CenterLoading } from "@/components/Spinner";
 import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
-import { MODULE_BY_KEY, moduleGroups, recordHeaders } from "@/lib/schema";
+import { useAuth } from "@/components/AuthProvider";
+import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -29,7 +33,14 @@ function tempId() {
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
   const { data, loading: dataLoading, error: dataError, reload } = useData();
+  const { can } = useAuth();
   const lists = data?.lists || {};
+
+  // สิทธิ์ของ tab นี้
+  const mayAdd = can(moduleKey, "add");
+  const mayEdit = can(moduleKey, "edit");
+  const mayDelete = can(moduleKey, "del");
+  const mayEnd = can(moduleKey, "end");
 
   const groups = useMemo(() => moduleGroups(mod), [mod]);
   const statusKey = mod.fields[0].key;
@@ -54,6 +65,28 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const defaultSummaryKeys = useMemo(() => mod.fields.filter((f) => f.summary).map((f) => f.key), [mod]);
   const savedCollapse = data?.collapse?.[moduleKey];
   const collapsedKeys = savedCollapse && savedCollapse.length ? savedCollapse : undefined;
+
+  // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
+  const grouped = moduleKey === "extra" || moduleKey === "accounting";
+  const fbk = useMemo(() => fieldByKey(mod), [mod]);
+  const groupedDisplayFields = useMemo(() => {
+    const visible = mod.fields.filter((f) => !f.hidden);
+    if (collapsedKeys && collapsedKeys.length) {
+      const set = new Set(collapsedKeys);
+      const chosen = visible.filter((f) => set.has(f.key));
+      if (chosen.length) return chosen;
+    }
+    const marked = visible.filter((f) => f.summary);
+    return marked.length ? marked : visible.filter((f) => f.sticky);
+  }, [mod, collapsedKeys]);
+
+  // ช่องที่แสดงในแผงแยกราย Type (ตัดหัว Job ที่ซ้ำกันทั้งกลุ่มออก)
+  const perTypeFields = useMemo(() => {
+    if (moduleKey === "extra")
+      return mod.fields.filter((f) => f.group !== "Job Info" || f.key === "extra_status");
+    const dup = new Set(["job_type", "job_no", "booking_mbl", "customer", "cs_pic", "sales_bkg_by"]);
+    return mod.fields.filter((f) => !dup.has(f.key));
+  }, [mod, moduleKey]);
 
   const emptyRecord = useCallback(
     (id: string): JobRecord => {
@@ -104,6 +137,19 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const onChange = useCallback((id: string, key: string, value: string) => {
     setRows((prev) => prev.map((r) => (r.__id === id ? { ...r, [key]: value } : r)));
     setDirty((prev) => new Set(prev).add(id));
+  }, []);
+
+  // ปลดล็อก/ล็อกทั้ง Job (มุมมองรวบกลุ่ม)
+  const onUnlockGroup = useCallback((ids: string[]) => {
+    setUnlocked((prev) => {
+      const n = new Set(prev);
+      const allOn = ids.every((id) => n.has(id));
+      for (const id of ids) {
+        if (allOn) n.delete(id);
+        else n.add(id);
+      }
+      return n;
+    });
   }, []);
 
   const onUnlock = useCallback((id: string) => {
@@ -299,12 +345,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           <button className="btn" onClick={reload} disabled={dataLoading}>
             รีเฟรช
           </button>
-          {hasPull && (
+          {hasPull && mayEdit && (
             <button className="btn" onClick={refresh} disabled={dataLoading} title="ดึงข้อมูลเชื่อมข้ามโมดูลด้วย Job No.">
               ⟳ ดึงข้อมูลเชื่อม
             </button>
           )}
-          {!csDriven && (
+          {!csDriven && mayAdd && (
             <button className="btn" onClick={addRow}>
               ＋ เพิ่มงาน
             </button>
@@ -329,13 +375,66 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         <span className="item"><span className="sw" style={{ background: "var(--c-mandatory)", borderColor: "var(--c-mandatory-bd)" }} /> ฟ้า = ต้องกรอก</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้ (ต้องมี PIC)</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-locked)", borderColor: "var(--c-locked-bd)" }} /> เทา = Auto / ดึงจาก Module อื่น</span>
-        {collapsed && <span className="item hint">กด ▸ หน้าแถวเพื่อกางรายละเอียดที่เหลือ</span>}
+        {collapsed && (
+          <span className="item hint">
+            {grouped
+              ? "รวบเป็น 1 บรรทัดต่อ 1 Job No. — กด ▸ เพื่อดู/แก้รายละเอียดแยกตาม Type"
+              : "กด ▸ หน้าแถวเพื่อกางรายละเอียดที่เหลือ"}
+          </span>
+        )}
       </div>
 
       {dataLoading && !data ? (
         <CenterLoading />
       ) : (
         <div style={{ marginTop: 12 }}>
+          {collapsed && grouped ? (
+            <GroupedGrid
+              displayFields={groupedDisplayFields}
+              rows={filtered}
+              statusKey={statusKey}
+              dirtyIds={dirty}
+              unlockedIds={unlocked}
+              canUnlock={mayEnd}
+              onUnlockGroup={onUnlockGroup}
+              renderDetail={(rs) => (
+                <div className="group-detail">
+                  {moduleKey === "extra" && (
+                    <ExtraLinesTable
+                      rows={rs}
+                      fieldByKey={fbk}
+                      lists={lists}
+                      statusKey={statusKey}
+                      picKey={mod.picKey}
+                      unlockedIds={unlocked}
+                      readOnly={!mayEdit}
+                      onChange={onChange}
+                    />
+                  )}
+                  {rs.map((r) => (
+                    <div className="group-rec" key={r.__id}>
+                      <div className="group-rec-title">
+                        {r.extra_req_type || r.ap_extra_req_type || "รายละเอียด"}
+                        {r.module && <span className="mod-tag">{r.module}</span>}
+                      </div>
+                      <RecordPanel
+                        moduleId={mod.id}
+                        rec={r}
+                        fields={perTypeFields}
+                        lists={lists}
+                        carrierColors={data?.carrierColors}
+                        statusKey={statusKey}
+                        picKey={mod.picKey}
+                        unlocked={unlocked.has(r.__id)}
+                        readOnly={!mayEdit}
+                        onChange={onChange}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            />
+          ) : (
           <JobGrid
             moduleId={mod.id}
             fields={mod.fields}
@@ -351,14 +450,17 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             collapsed={collapsed}
             collapsedKeys={collapsedKeys}
             hideDeleteFor={hideDeleteFor}
+            readOnly={!mayEdit}
+            canUnlock={mayEnd}
             onChange={onChange}
-            onDelete={csDriven ? undefined : removeRow}
+            onDelete={csDriven || !mayDelete ? undefined : removeRow}
             onUnlock={onUnlock}
           />
+          )}
         </div>
       )}
 
-      <SaveBar count={dirty.size} onSave={saveAll} onCancel={cancelAll} saving={saving} label="งาน" />
+      {mayEdit && <SaveBar count={dirty.size} onSave={saveAll} onCancel={cancelAll} saving={saving} label="งาน" />}
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
 
       {showCfg && (

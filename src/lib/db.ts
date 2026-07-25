@@ -194,9 +194,9 @@ function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecor
   if (m.rate && hasField(m, "updated_at")) next.updated_at = nowStamp();
 
   if (m.id === "09_Extra_Service") {
-    const count = numOf(next.count);
-    next.cost_total = String(numOf(next.cost_unit) * count);
-    next.margin_total = String((numOf(next.sell_unit) - numOf(next.cost_unit)) * count);
+    // ยอดรวมมาจากช่อง BAHT ในตาราง Sell / Job Cost (ผู้ใช้กรอกเอง)
+    next.cost_total = String(numOf(next.cost_baht));
+    next.margin_total = String(numOf(next.sell_baht) - numOf(next.cost_baht));
     // Ready Acc? = Done เมื่อ Cost/Sell Sts ครบ (auto)
     const done = (v: unknown) => ["Complete", "Completed"].includes(String(v ?? "").trim());
     next.ready_acc = done(next.cost_sts) && done(next.sell_sts) ? "Done" : "Pending";
@@ -637,7 +637,7 @@ const RECON_KEYS: Record<string, string[]> = {
   "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
   "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
   "08_Warehouse": ["extra_require", "extra_req_type", "job_no", "wh_pic", "wh_supp1"],
-  "09_Extra_Service": ["job_no", "module", "extra_req_type", "supplier", "root_cause", "cost_unit", "cost_cur", "count", "sell_unit", "sell_cur"],
+  "09_Extra_Service": ["job_no", "module", "extra_req_type", "supplier", "root_cause", "cost_unit", "cost_cur", "cost_baht", "sell_unit", "sell_cur", "sell_baht"],
 };
 
 function reconcileNeeded(m: ModuleDef, oldRec: JobRecord | undefined, newRec: JobRecord): boolean {
@@ -762,10 +762,10 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
           ap_root_cause: e.root_cause || "",
           ap_cost_unit: e.cost_unit || "",
           ap_cost_cur: e.cost_cur || "",
-          ap_total_cost: e.cost_total || "",
+          ap_total_cost: String(numOf(e.cost_baht)),
           ar_sell_unit: e.sell_unit || "",
           ar_sell_cur: e.sell_cur || "",
-          ar_total_sell: String(numOf(e.sell_unit) * numOf(e.count)),
+          ar_total_sell: String(numOf(e.sell_baht)),
         },
       });
     }
@@ -955,14 +955,5 @@ export async function syncAll(): Promise<{ message: string; reconciled: number }
   };
 }
 
-// initialize: สร้างชีททุกโมดูล + หัวตาราง + seed dropdown
-export async function initializeWorkbook(): Promise<{ message: string }> {
-  for (const m of ALL_MODULES) {
-    await ensureDataSheet(m);
-  }
-  await ensureSheet(SETTINGS_SHEET); // ชีทเก็บค่าตั้งค่าส่วนกลาง (คอลัมน์ตอนย่อ)
-  await seedListsIfEmpty();
-  return {
-    message: `ตั้งค่าชีทเรียบร้อย — สร้าง ${ALL_MODULES.length} ชีท + dropdown ตั้งต้น`,
-  };
-}
+// หมายเหตุ: การ Initialize ชีท (สร้าง tab + หัวตาราง + seed dropdown) ย้ายไปทำที่
+// PANEX_Initialize.gs (Google Apps Script) เท่านั้น — ฝั่งเว็บไม่มีปุ่ม Initialize แล้ว

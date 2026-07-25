@@ -6,12 +6,34 @@
  *   1) สร้าง tab ของทุกโมดูล (04–10 + เรท 13) พร้อมหัวตาราง (คอลัมน์ A = __id ภายใน)
  *   2) สร้าง tab "_lists" เก็บ dropdown แบบบล็อก (list ละ 1 คอลัมน์ เว้น 1 คอลัมน์คั่น)
  *      แล้ว seed ค่าตั้งต้น "เฉพาะเมื่อยังว่าง" (ไม่ทับของเดิม)
+ *   3) สร้าง tab "_users" (ผู้ใช้ระบบ + สิทธิ์) และ "_settings" ให้พร้อมใช้
+ *      — ผู้ใช้ตั้งต้น admin / admin ระบบเว็บจะสร้างให้เองอัตโนมัติเมื่อล็อกอินครั้งแรก
+ *        (รหัสผ่านต้อง hash ด้วย scrypt ซึ่ง Apps Script ทำไม่ได้ จึงปล่อยให้ฝั่งเว็บสร้าง)
  *
  * ไฟล์นี้ generate จาก schema ของเว็บโดยตรง — header ตรงกับที่เว็บอ่าน/เขียน
- * เวอร์ชันนี้เปลี่ยนหัวตาราง 04–10 เยอะ (requirement ใหม่) → ควรเคลียร์ชีท 04–10 ก่อน Initialize
+ *
+ * ⚠️ เวอร์ชันนี้เปลี่ยนคอลัมน์ของ 04/05/06 (PERMIT/Form E), 09 (ตาราง Sell/Job Cost)
+ *    และ 13 (Service Types / Remarks-Conditions) → ควรเคลียร์ข้อมูลในชีท 09 และ 13
+ *    ก่อนรัน Initialize เพื่อไม่ให้ค่าเดิมเลื่อนคอลัมน์
+ *
+ * หมายเหตุ: ฝั่งเว็บไม่มีปุ่ม Initialize แล้ว — การตั้งค่าชีททั้งหมดทำที่ไฟล์นี้เท่านั้น
  */
 
 var LIST_SHEET = "_lists";
+var USERS_SHEET = "_users";
+var SETTINGS_SHEET = "_settings";
+
+// หัวตารางของชีทผู้ใช้ (ตรงกับ src/lib/users.ts)
+var PANEX_USER_HEADERS = [
+  "__id",
+  "username",
+  "password",
+  "display_name",
+  "role",
+  "active",
+  "perms",
+  "created_at"
+];
 
 // หัวตารางของแต่ละโมดูล (ตรงกับ src/lib recordHeaders)
 var PANEX_HEADERS = {
@@ -221,6 +243,7 @@ var PANEX_HEADERS = {
     "duty_vat_amount",
     "entry_status",
     "tisi",
+    "permit",
     "form_e",
     "co_form",
     "entry_remark",
@@ -347,22 +370,34 @@ var PANEX_HEADERS = {
     "supplier",
     "extra_req_type",
     "cost_pic",
-    "count",
-    "unit",
     "root_cause",
     "cost_remark",
-    "cost_unit",
-    "cost_cur",
     "cost_total",
     "cost_sts",
     "sell_pic",
-    "sell_unit",
-    "sell_cur",
     "margin_total",
     "profit_sts",
     "no_charge_remark",
     "sell_sts",
     "sell_remark",
+    "sell_line_type",
+    "sell_qty",
+    "sell_unit_name",
+    "sell_unit",
+    "sell_cur",
+    "sell_exchange",
+    "sell_received_from",
+    "sell_usd",
+    "sell_baht",
+    "cost_line_type",
+    "cost_qty",
+    "cost_unit_name",
+    "cost_unit",
+    "cost_cur",
+    "cost_exchange",
+    "cost_paid_to",
+    "cost_usd",
+    "cost_baht",
     "ready_acc",
     "extra_status_date",
     "created_at",
@@ -408,86 +443,87 @@ var PANEX_HEADERS = {
   "13_Cost_Rates": [
     "__id",
     "supplier",
-    "service_type",
+    "customer",
     "job_type",
     "port_route",
     "cargo_type",
-    "customer",
     "to_address",
     "cost_rate",
     "fuel_rate",
-    "price_range",
+    "service_type",
+    "remarks_conditions",
     "checked_by",
     "updated_at",
   ],
   "13_Sell_Rates": [
     "__id",
     "customer",
-    "service_type",
     "job_type",
     "port_route",
     "cargo_type",
     "to_address",
     "sell_rate",
     "fuel_rate",
-    "remarks",
-    "quoted_by",
+    "service_type",
+    "remarks_conditions",
     "sell_confirmed",
+    "quoted_by",
     "updated_at",
   ]
 };
 
 var PANEX_LIST_SEED = {
-  "im_ops_status": ["Open", "In Progress", "Pending", "End", "Cancel"],
-  "job_type": ["Import/FCL", "Import/LCL", "Import/BULK", "Export/FCL", "Export/LCL", "Export/BULK", "Re-Export/FCL", "Re-Export/LCL", "Transportation Only", "Warehouse Only", "Shipping Only"],
-  "im_cs": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "ex_cs": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "carrier": ["Maersk", "ONE", "Evergreen", "Co-Agent X"],
-  "sales": ["Sales 1", "Sales 2", "Sales 3"],
-  "customer": ["Customer A", "Customer B"],
-  "pol": ["THBKK", "THLCH", "CNSHA", "SGSIN"],
-  "pod": ["THLCH", "THBKK"],
-  "term": ["CIF", "FOB", "EXW", "CFR", "DAP", "DDP"],
-  "im_doc": ["DOC-A", "DOC-B"],
-  "ex_doc": ["DOC-A", "DOC-B"],
-  "enter_doc_status": ["Done", "Pending", "Revising", "N/A"],
-  "done_pending": ["Done", "Pending"],
-  "check_deposit": ["Done", "Pending", "N/A"],
-  "extra_service_type": ["ตรวจปล่อย", "เอกสารเพิ่ม", "ฉลากไทย", "OT", "Re-packing", "อื่น ๆ"],
-  "del_address": ["คลังลูกค้า A", "นิคม B"],
-  "supplier_transport": ["Trans Supp A", "Trans Supp B", "Trans Supp C"],
-  "wh_address": ["คลัง WH-1", "คลัง WH-2"],
-  "supplier_warehouse": ["WH Supp A", "WH Supp B"],
-  "entry_pic": ["NIROOTTI", "YO", "PORNTHEP", "BOONSONG", "Outsourcing"],
-  "ship_pic": ["NIROOTTI", "YO", "PORNTHEP", "BOONSONG", "Outsourcing"],
-  "trans_pic": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "wh_pic": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "acc_pic": ["THANITA", "CHUTIMA", "SAWAROT"],
-  "ar_pic": ["THANITA", "CHUTIMA", "SAWAROT"],
-  "sell_pic": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "cost_pic": ["POONYISA", "SUPAPORN", "NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT", "NAPATCHAYA"],
-  "cargo_type": ["General Cargo", "Machine Cargo", "Dangerous Cargo", "Container Houses"],
-  "duty_pay": ["Duty Pay", "No Duty", "Customer Pay"],
-  "receipt_lost": ["Received", "Lost", "N/A"],
-  "clearance_status": ["Pending", "Cleared", "Completed"],
-  "complete_sts": ["Complete", "Pending"],
-  "supplier_status": ["Active", "Pending", "End"],
-  "kpi": ["On Time", "Delay", "No Charge"],
-  "yes_no": ["Yes", "No"],
-  "cost_module": ["FREIGHT IMPORT", "FREIGHT EXPORT", "SHIPPING", "TRANSPORT", "WAREHOUSE"],
-  "unit_list": ["Trip", "Container", "Shipment", "Set", "Day", "Hour", "Document", "Entry", "Lot", "Person"],
-  "root_cause": ["Customer Request", "Internal Error", "Transportation Error", "Warehouse Error", "CS Error", "Documentation Error"],
-  "currency": ["THB", "USD", "RMB", "EUR", "JPY", "Others"],
-  "profit_sts": ["With GP", "At Cost", "No Charge", "As Quotation"],
-  "approved_sts": ["Approved", "Pending"],
-  "rcv_ship_close_acc": ["Received", "Pending"],
-  "ap_status": ["Waiting Received Ship Close Acc", "Waiting Supplier Invoice", "Pending Approval", "Ready Payment", "Completed"],
-  "ar_status": ["Waiting Billing", "Invoiced", "Partial Paid", "Paid", "Overdue"],
-  "service_type": ["Freight", "Shipping", "Transportation", "Warehouse"],
-  "sell_confirmed": ["Yes", "No", "Waiting"],
-  "place": ["LCB", "BANGKOK", "LAT KRABANG", "ICD"],
-  "pv_status": ["รอจ่าย", "จ่ายแล้ว", "จบแล้ว"],
-  "form_e": ["CFM", "RECEIVED ORI", "CHECKING", "NEED REVISE", "CFM-PRINT", "CFM-SCAN FE", "Customer Confirm"]
+  "im_ops_status": ["Open","In Progress","Pending","End","Cancel"],
+  "job_type": ["Import/FCL","Import/LCL","Import/BULK","Export/FCL","Export/LCL","Export/BULK","Re-Export/FCL","Re-Export/LCL","Transportation Only","Warehouse Only","Shipping Only"],
+  "im_cs": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "ex_cs": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "carrier": ["Maersk","ONE","Evergreen","Co-Agent X"],
+  "sales": ["Sales 1","Sales 2","Sales 3"],
+  "customer": ["Customer A","Customer B"],
+  "pol": ["THBKK","THLCH","CNSHA","SGSIN"],
+  "pod": ["THLCH","THBKK"],
+  "term": ["CIF","FOB","EXW","CFR","DAP","DDP"],
+  "im_doc": ["DOC-A","DOC-B"],
+  "ex_doc": ["DOC-A","DOC-B"],
+  "enter_doc_status": ["Done","Pending","Revising","N/A"],
+  "done_pending": ["Done","Pending"],
+  "check_deposit": ["Done","Pending","N/A"],
+  "extra_service_type": ["ตรวจปล่อย","เอกสารเพิ่ม","ฉลากไทย","OT","Re-packing","อื่น ๆ"],
+  "del_address": ["คลังลูกค้า A","นิคม B"],
+  "supplier_transport": ["Trans Supp A","Trans Supp B","Trans Supp C"],
+  "wh_address": ["คลัง WH-1","คลัง WH-2"],
+  "supplier_warehouse": ["WH Supp A","WH Supp B"],
+  "entry_pic": ["NIROOTTI","YO","PORNTHEP","BOONSONG","Outsourcing"],
+  "ship_pic": ["NIROOTTI","YO","PORNTHEP","BOONSONG","Outsourcing"],
+  "trans_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "wh_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "acc_pic": ["THANITA","CHUTIMA","SAWAROT"],
+  "ar_pic": ["THANITA","CHUTIMA","SAWAROT"],
+  "sell_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "cost_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
+  "cargo_type": ["General Cargo","Machine Cargo","Dangerous Cargo","Container Houses"],
+  "duty_pay": ["Duty Pay","No Duty","Customer Pay"],
+  "receipt_lost": ["Received","Lost","N/A"],
+  "clearance_status": ["Pending","Cleared","Completed"],
+  "complete_sts": ["Complete","Pending"],
+  "supplier_status": ["Active","Pending","End"],
+  "kpi": ["On Time","Delay","No Charge"],
+  "yes_no": ["Yes","No"],
+  "cost_module": ["FREIGHT IMPORT","FREIGHT EXPORT","SHIPPING","TRANSPORT","WAREHOUSE"],
+  "unit_list": ["Trip","Container","Shipment","Set","Day","Hour","Document","Entry","Lot","Person"],
+  "root_cause": ["Customer Request","Internal Error","Transportation Error","Warehouse Error","CS Error","Documentation Error"],
+  "currency": ["THB","USD","RMB","EUR","JPY","Others"],
+  "profit_sts": ["With GP","At Cost","No Charge","As Quotation"],
+  "approved_sts": ["Approved","Pending"],
+  "rcv_ship_close_acc": ["Received","Pending"],
+  "ap_status": ["Waiting Received Ship Close Acc","Waiting Supplier Invoice","Pending Approval","Ready Payment","Completed"],
+  "ar_status": ["Waiting Billing","Invoiced","Partial Paid","Paid","Overdue"],
+  "service_type": ["Freight","Shipping","Transportation","Warehouse"],
+  "sell_confirmed": ["Yes","No","Waiting"],
+  "place": ["LCB","BANGKOK","LAT KRABANG","ICD"],
+  "pv_status": ["รอจ่าย","จ่ายแล้ว","จบแล้ว"],
+  "form_e": ["CFM","RECEIVED ORI","CHECKING","NEED REVISE","CFM-PRINT","CFM-SCAN FE","Customer Confirm"],
+  "permit": ["TISI","PHYTO","อาหารและยา","N/A"]
 };
 
 function PANEX_INITIALIZE() {
@@ -496,27 +532,49 @@ function PANEX_INITIALIZE() {
 
   // ----- 1) โมดูล + หัวตาราง -----
   Object.keys(PANEX_HEADERS).forEach(function (name) {
-    var headers = PANEX_HEADERS[name];
-    var sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-
-    var width = headers.length;
-    var cur = sh.getRange(1, 1, 1, width).getValues()[0];
-    if (cur.join("|") !== headers.join("|")) {
-      sh.getRange(1, 1, 1, width).setValues([headers]);
-      report.push(name + " : เขียนหัวตาราง (" + width + " คอลัมน์)");
-    } else {
-      report.push(name + " : หัวตารางตรงอยู่แล้ว");
-    }
-    sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, width).setFontWeight("bold");
+    report.push(writeHeader_(ss, name, PANEX_HEADERS[name]));
   });
 
-  // ----- 2) _lists : seed เฉพาะเมื่อว่าง -----
+  // ----- 2) _users : ชีทผู้ใช้ + สิทธิ์ -----
+  report.push(writeHeader_(ss, USERS_SHEET, PANEX_USER_HEADERS));
+
+  // ----- 3) _settings : ค่าตั้งค่าส่วนกลาง (คอลัมน์ตอนย่อ / สี Carrier) -----
+  if (!ss.getSheetByName(SETTINGS_SHEET)) {
+    ss.insertSheet(SETTINGS_SHEET);
+    report.push(SETTINGS_SHEET + " : สร้างชีทแล้ว");
+  } else {
+    report.push(SETTINGS_SHEET + " : มีอยู่แล้ว");
+  }
+
+  // ----- 4) _lists : seed เฉพาะเมื่อว่าง -----
   report.push(seedLists_(ss));
 
   var NL = String.fromCharCode(10);
-  SpreadsheetApp.getUi().alert("PANEX Initialize เสร็จ" + NL + NL + report.join(NL));
+  SpreadsheetApp.getUi().alert(
+    "PANEX Initialize เสร็จ" + NL + NL + report.join(NL) + NL + NL +
+    "เข้าเว็บครั้งแรกให้ล็อกอินด้วย admin / admin แล้วเปลี่ยนรหัสผ่านทันที"
+  );
+}
+
+// เขียนหัวตารางของชีทหนึ่ง (สร้างชีทถ้ายังไม่มี) — ไม่แตะข้อมูลแถวอื่น
+function writeHeader_(ss, name, headers) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+
+  var width = headers.length;
+  if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
+
+  var cur = sh.getRange(1, 1, 1, width).getValues()[0];
+  var msg;
+  if (cur.join("|") !== headers.join("|")) {
+    sh.getRange(1, 1, 1, width).setValues([headers]);
+    msg = name + " : เขียนหัวตาราง (" + width + " คอลัมน์)";
+  } else {
+    msg = name + " : หัวตารางตรงอยู่แล้ว";
+  }
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, width).setFontWeight("bold");
+  return msg;
 }
 
 function seedLists_(ss) {
@@ -532,7 +590,7 @@ function seedLists_(ss) {
       return row.some(function (c) { return String(c).trim() !== ""; });
     });
   }
-  if (hasAny) return LIST_SHEET + " : มี dropdown อยู่แล้ว (ข้าม seed)";
+  if (hasAny) return LIST_SHEET + " : มี dropdown อยู่แล้ว (ข้าม seed — เพิ่ม list ใหม่ที่หน้าตั้งค่าได้)";
 
   var keys = Object.keys(PANEX_LIST_SEED);
   var cols = [];
@@ -550,6 +608,7 @@ function seedLists_(ss) {
     matrix.push(row);
   }
 
+  if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
   if (lastRow >= 1 && lastCol >= 1) sh.getRange(1, 1, lastRow, lastCol).clearContent();
   sh.getRange(1, 1, matrix.length, cols.length).setValues(matrix);
   sh.setFrozenRows(1);

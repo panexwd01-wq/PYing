@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Sarabun } from "next/font/google";
-import { DataProvider } from "@/components/DataProvider";
-import { Nav } from "@/components/Nav";
+import { AuthProvider } from "@/components/AuthProvider";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 const sarabun = Sarabun({
@@ -11,22 +11,17 @@ const sarabun = Sarabun({
 });
 
 export const metadata: Metadata = {
-  title: "CS Import — Operations Board",
-  description: "ระบบจัดการงาน CS Import (Module 1)",
+  title: "PANEX Mini ERP",
+  description: "ระบบจัดการงาน Freight / Shipping / Transport / Warehouse",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th">
       <body className={sarabun.className}>
-        <header className="app-header">
-          <div className="brand">
-            <span className="full">FREIGHT</span> OPS
-          </div>
-          <div className="spacer" />
-          <Nav />
-        </header>
-        <DataProvider>{children}</DataProvider>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );

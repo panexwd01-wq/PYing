@@ -2,9 +2,18 @@
 
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
+import { RequireTab } from "@/components/RequireTab";
 import { salesStats } from "@/lib/stats";
 
-export default function SalesView() {
+export default function SalesPage() {
+  return (
+    <RequireTab tab="sales">
+      <SalesView />
+    </RequireTab>
+  );
+}
+
+function SalesView() {
   const { data, loading, error, reload } = useData();
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
   const s = data ? salesStats(data) : null;
