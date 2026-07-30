@@ -2,7 +2,7 @@
 // โหลดสิทธิ์สดทุกครั้ง เพื่อให้ admin แก้สิทธิ์แล้วมีผลทันที (ไม่ต้องรอ user login ใหม่)
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, SessionData, verifySession } from "./session";
-import { getUserByUsername, seedAdminIfEmpty, AppUser } from "./users";
+import { getUserByUsername, seedAdminIfEmpty, builtinAdmin, isBuiltinAdminName, AppUser } from "./users";
 import { PermAction, can, canLists } from "./perms";
 import { withSheetCache } from "./sheets";
 
@@ -13,6 +13,8 @@ export async function currentSession(): Promise<SessionData | null> {
 export async function currentUser(): Promise<AppUser | null> {
   const s = await currentSession();
   if (!s) return null;
+  // built-in admin: ไม่ต้องอ่านชีท (สิทธิ์คงที่ ถอดไม่ได้)
+  if (isBuiltinAdminName(s.u)) return builtinAdmin();
   await seedAdminIfEmpty();
   const u = await getUserByUsername(s.u);
   if (!u || !u.active) return null;
