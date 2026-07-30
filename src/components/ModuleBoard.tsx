@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { JobGrid } from "@/components/JobGrid";
 import { GroupedGrid } from "@/components/GroupedGrid";
 import { RecordPanel } from "@/components/RecordPanel";
-import { ExtraLinesTable } from "@/components/ExtraLinesTable";
+import { AccountingLinesTable, ExtraLinesTable } from "@/components/LinesTable";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { SaveBar } from "@/components/SaveBar";
@@ -14,6 +14,7 @@ import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys } from "@/lib/collapseDefaults";
+import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -89,7 +90,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
   // ช่องในแผงตอนกาง — ผูกกับ Job No. ชุดเดียว (แก้ทีเดียวเขียนลงทุกแถวของ Job นั้น)
   // ยกเว้นช่องของตาราง Sell / Job Cost ที่ยังแยกราย Type (hidden อยู่แล้ว)
-  const panelFields = useMemo(() => mod.fields, [mod]);
+  // Accounting: ช่องของตาราง AP / AR ก็แยกราย Type เหมือนกัน → ตัดออกจากแผงกันซ้ำ
+  const panelFields = useMemo(() => {
+    if (moduleKey !== "accounting") return mod.fields;
+    const lineKeys = new Set<string>([ACC_LINE_LEAD, ...ACC_LINE_COLUMNS.ap, ...ACC_LINE_COLUMNS.ar]);
+    return mod.fields.filter((f) => !lineKeys.has(f.key));
+  }, [mod, moduleKey]);
 
   // ค่าที่ต้องแสดงเป็น "ของทั้ง Job" ในแผงเดียว — ยอดรวม + ค่าที่ต่างกันราย Type ให้รวมข้อความ
   const groupTotals = useCallback(
@@ -437,6 +443,18 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                 <div className="group-detail">
                   {moduleKey === "extra" && (
                     <ExtraLinesTable
+                      rows={rs}
+                      fieldByKey={fbk}
+                      lists={lists}
+                      statusKey={statusKey}
+                      picKey={mod.picKey}
+                      unlockedIds={unlocked}
+                      readOnly={!mayEdit}
+                      onChange={onChange}
+                    />
+                  )}
+                  {moduleKey === "accounting" && (
+                    <AccountingLinesTable
                       rows={rs}
                       fieldByKey={fbk}
                       lists={lists}

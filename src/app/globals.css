@@ -1609,7 +1609,7 @@ tr.detail-row > td.detail-cell {
   font-weight: 500;
 }
 
-/* ----- ตาราง Sell / Job Cost ตามฟอร์มเอกสาร ----- */
+/* ----- ตารางรายบรรทัดตามฟอร์มเอกสาร: Sell / Job Cost (Extra) และ AP / AR (Accounting) ----- */
 .extra-lines-wrap {
   border: 1px solid #cfd9e4;
   border-radius: 10px;

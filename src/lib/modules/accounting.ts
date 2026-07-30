@@ -42,3 +42,14 @@ export const ACCOUNTING_FIELDS: Field[] = [
   // ----- Closing -----
   { key: "acc_job_status_date", label: "ACC Job Status Date", group: "Accounting & Closing", type: "auto", width: 160, help: "Auto เมื่อ ACC Job Status = End" },
 ];
+
+// คอลัมน์ของตาราง AP / AR ตอนกางดูราย Job (1 บรรทัด = 1 Extra/Service Req Type)
+// คอลัมน์แรกของทั้งสองตาราง = Req Type (ap_extra_req_type) ล็อกไว้ · ที่เหลือกรอกราย Type
+export const ACC_LINE_LEAD = "ap_extra_req_type";
+export const ACC_LINE_COLUMNS = {
+  ap: ["supp_inv", "ap_root_cause", "ap_cost_unit", "ap_cost_cur", "ap_total_cost", "received_ship_close_acc", "ap_remark", "ap_status"],
+  ar: ["ar_pic", "customer_inv", "ar_sell_unit", "ar_sell_cur", "ar_total_sell", "billing_date", "cus_paid", "cus_paid_date", "ar_remark", "ar_status"],
+} as const;
+
+// ยอดรวมท้ายตาราง (คอลัมน์ที่บวกกันทั้ง Job)
+export const ACC_LINE_SUMS = { ap: ["ap_total_cost"], ar: ["ar_total_sell"] } as const;
