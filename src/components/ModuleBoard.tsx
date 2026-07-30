@@ -13,6 +13,7 @@ import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
+import { defaultCollapseKeys } from "@/lib/collapseDefaults";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -62,9 +63,15 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   );
 
   // ค่าตั้งค่าคอลัมน์ตอนย่อ (ส่วนกลาง) + default จาก schema
-  const defaultSummaryKeys = useMemo(() => mod.fields.filter((f) => f.summary).map((f) => f.key), [mod]);
+  // default = ชุดที่กำหนดไว้ใน collapseDefaults.ts (ถ้าโมดูลนั้นไม่ได้กำหนด → field ที่ mark summary)
+  const defaultSummaryKeys = useMemo(() => {
+    const keys = mod.fields.filter((f) => f.summary).map((f) => f.key);
+    const preset = defaultCollapseKeys(moduleKey, keys);
+    const exist = new Set(mod.fields.map((f) => f.key));
+    return preset.filter((k) => exist.has(k)); // กัน key ที่ถูกลบ/เปลี่ยนชื่อไปแล้ว
+  }, [mod, moduleKey]);
   const savedCollapse = data?.collapse?.[moduleKey];
-  const collapsedKeys = savedCollapse && savedCollapse.length ? savedCollapse : undefined;
+  const collapsedKeys = savedCollapse && savedCollapse.length ? savedCollapse : defaultSummaryKeys;
 
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
   const grouped = moduleKey === "extra" || moduleKey === "accounting";

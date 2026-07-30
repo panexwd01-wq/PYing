@@ -1,6 +1,7 @@
 import {
   ALL_LISTS,
   ALL_MODULES,
+  CARRIER_COLOR_SEED,
   DB_SHEET,
   EXPORT_MODULE,
   IMPORT_MODULE,
@@ -110,15 +111,17 @@ export async function writeCollapseConfig(cfg: CollapseConfig): Promise<void> {
 // สีของแต่ละค่าใน Co-Agent/Carrier (เก็บ JSON ที่ _settings!A2) → ระบายช่อง co_agent_carrier ทุก tab
 export type CarrierColors = Record<string, string>; // ชื่อ carrier → สี hex
 
+// ยังไม่เคยตั้งค่า (ชีท/ช่องว่าง) = ใช้สีตั้งต้นจาก schema; เคยบันทึกแล้วยึดค่าที่บันทึกล้วน ๆ
+// (ไม่ merge กับ default ไม่งั้นสีที่ผู้ใช้ตั้งใจล้างจะเด้งกลับมา)
 export async function readCarrierColors(): Promise<CarrierColors> {
   try {
     const rows = await readRange(`${SETTINGS_SHEET}!A2`);
     const raw = rows?.[0]?.[0];
-    if (!raw) return {};
+    if (!raw) return { ...CARRIER_COLOR_SEED };
     const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : {};
+    return obj && typeof obj === "object" ? obj : { ...CARRIER_COLOR_SEED };
   } catch {
-    return {};
+    return { ...CARRIER_COLOR_SEED };
   }
 }
 

@@ -475,24 +475,24 @@ var PANEX_HEADERS = {
 var PANEX_LIST_SEED = {
   "im_ops_status": ["Open","In Progress","Pending","End","Cancel"],
   "job_type": ["Import/FCL","Import/LCL","Import/BULK","Export/FCL","Export/LCL","Export/BULK","Re-Export/FCL","Re-Export/LCL","Transportation Only","Warehouse Only","Shipping Only"],
-  "im_cs": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
-  "ex_cs": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
-  "carrier": ["Maersk","ONE","Evergreen","Co-Agent X"],
-  "sales": ["Sales 1","Sales 2","Sales 3"],
-  "customer": ["Customer A","Customer B"],
-  "pol": ["THBKK","THLCH","CNSHA","SGSIN"],
-  "pod": ["THLCH","THBKK"],
-  "term": ["CIF","FOB","EXW","CFR","DAP","DDP"],
-  "im_doc": ["DOC-A","DOC-B"],
-  "ex_doc": ["DOC-A","DOC-B"],
+  "im_cs": ["POONYISA","SUPAPORN","NAPATCHAYA"],
+  "ex_cs": ["NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT"],
+  "carrier": ["Maersk","ONE","Evergreen","Co-Agent X","HMM","SHIPCO","KMTC","NAMSUNG","PILOT","UWS","MARINE","OOCL","YOUNGFUN","KLN","SINOTRANS","MSC","HEUNG-A","YANGMING","TSLINE","COSCO","DPOWER","ASL / FUJI","CMA/CNC","ZIM","ORIENTAL","RCL","HPL","WANHAI","TOP INTER","GOLDSTAR","BENLINE","JINJIANG"],
+  "sales": ["SEA AND LAND","SWIFTTHAI","EGF/SARAH","TVL LOGISTICS","YANKEY - DIRECT"],
+  "customer": ["YANKEY ENGINEERING (THAILAND) CO., LTD.","JPF INTER SUPPLY CO., LTD.","ROYAL FUJI ELEVATOR (THAILAND) CO., LTD.","HRT NONWOVEN CO., LTD.","ACTER TECHNOLOGY CO., LTD.","YUANXING CONSTRUCTION (THAILAND) CO., LTD.","RICH PAPER CO., LTD.","JIANSEN PAPER CO.,LTD.","IDEALSTEP CORPORATION CO., LTD.","GOLDEN CRANE (GOLDEN DRAGON) CO.,LTD.","ZHONGCE RUBBER (THAILAND) CO.,LTD.","HENGTAI ADVANCED MATERIAL (THAILAND) CO., LTD.","DBJ SMART HOME CO., LTD.","RAISING TECHNOLOGY (THAILAND) CO., LTD.","MAP PREFABRICATION HOUSING CO., LTD.","ALLIANCE MULTISERVICE & SUPPLY CO., LTD.","ASP CARGO COMPANY LIMITED","XINFE CULTURE TECHNOLOGY (THAILAND) CO.,LTD.","THAI FU HOUSE FRAME ( THAILAND ) CO.,LTD","FRAME STEEL HOUSE CO., LTD.","JISUO ENVIRONMENTALPROTECTION TECHNOLOGY CO., LTD."],
+  "pol": ["THBKK","THLCH","CNSHA","SGSIN","NINGBO","NANSHA","HOCHIMINH (VICT),VIETNAM","SHEKOU","XINGANG"],
+  "pod": ["THLCH","THBKK","NINGBO","CNSHA","SGSIN","HOCHIMINH (VICT),VIETNAM"],
+  "term": ["CIF","FOB","EXW","CFR","DAP","DDP","DDU"],
+  "im_doc": ["POONYISA","SUPAPORN"],
+  "ex_doc": ["NATTHANA","NATTHAYA","NANTHAWAN"],
   "enter_doc_status": ["Done","Pending","Revising","N/A"],
   "done_pending": ["Done","Pending"],
   "check_deposit": ["Done","Pending","N/A"],
-  "extra_service_type": ["ตรวจปล่อย","เอกสารเพิ่ม","ฉลากไทย","OT","Re-packing","อื่น ๆ"],
-  "del_address": ["คลังลูกค้า A","นิคม B"],
-  "supplier_transport": ["Trans Supp A","Trans Supp B","Trans Supp C"],
-  "wh_address": ["คลัง WH-1","คลัง WH-2"],
-  "supplier_warehouse": ["WH Supp A","WH Supp B"],
+  "extra_service_type": ["ตรวจปล่อย","แก้ไขเอกสาร","ค่าค้างหาง","OT-TRUCK","Re-packing","อื่น ๆ","Container Inspection","Over weight / Truck","CDI FEE","PRINT FORM-E","FOLK LIFT","HANDLING"],
+  "del_address": ["BRAIN POWER","DYNAMIC TECHNOLOGY","DYNAMIC - BRAIN POWER","COMPEQ","UNITECH PCB - BRAINPOWER","PENG SHEN (AVARY)","EA WH BANGNA","JOMTHONG 13 (R1), EA WH BANGNA (R2)","HRT LCB","LAT PHRAO 29","RICH PAPER","DYNAMIC-AVARY","IDEALSTEP","HENGTAI - RAYONG","UNITECH PCB","FREEZONE WAREHOUSE","ALPHA PHANTHONG","Sakolchai Transpack (Sriracha)","PIONEER-BRAIN POWER","PIONEER"],
+  "supplier_transport": ["NP GLOBAL","SS SERVICE 2013","P&L TRANSPORT","Jaguar","THANAWIN TRANSPORT","Progress Trans","TERN Logistics","NHL Transport","Ally Trans &  TAMMACHART","NNT Transpack","THE PRINCESS PINE","SUBSIAM CARRIER CO., LTD.","REAL TIME","UNIWISE","CBMT โชคบุญมี","ทรัพย์ศิวะพร SSWP","M BRIGHT LOGISTICS  AND SUPPLY","K.S.F TRANSPORT","KLINE","Barkley","SST ทรัพย์สถิตย์ยิ่งเจริญ","HOMKHUN","KK MOOK JAROEN","CBL โชคบุญเหลือ โลจิสติกส์","SN. ASIA CO., LTD.","Thai Global Logistics","RUGA LOGISTICS","Panex Supply Chain Management (Thailand) Co., Ltd.","NATTHARAT TRANSPORT","Commander  Transport","DMT TRANSPORT CO.,LTD","88 Slide On","RUTSADA  TRANSPORT"],
+  "wh_address": ["EA (BANGNA)","EA (UNIWISE)","RUGA LOGISTICS","Sakolchai Transpack (Sriracha)"],
+  "supplier_warehouse": ["EA Logistics Link Co., Ltd.","RUGA LOGISTICS"],
   "entry_pic": ["NIROOTTI","YO","PORNTHEP","BOONSONG","Outsourcing"],
   "ship_pic": ["NIROOTTI","YO","PORNTHEP","BOONSONG","Outsourcing"],
   "trans_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
@@ -503,15 +503,15 @@ var PANEX_LIST_SEED = {
   "cost_pic": ["POONYISA","SUPAPORN","NATTHANA","NATTHAYA","NANTHAWAN","KAWINPAT","NAPATCHAYA"],
   "cargo_type": ["General Cargo","Machine Cargo","Dangerous Cargo","Container Houses"],
   "duty_pay": ["Duty Pay","No Duty","Customer Pay"],
-  "receipt_lost": ["Received","Lost","N/A"],
+  "receipt_lost": ["Received","Lost"],
   "clearance_status": ["Pending","Cleared","Completed"],
   "complete_sts": ["Complete","Pending"],
   "supplier_status": ["Active","Pending","End"],
   "kpi": ["On Time","Delay","No Charge"],
   "yes_no": ["Yes","No"],
-  "cost_module": ["FREIGHT IMPORT","FREIGHT EXPORT","SHIPPING","TRANSPORT","WAREHOUSE"],
+  "cost_module": ["Import","Export","Shipping","Transportation","Warehouse","CS Operation","Re-Export"],
   "unit_list": ["Trip","Container","Shipment","Set","Day","Hour","Document","Entry","Lot","Person"],
-  "root_cause": ["Customer Request","Internal Error","Transportation Error","Warehouse Error","CS Error","Documentation Error"],
+  "root_cause": ["Customer Request","Internal Error","Transportation Error","Warehouse Error","CS Error","Documentation Error","Shipping Error"],
   "currency": ["THB","USD","RMB","EUR","JPY","Others"],
   "profit_sts": ["With GP","At Cost","No Charge","As Quotation"],
   "approved_sts": ["Approved","Pending"],
@@ -522,8 +522,29 @@ var PANEX_LIST_SEED = {
   "sell_confirmed": ["Yes","No","Waiting"],
   "place": ["LCB","BANGKOK","LAT KRABANG","ICD"],
   "pv_status": ["รอจ่าย","จ่ายแล้ว","จบแล้ว"],
-  "form_e": ["CFM","RECEIVED ORI","CHECKING","NEED REVISE","CFM-PRINT","CFM-SCAN FE","Customer Confirm"],
-  "permit": ["TISI","PHYTO","อาหารและยา","N/A"]
+  "form_e": ["CFM","RECEIVED ORI","CHECKING","NEED REVISE","CFM-PRINT","CFM-SCAN FE","Customer confirm"],
+  "permit": ["TISI","PHYTO","ชั่งตวงวัด","EXCISE LICENSE"]
+};
+
+var PANEX_USER_SEED = [
+  ["Ums0d8tf86aic","admin","scrypt$247632e4708b0bcbdff81315fe38b232$114abb61e0b4c0ac8e2e6f54f6ee62a89b2f50dfed7fbce048a0589ddbdcf7ff","Administrator","admin","Yes","{\"tabs\":{},\"lists\":true}","2026-07-25 12:49"],
+  ["Ums2gyur7hyew","POONYISA","scrypt$777e0a6bedc0bb06a4170dc374c56664$68081536660768b3c4f14d539f46a562bd698c9dca28996bfa64d92c721cc5c1","POONYISA","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:09"],
+  ["Ums2h1f761dod","SUPAPORN","scrypt$2658f283c153727f955b06793e50edc5$9114b9697f1be835e9ac7a3a5c398fcf3bf1c773266409e37636d1a88709ea71","SUPAPORN","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:11"],
+  ["Ums2h7jb2ja8f","NATTHAYA","scrypt$41acc3142108ba63197826b5b14eeded$fc83278dbaea016df17a0696f19c28d105ed8fb7c47ec7514e72d15f3f6631dc","NATTHAYA","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:15"],
+  ["Ums2hg5ohilhc","NANTHAWAN","scrypt$b01f2c2d52c5e38d336e714cbc3c09c9$707be883bc1962a4ba55686983f6108865bd7ca116c1cf3f738d29bb034c4ef6","NANTHAWAN","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:22"],
+  ["Ums2hk2vohyu","NATTHANA","scrypt$f7802c37b0179351cacf30a75b5580bc$02cfae0d408aaa045e4670a3e1f821544a9dacdc3e57ca80b0af6cf5686cdb62","NATTHANA","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:25"],
+  ["Ums2hn2a04qw6","BOONSONG","scrypt$519f1de04cb9c3f60658466ec632e4ea$fbd5e78fb53cf3904679dd5763a7f89be1b703518fd091307372bef50cbf9899","BOONSONG","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:27"],
+  ["Ums2ht20t8vw3","PORNTHEP","scrypt$bf241f99509e83f82ee7878ff77fc732$f9baec610059d2fdf767b4579ce2081b9e81dd79f8a6d91bf6ffd336d8a4f5e5","PORNTHEP","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"transport\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"supervisor\":{\"view\":true},\"action\":{\"view\":true},\"management\":{\"view\":true},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:32"],
+  ["Ums2hwjmb2ai0","CHUTIMA","scrypt$a178c9c1b27c5ad5ab917ccb20b34e11$1da3455e6e5b0f28887e35e70a36d9d158a92d7db4984d4dbefa2aa63325586b","CHUTIMA","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":false,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"supervisor\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:35"],
+  ["Ums2i8mi2h7k1","SAWAROT","scrypt$3f7c49f77beab4dbf2edd9a7f5dc644b$cd31605f9486bdbf2b1e93efcd18da071bdc382988d52eb52ce5b01671102992","SAWAROT","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"accounting\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"supervisor\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:44"],
+  ["Ums2if2711tl","MATAVEE","scrypt$cdea2ae34bb7ffc27d4530bb5db6d690$3a9dc5705af3d051840d50a409ad531b1891c7a9c7ae4cf66aca5d70c217ebe0","MATAVEE","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":true,\"end\":true},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"transport\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"warehouse\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"extra\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"accounting\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"supervisor\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":false},\"settings\":{\"view\":true}},\"lists\":true}","2026-07-27 00:49"],
+  ["Ums2ihj2a3y3j","NIROOTTI","scrypt$895a889b6ebc7afe42eae2624aaa1647$f47d9ea0f66bc585c20bde268f90d98db1e9d8a1c9b076d9f42be13636ab7925","NIROOTTI","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"transport\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"accounting\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"supervisor\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":false}},\"lists\":false}","2026-07-27 00:51"],
+  ["Ums2ik95bg73u","YO","scrypt$ece0d20f44abbd1335788f9be9512062$4bf5d6b21ff1826d0632f9354fa8b0a200591f1cbe652955b057f299cef294f1","YO","user","Yes","{\"tabs\":{\"dashboard\":{\"view\":true},\"cs-import\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"cs-export\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"shipping\":{\"view\":true,\"add\":true,\"edit\":true,\"del\":false,\"end\":true},\"transport\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"warehouse\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"extra\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"accounting\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"supervisor\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"action\":{\"view\":true},\"management\":{\"view\":false,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"sales\":{\"view\":true},\"ship-daily\":{\"view\":true},\"rates\":{\"view\":true,\"add\":false,\"edit\":false,\"del\":false,\"end\":false},\"settings\":{\"view\":false}},\"lists\":false}","2026-07-27 00:53"]
+];
+
+var PANEX_SETTINGS_SEED = {
+  "collapse": {"cs-import":["im_ops_status","job_type","im_cs","eta_imp","imp_job_no","customer","vessel","freetime","trans_supp1_del_addr","delivery_date"],"cs-export":["ex_ops_status","job_type","ex_cs","etd_exp","customer","exp_job_no","si_cut_off","si_submit","vgm_cut_off","vgm_submit","closing_time","ex_doc_remark","delivery_date"],"shipping":["shipp_status","job_type","entry_pic","job_no","booking_mbl","customer","cs_note_ship","entry_status","clearance_date","eta_imp","etd_exp","clearance_status"],"transport":["trans_status","job_type","trans_pic","job_no","booking_mbl","customer","cs_note_trans","clearance_date","delivery_date","supp1_del_addr","supp1","supp2","supp3","trans_status_date"],"warehouse":["wha_status","job_type","wh_pic","job_no","booking_mbl","customer","cs_note_wh","delivery_date","wh_actual_rcv","actual_finished_date"],"extra":["extra_status","job_type","job_no","booking_mbl","customer","module","supplier","extra_req_type","cost_pic","root_cause","cost_total","margin_total","no_charge_remark"],"accounting":["acc_job_status","acc_pic","job_type","job_no","booking_mbl","customer","module","supplier","ap_extra_req_type","ap_status","ar_status"]},
+  "carrierColors": {"Evergreen":"#50f262","YANGMING":"#3eeade","MSC":"#fbefa2","ZIM":"#fb8451","OOCL":"#e199f5","COSCO":"#f584d7","TSLINE":"#f49595","CMA/CNC":"#e30d0d","ONE":"#4068dd"}
 };
 
 function PANEX_INITIALIZE() {
@@ -535,16 +556,12 @@ function PANEX_INITIALIZE() {
     report.push(writeHeader_(ss, name, PANEX_HEADERS[name]));
   });
 
-  // ----- 2) _users : ชีทผู้ใช้ + สิทธิ์ -----
+  // ----- 2) _users : ชีทผู้ใช้ + สิทธิ์ (seed รายชื่อเฉพาะเมื่อยังไม่มีใคร) -----
   report.push(writeHeader_(ss, USERS_SHEET, PANEX_USER_HEADERS));
+  report.push(seedUsers_(ss));
 
-  // ----- 3) _settings : ค่าตั้งค่าส่วนกลาง (คอลัมน์ตอนย่อ / สี Carrier) -----
-  if (!ss.getSheetByName(SETTINGS_SHEET)) {
-    ss.insertSheet(SETTINGS_SHEET);
-    report.push(SETTINGS_SHEET + " : สร้างชีทแล้ว");
-  } else {
-    report.push(SETTINGS_SHEET + " : มีอยู่แล้ว");
-  }
+  // ----- 3) _settings : ค่าตั้งค่าส่วนกลาง (คอลัมน์ตอนย่อ A1 / สี Carrier A2) -----
+  report.push(seedSettings_(ss));
 
   // ----- 4) _lists : seed เฉพาะเมื่อว่าง -----
   report.push(seedLists_(ss));
@@ -552,8 +569,46 @@ function PANEX_INITIALIZE() {
   var NL = String.fromCharCode(10);
   SpreadsheetApp.getUi().alert(
     "PANEX Initialize เสร็จ" + NL + NL + report.join(NL) + NL + NL +
-    "เข้าเว็บครั้งแรกให้ล็อกอินด้วย admin / admin แล้วเปลี่ยนรหัสผ่านทันที"
+    "ล็อกอินด้วยชื่อผู้ใช้เดิม (รหัสผ่านเดิม) ได้ทันที"
   );
+}
+
+// seed ผู้ใช้ + สิทธิ์ — ข้ามทันทีถ้ามีแถวผู้ใช้อยู่แล้ว (ไม่ทับของเดิมเด็ดขาด)
+function seedUsers_(ss) {
+  var sh = ss.getSheetByName(USERS_SHEET);
+  if (!sh) return USERS_SHEET + " : ไม่พบชีท";
+  if (!PANEX_USER_SEED.length) return USERS_SHEET + " : ไม่มีรายชื่อตั้งต้น";
+
+  var lastRow = sh.getLastRow();
+  if (lastRow >= 2) {
+    var vals = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+    var hasAny = vals.some(function (row) { return String(row[0]).trim() !== ""; });
+    if (hasAny) return USERS_SHEET + " : มีผู้ใช้อยู่แล้ว (ข้าม seed)";
+  }
+
+  var width = PANEX_USER_HEADERS.length;
+  if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
+  sh.getRange(2, 1, PANEX_USER_SEED.length, width).setValues(PANEX_USER_SEED);
+  return USERS_SHEET + " : seed ผู้ใช้ " + PANEX_USER_SEED.length + " คน (รหัสผ่านเดิม)";
+}
+
+// seed ค่าตั้งค่าส่วนกลาง — เขียนเฉพาะช่องที่ยังว่าง (A1 = คอลัมน์ตอนย่อ, A2 = สี Carrier)
+function seedSettings_(ss) {
+  var sh = ss.getSheetByName(SETTINGS_SHEET);
+  var created = false;
+  if (!sh) { sh = ss.insertSheet(SETTINGS_SHEET); created = true; }
+
+  var done = [];
+  if (String(sh.getRange("A1").getValue()).trim() === "") {
+    sh.getRange("A1").setValue(JSON.stringify(PANEX_SETTINGS_SEED.collapse));
+    done.push("คอลัมน์ตอนย่อ");
+  }
+  if (String(sh.getRange("A2").getValue()).trim() === "") {
+    sh.getRange("A2").setValue(JSON.stringify(PANEX_SETTINGS_SEED.carrierColors));
+    done.push("สี Carrier");
+  }
+  return SETTINGS_SHEET + " : " + (created ? "สร้างชีทแล้ว · " : "") +
+    (done.length ? "seed " + done.join(" + ") : "มีค่าอยู่แล้ว (ข้าม seed)");
 }
 
 // เขียนหัวตารางของชีทหนึ่ง (สร้างชีทถ้ายังไม่มี) — ไม่แตะข้อมูลแถวอื่น

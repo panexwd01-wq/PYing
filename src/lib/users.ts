@@ -4,6 +4,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { appendRows, clearRange, ensureSheet, readRange, writeRange } from "./sheets";
 import { Perms, defaultUserPerms, parsePerms } from "./perms";
+import { USER_SEED } from "./userSeed";
 import type { Role } from "./session";
 
 export const USERS_SHEET = "_users";
@@ -129,26 +130,20 @@ const toAppUser = (r: RawUser): AppUser => ({
   perms: parsePerms(r.perms),
 });
 
-// ผู้ใช้ตั้งต้น: admin / admin (สร้างครั้งแรกเมื่อชีทยังว่าง)
-export async function seedAdminIfEmpty(): Promise<void> {
+// ผู้ใช้ตั้งต้น (สร้างครั้งแรกเมื่อชีทยังว่าง) = ชุดใน userSeed.ts — รหัสผ่านเดิมของแต่ละคนใช้ได้ทันที
+// ถ้า seed หายไปด้วยเหตุใดก็ตาม ยังเหลือ admin/admin เป็นตาข่ายกันตกใบสุดท้าย
+export async function seedUsersIfEmpty(): Promise<void> {
   const list = await rawUsers();
   if (list.length) return;
-  await appendRows(`${USERS_SHEET}!A1`, [
-    [
-      genId(),
-      "admin",
-      hashPassword("admin"),
-      "Administrator",
-      "admin",
-      "Yes",
-      JSON.stringify({ tabs: {}, lists: true }),
-      nowStamp(),
-    ],
-  ]);
+  const rows = USER_SEED.length
+    ? USER_SEED.map((r) => [...r])
+    : [[genId(), "admin", hashPassword("admin"), "Administrator", "admin", "Yes", JSON.stringify({ tabs: {}, lists: true }), nowStamp()]];
+  await appendRows(`${USERS_SHEET}!A1`, rows);
 }
 
+
 export async function listUsers(): Promise<AppUser[]> {
-  await seedAdminIfEmpty();
+  await seedUsersIfEmpty();
   return (await rawUsers()).map(toAppUser);
 }
 
@@ -157,7 +152,7 @@ export async function authenticate(username: string, password: string): Promise<
   // built-in admin: เช็คก่อนแตะชีท → เข้าได้แม้ Sheets ล่ม/ยังไม่มีชีท _users
   if (matchBuiltinAdmin(username, password)) return builtinAdmin();
   if (isBuiltinAdminName(username)) return null; // ชื่อนี้สงวนไว้ ห้ามใช้แถวในชีทมาสวม
-  await seedAdminIfEmpty();
+  await seedUsersIfEmpty();
   const uname = (username || "").trim().toLowerCase();
   const hit = (await rawUsers()).find((r) => r.username.trim().toLowerCase() === uname);
   if (!hit) return null;
