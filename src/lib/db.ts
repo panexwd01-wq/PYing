@@ -856,6 +856,22 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
   if (toUpdate.length) await updateJobs(ACC, toUpdate, false);
 }
 
+// โมดูลปลายทางที่ผูกกับงาน CS ด้วยช่อง job_no (ต้องย้ายตามเมื่อ Job No. ที่ CS เปลี่ยน)
+const LINKED_JOB_MODULE_IDS = [...MID_MODULE_IDS, EXTRA_ID, ACC_ID];
+
+// Job No. ที่ CS ถูกแก้ → ย้ายแถวปลายทางทั้งหมดมาใช้เลขใหม่ (แก้ของเดิม ไม่สร้างชุดใหม่)
+// ถ้าไม่ทำ: แถวเดิมยังค้างเลขเก่า = กำพร้า แล้ว reconcile จะสร้าง Shipping/Transport/Warehouse/
+// Extra/Accounting ชุดใหม่ให้เลขใหม่ทั้งหมด (ข้อมูลที่กรอกไว้หลุดหาย)
+async function relinkJobNo(oldJn: string, newJn: string): Promise<void> {
+  if (!oldJn || !newJn || oldJn === newJn) return;
+  for (const id of LINKED_JOB_MODULE_IDS) {
+    const tm = MODULE_BY_ID[id];
+    const rows = (await rawList(tm)).filter((r) => (r.job_no || "").trim() === oldJn);
+    if (rows.length)
+      await updateJobs(tm, rows.map((r) => ({ __id: r.__id, job_no: newJn })), false);
+  }
+}
+
 // ปรับ record ปลายทางให้ตรงกับ flag/req type บนต้นทาง (เรียกหลัง create/update)
 // - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/Job No.)
 // - ทุกต้นทาง (04–08): extra_require + req type → สร้าง/ลบแถวใน 09 (ป้าย Module ตามต้นทาง)
@@ -877,6 +893,15 @@ async function reconcileLinks(
     return;
   }
   if (!isCS && !isMid) return;
+
+  // ----- 0a) Job No. ที่ CS เปลี่ยน → ย้ายแถวปลายทางเดิมมาใช้เลขใหม่ก่อนทำอย่างอื่น -----
+  if (isCS && prevById) {
+    for (const rec of saved) {
+      const prev = prevById.get(rec.__id || "");
+      if (!prev) continue;
+      await relinkJobNo((prev[m.jobNoKey] || "").trim(), (rec[m.jobNoKey] || "").trim());
+    }
+  }
 
   // เก็บ Job No. ที่แตะ เพื่อ refresh Accounting ทีเดียวตอนท้าย
   const touched = new Set<string>();
