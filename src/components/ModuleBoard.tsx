@@ -13,9 +13,9 @@ import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
-import { defaultCollapseKeys } from "@/lib/collapseDefaults";
+import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
-import { checkReExport } from "@/lib/reExport";
+import { checkReExport, impJobNoFromReadout } from "@/lib/reExport";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -72,8 +72,13 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     const exist = new Set(mod.fields.map((f) => f.key));
     return preset.filter((k) => exist.has(k)); // กัน key ที่ถูกลบ/เปลี่ยนชื่อไปแล้ว
   }, [mod, moduleKey]);
-  const savedCollapse = data?.collapse?.[moduleKey];
-  const collapsedKeys = savedCollapse && savedCollapse.length ? savedCollapse : defaultSummaryKeys;
+  // ค่าที่บันทึกไว้ใน _settings: map key เก่าที่เปลี่ยนชื่อไปแล้ว + ตัด key ที่ไม่มีใน schema
+  // (ถ้าไม่ทำ คอลัมน์ที่เคยตั้งไว้ด้วยชื่อเดิม เช่น del_address จะหายจากโหมดย่อเงียบ ๆ)
+  const savedCollapse = useMemo(
+    () => normalizeCollapseKeys(moduleKey, data?.collapse?.[moduleKey], mod.fields.map((f) => f.key)),
+    [data?.collapse, moduleKey, mod]
+  );
+  const collapsedKeys = savedCollapse.length ? savedCollapse : defaultSummaryKeys;
 
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
   const grouped = moduleKey === "extra" || moduleKey === "accounting";
@@ -353,8 +358,23 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     return out;
   }, [rows, filters, dateField, statusKey, csField, searchKeys, sortKey, sortDir]);
 
+  // Export ที่มาจาก Re-Export = ถูกคุมด้วย CS Import (ซ่อนปุ่มลบ)
+  // ยกเว้นแถวกำพร้า — งาน Import ที่อ้างถึงไม่มีอยู่แล้ว (เช่นแถวซ้ำที่ค้างจากของเดิม) → ให้ลบเองได้
+  const impJobNos = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of data?.modules?.["cs-import"] || []) {
+      const j = (r.imp_job_no || "").trim();
+      if (j) s.add(j);
+    }
+    return s;
+  }, [data]);
   const hideDeleteFor = moduleKey === "cs-export"
-    ? (r: JobRecord) => (r.re_export || "") === "Yes"
+    ? (r: JobRecord) => {
+        if ((r.re_export || "") !== "Yes") return false;
+        if (!impJobNos.size) return true; // ยังไม่มีข้อมูล Import ในมือ = ไม่เดา
+        const jn = impJobNoFromReadout(r.data_from_import || "");
+        return !jn || impJobNos.has(jn);
+      }
     : undefined;
 
   return (
@@ -538,7 +558,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           moduleLabel={mod.label}
           fields={mod.fields}
           defaultKeys={defaultSummaryKeys}
-          currentKeys={savedCollapse || []}
+          currentKeys={savedCollapse}
           fullConfig={data?.collapse || {}}
           moduleKey={moduleKey}
           onClose={() => setShowCfg(false)}

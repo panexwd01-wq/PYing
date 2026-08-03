@@ -12,7 +12,7 @@ import {
   recordHeaders,
 } from "./schema";
 import { checkEnd, EndCtx } from "./endRules";
-import { checkReExport } from "./reExport";
+import { checkReExport, impJobNoFromReadout } from "./reExport";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
@@ -588,7 +588,7 @@ export async function updateJobs(
   // reconcile เฉพาะแถวที่ช่องขับลิงก์เปลี่ยนจริง (แก้ remark/วันที่/status ฯลฯ ไม่ต้อง reconcile)
   if (reconcile) {
     const changed = out.filter((rec) => reconcileNeeded(m, existingById.get(rec.__id!), rec));
-    if (changed.length) await reconcileLinks(m, changed);
+    if (changed.length) await reconcileLinks(m, changed, existingById);
   }
   return out;
 }
@@ -719,14 +719,6 @@ export function composeDataFromImport(r: Partial<JobRecord>): string {
   return lines.map(([k, v]) => `${k}: ${v || "-"}`).join("\n");
 }
 
-// อ่าน Import Job No. ที่ฝังในข้อความ Data from Import ("Job No.: XXX")
-// ใช้เป็นตัวเชื่อมแบบ soft (exp_job_no ปล่อยว่างตามสเปก — ไม่ลิงก์ตรง ๆ)
-function impJobNoFromReadout(dfi: string): string {
-  const m = /Job No\.:\s*(.+)/.exec(dfi || "");
-  const v = (m?.[1] || "").trim();
-  return v === "-" ? "" : v;
-}
-
 // Re-Export: CS Import re_export=Yes → สร้าง "แถวเปล่า" ใน CS Export
 // ตามสเปก: กรอกแค่ EX/OPS Status=Open, Re-Export?=Yes, Data from Import, Job Create Date(auto)
 // + Job Type (ดึงจาก Import — sync ตลอด/ล็อกที่หน้าจอ ให้เห็นว่าเป็นงาน Re-Export)
@@ -740,30 +732,62 @@ function reExportSeed(r: JobRecord): Partial<JobRecord> {
   };
 }
 
+// ช่องที่ระบบเป็นคนใส่ให้ตอนสร้างแถว Export อัตโนมัติ (นอกเหนือจากนี้ = ผู้ใช้กรอกเอง)
+const RE_EXPORT_SEED_KEYS = new Set([
+  "ex_ops_status", "re_export", "job_type", "data_from_import", "created_at", "ended_at",
+]);
+
+// แถว Export ที่สร้างอัตโนมัติแล้วยัง "ไม่มีใครแตะ" (ยังเป็นแถวเปล่าตามที่ระบบ seed ไว้)
+// ใช้ตัดสินว่าปลอดภัยที่จะลบทิ้งตอนเจอแถวซ้ำ (แถวที่ผู้ใช้กรอกข้อมูลแล้วจะไม่ถูกลบ)
+function isUntouchedReExportRow(r: JobRecord): boolean {
+  if (!["", "Open"].includes((r.ex_ops_status || "").trim())) return false;
+  return EXPORT_MODULE.fields.every(
+    (f) => RE_EXPORT_SEED_KEYS.has(f.key) || !String(r[f.key] ?? "").trim()
+  );
+}
+
 // Sync Export ตาม Re-Export? ของ Import (จับคู่ด้วย Import Job No. ที่ฝังใน Data from Import)
-// - re_export=Yes → สร้างแถวเปล่าใน Export (ถ้ายังไม่มี)
-// - re_export=No  → ลบแถว Export ที่สร้างอัตโนมัติทิ้ง
-async function reconcileReExport(rec: JobRecord): Promise<void> {
+// - re_export=Yes → ยังไม่มีแถว = สร้างใหม่ / มีแล้ว = **แก้แถวเดิม** (ห้ามสร้างซ้ำ)
+// - re_export=No  → ลบแถว Export ที่เชื่อมกันอยู่ทิ้ง
+// prev = ค่าเดิมในชีทก่อนบันทึก: ใช้จับคู่ด้วย Job No. เดิมด้วย เผื่อผู้ใช้เพิ่งแก้ Job No.
+// (ถ้าจับด้วย Job No. ใหม่อย่างเดียวจะหาแถวเดิมไม่เจอ → กลายเป็นสร้างรายการใหม่)
+async function reconcileReExport(rec: JobRecord, prev?: JobRecord): Promise<void> {
   const jobNo = (rec.imp_job_no || "").trim();
-  if (!jobNo) return;
+  const linkKeys = new Set([jobNo, (prev?.imp_job_no || "").trim()].filter(Boolean));
+  if (!linkKeys.size) return;
   const expRows = await rawList(EXPORT_MODULE);
   const matches = expRows.filter(
-    (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
+    (r) =>
+      (r.re_export || "") === "Yes" && linkKeys.has(impJobNoFromReadout(r.data_from_import || ""))
   );
-  if ((rec.re_export || "") === "Yes") {
-    if (!matches.length) {
-      await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
-    } else {
-      // Job Type ที่ Import เปลี่ยน → ดันลงแถว Export ที่สร้างไว้แล้ว (ช่องนี้ล็อกที่หน้าจอ)
-      const jt = (rec.job_type || "").trim();
-      const stale = matches.filter((r) => (r.job_type || "").trim() !== jt);
-      if (stale.length)
-        await updateJobs(EXPORT_MODULE, stale.map((r) => ({ __id: r.__id, job_type: jt })), false);
-    }
-  } else {
+
+  if ((rec.re_export || "") !== "Yes") {
     // Re-Export? กลับเป็น No → ลบรายการ Export ที่สร้างอัตโนมัติ (batch)
     await deleteRows(EXPORT_MODULE, matches.map((m) => m.__id!));
+    return;
   }
+
+  if (!jobNo) return; // ยังไม่มี Job No. → ยังผูกแถว Export ไม่ได้ (รอบันทึกรอบหน้า)
+  if (!matches.length) {
+    await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+    return;
+  }
+
+  // มีแถวอยู่แล้ว → อัปเดตแถวเดิม: Job Type + Data from Import ให้ตรงกับ Import ปัจจุบัน
+  // (การเขียน readout ใหม่ทำให้ตัวเชื่อมตามไปด้วยเมื่อ Job No. เปลี่ยน)
+  const keep = matches[0];
+  const jt = (rec.job_type || "").trim();
+  const readout = composeDataFromImport(rec);
+  if ((keep.job_type || "").trim() !== jt || (keep.data_from_import || "") !== readout)
+    await updateJobs(
+      EXPORT_MODULE,
+      [{ __id: keep.__id, job_type: jt, data_from_import: readout }],
+      false
+    );
+
+  // แถวซ้ำที่ค้างจากบั๊กเดิม → ลบเฉพาะแถวที่ยังไม่มีใครกรอกอะไร (แถวที่มีข้อมูลแล้วปล่อยไว้)
+  const dup = matches.slice(1).filter(isUntouchedReExportRow).map((r) => r.__id!);
+  await deleteRows(EXPORT_MODULE, dup);
 }
 
 // Accounting real-time: ทุก job ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09
@@ -835,7 +859,12 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
 // ปรับ record ปลายทางให้ตรงกับ flag/req type บนต้นทาง (เรียกหลัง create/update)
 // - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/Job No.)
 // - ทุกต้นทาง (04–08): extra_require + req type → สร้าง/ลบแถวใน 09 (ป้าย Module ตามต้นทาง)
-async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
+// prevById = ค่าเดิมของแต่ละแถวก่อนบันทึก (มีเฉพาะเส้น update) — ใช้ตามหาแถวปลายทางที่ผูกกับค่าเดิม
+async function reconcileLinks(
+  m: ModuleDef,
+  saved: JobRecord[],
+  prevById?: Map<string, JobRecord>
+): Promise<void> {
   if (!saved.length) return;
   await primeWorkModules(); // ดึงชีทงานทั้งหมดรวดเดียว แล้วค่อยทำงานจาก cache
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
@@ -858,7 +887,7 @@ async function reconcileLinks(m: ModuleDef, saved: JobRecord[]): Promise<void> {
 
   // ----- 0) Re-Export (เฉพาะ CS Import): re_export=Yes → สร้าง Export -----
   if (m.id === "04_CS_Import") {
-    for (const rec of saved) await reconcileReExport(rec);
+    for (const rec of saved) await reconcileReExport(rec, prevById?.get(rec.__id || ""));
   }
 
   // ----- 1) CS: สร้าง/ลบ record เดี่ยวใน Shipping/Transport/Warehouse ตาม flag -----

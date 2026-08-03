@@ -108,3 +108,29 @@ export function defaultCollapseKeys(moduleKey: string, summaryKeys: string[]): s
   const preset = DEFAULT_COLLAPSE[moduleKey];
   return preset && preset.length ? preset : summaryKeys;
 }
+
+// ===== ค่าที่บันทึกไว้ใน _settings อาจอ้าง field ที่ถูกเปลี่ยนชื่อ/ลบไปแล้ว =====
+// key เก่า → key ใหม่ (ค่าที่บันทึกไว้ก่อนแยก Del Address / Delivery Date ต่อ supplier — เฟส 17)
+// ถ้าไม่ map ให้ คอลัมน์นั้นจะ "หายไป" จากโหมดย่อเงียบ ๆ เพราะ key ไม่ตรงกับ schema แล้ว
+const LEGACY_COLLAPSE_KEYS: Record<string, Record<string, string>> = {
+  "cs-import": { del_address: "trans_supp1_del_addr", freetime_dem: "freetime" },
+  "cs-export": { del_address: "trans_supp1_del_addr" },
+  transport: { del_address: "supp1_del_addr" },
+};
+
+// แปลงค่าที่บันทึกไว้ให้ใช้กับ schema ปัจจุบัน: map key เก่า → ใหม่, ตัด key ที่ไม่มีจริง, กันซ้ำ
+export function normalizeCollapseKeys(
+  moduleKey: string,
+  keys: string[] | undefined,
+  existingKeys: string[]
+): string[] {
+  if (!keys || !keys.length) return [];
+  const map = LEGACY_COLLAPSE_KEYS[moduleKey] || {};
+  const exist = new Set(existingKeys);
+  const out: string[] = [];
+  for (const k of keys) {
+    const key = map[k] || k;
+    if (exist.has(key) && !out.includes(key)) out.push(key);
+  }
+  return out;
+}

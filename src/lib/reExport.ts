@@ -8,6 +8,15 @@ export function isReExportType(v?: string): boolean {
   return RE_EXPORT_JOB_TYPES.includes((v || "").trim());
 }
 
+// อ่าน Import Job No. ที่ฝังในข้อความ "Data from Import" ของแถว CS Export ("Job No.: XXX")
+// = ตัวเชื่อม (soft link) ระหว่างงาน Import กับแถว Export ที่ถูกสร้างอัตโนมัติ
+// (exp_job_no ปล่อยว่างตามสเปก จึงใช้บรรทัดนี้แทน)
+export function impJobNoFromReadout(dfi: string): string {
+  const m = /Job No\.:\s*(.+)/.exec(dfi || "");
+  const v = (m?.[1] || "").trim();
+  return v === "-" ? "" : v;
+}
+
 // ตรวจความสอดคล้อง Re-Export? ↔ Job Type — คืนข้อความเตือน (null = ผ่าน)
 // ใช้กับ CS Import เท่านั้น (Export ได้ค่ามาจาก Import อยู่แล้ว)
 export function checkReExport(rec: Partial<JobRecord>): string | null {
