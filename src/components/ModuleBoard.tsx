@@ -467,6 +467,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             <GroupedGrid
               displayFields={groupedDisplayFields}
               rows={filtered}
+              moduleId={mod.id}
+              carrierColors={data?.carrierColors}
               statusKey={statusKey}
               dirtyIds={dirty}
               unlockedIds={unlocked}

@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord } from "@/lib/types";
+import { cellCue } from "@/lib/cellRules";
 
 // ตารางที่ "รวบหลายแถวของ Job No. เดียวกันเป็น 1 บรรทัด"
 // - ค่าที่ต่างกันในกลุ่ม จะถูกรวมแสดงคั่นด้วย " · " (เช่น Extra/Service Req Type)
@@ -40,6 +41,8 @@ function mergedValue(rows: JobRecord[], key: string): string {
 export function GroupedGrid({
   displayFields,
   rows,
+  moduleId,
+  carrierColors,
   groupKey = "job_no",
   statusKey,
   dirtyIds,
@@ -50,6 +53,8 @@ export function GroupedGrid({
 }: {
   displayFields: Field[];
   rows: JobRecord[];
+  moduleId: string;
+  carrierColors?: Record<string, string>;
   groupKey?: string;
   statusKey: string;
   dirtyIds: Set<string>;
@@ -105,11 +110,22 @@ export function GroupedGrid({
                       ▸
                     </button>
                   </td>
-                  {displayFields.map((f) => (
-                    <td key={f.key} className="tint-locked" title={mergedValue(g.rows, f.key)}>
-                      <div className="cellbox">{mergedValue(g.rows, f.key) || "—"}</div>
-                    </td>
-                  ))}
+                  {displayFields.map((f) => {
+                    // สีตามกฎเดียวกับตารางปกติ (เช่น Job Type = Re-Export/* → แดง)
+                    // ใช้ได้เมื่อทุกแถวใน Job นี้มีค่าเดียวกัน — ถ้าค่าต่างกัน (ช่องราย Type) ไม่ระบายสี
+                    const vals = new Set(g.rows.map((r) => (r[f.key] || "").trim()));
+                    const bg = vals.size === 1 ? cellCue(moduleId, f.key, g.rows[0], carrierColors).bg : undefined;
+                    return (
+                      <td
+                        key={f.key}
+                        className="tint-locked"
+                        title={mergedValue(g.rows, f.key)}
+                        style={bg ? { background: bg } : undefined}
+                      >
+                        <div className="cellbox">{mergedValue(g.rows, f.key) || "—"}</div>
+                      </td>
+                    );
+                  })}
                   <td>
                     <div className="row-actions">
                       <span className="count-pill sm">{g.rows.length}</span>

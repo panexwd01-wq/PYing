@@ -1028,9 +1028,35 @@ async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
   await reconcileAccounting(jobNo);
 }
 
-// Sync / Backfill: reconcile ทุกงานต้นทางใหม่
+// เก็บกวาดแถว "กำพร้า" ในโมดูลต่อยอด (06/07/08/09/10) = แถวที่ Job No. ไม่ผูกกับงาน CS ไหนแล้ว
+// (เกิดได้จากลบงาน CS ตอนระบบยังไม่ cascade / แก้ Job No. สมัยก่อน / กรอกมือในชีทโดยตรง)
+// **ไม่แตะ 04_CS_Import / 05_CS_Export เด็ดขาด** — สองตัวนี้เป็นต้นทาง ไม่ใช่ของต่อยอด
+async function purgeOrphans(): Promise<{ total: number; detail: string[] }> {
+  const src = await getSourceIndex();
+  const detail: string[] = [];
+  let total = 0;
+  // กันเคสอ่านต้นทางแล้วไม่เจองานเลย (ชีท CS ว่าง/ยังไม่ได้ตั้งค่า) — ไม่ลบอะไรทั้งนั้น
+  if (src.imp.size === 0 && src.exp.size === 0) return { total: -1, detail };
+  for (const id of LINKED_JOB_MODULE_IDS) {
+    const tm = MODULE_BY_ID[id];
+    const dead = (await rawList(tm))
+      .filter((r) => {
+        const j = (r.job_no || "").trim();
+        return !j || (!src.imp.has(j) && !src.exp.has(j)); // ไม่มี Job No. หรือหางาน CS ไม่เจอ
+      })
+      .map((r) => r.__id!);
+    if (dead.length) {
+      await deleteRows(tm, dead);
+      total += dead.length;
+      detail.push(`${tm.short} ${dead.length}`);
+    }
+  }
+  return { total, detail };
+}
+
+// Sync / Backfill: reconcile ทุกงานต้นทางใหม่ + ลบแถวต่อยอดที่ไม่มีงาน CS ผูกอยู่
 // ปกติ reconcile ทำ real-time ตอนบันทึกอยู่แล้ว — ปุ่มนี้ไว้ซ่อม/เติมย้อนหลังกรณีข้อมูลหลุด sync
-export async function syncAll(): Promise<{ message: string; reconciled: number }> {
+export async function syncAll(): Promise<{ message: string; reconciled: number; purged: number }> {
   let n = 0;
   for (const id of ["04_CS_Import", "05_CS_Export", "06_Shipping", "07_Transportation", "08_Warehouse"]) {
     const m = MODULE_BY_ID[id];
@@ -1040,9 +1066,17 @@ export async function syncAll(): Promise<{ message: string; reconciled: number }
       n += rows.length;
     }
   }
+  const purge = await purgeOrphans();
+  const purgeMsg =
+    purge.total < 0
+      ? " · ข้ามการเก็บกวาด (ไม่พบงานที่ CS Import/Export เลย)"
+      : purge.total
+      ? ` · ลบรายการที่ไม่มี CS ผูกอยู่ ${purge.total} แถว (${purge.detail.join(", ")})`
+      : " · ไม่พบรายการกำพร้า";
   return {
-    message: `Sync/Backfill เสร็จ — reconcile ${n} งานต้นทาง (Re-Export/Shipping/Transport/Warehouse/Extra/Accounting)`,
+    message: `Sync/Backfill เสร็จ — reconcile ${n} งานต้นทาง (Re-Export/Shipping/Transport/Warehouse/Extra/Accounting)${purgeMsg}`,
     reconciled: n,
+    purged: Math.max(0, purge.total),
   };
 }
 
