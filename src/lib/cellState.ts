@@ -36,7 +36,7 @@ export function cellState(
   const hint = o.readOnly
     ? "บัญชีนี้ไม่มีสิทธิ์แก้ไข tab นี้"
     : cue.locked
-    ? "ล็อกตามสถานะ (Cancel / Done) — เปลี่ยนสถานะก่อนจึงจะแก้ได้"
+    ? cue.hint || "ล็อกตามสถานะ (Cancel / Done) — เปลี่ยนสถานะก่อนจึงจะแก้ได้"
     : endLocked
     ? "งาน End แล้ว — ต้องปลดล็อก (Supervisor) ก่อนแก้"
     : "ต้องระบุ PIC ของโมดูลก่อนจึงจะแก้ช่องนี้ได้";

@@ -1,4 +1,5 @@
 import { JobRecord } from "./types";
+import { isReExportType } from "./reExport";
 
 // ===== กฎสีพื้น/ล็อกของ cell ตามค่าในระเบียน (Phase B) =====
 // คืน { bg?, locked? } ต่อ 1 ช่อง — JobGrid เอาไปใช้ระบายสี + ล็อก
@@ -48,6 +49,7 @@ function weekdayColor(v: string): string | undefined {
 export interface CellCue {
   bg?: string;
   locked?: boolean;
+  hint?: string; // ข้อความอธิบายตอนล็อก (ไม่ใส่ = ใช้ข้อความมาตรฐาน)
 }
 
 export function cellCue(
@@ -72,6 +74,15 @@ export function cellCue(
       const bg = weekdayColor(rec[fieldKey] || "");
       if (bg) return { bg };
     }
+  }
+
+  // ----- Job Type = Re-Export/* → แดงทุก tab (สัญลักษณ์ว่างานนี้เป็น Re-Export) -----
+  // โมดูลปลายทาง (Shipping/Transport/Warehouse/Extra/Accounting) ดึง Job Type มาจาก CS อยู่แล้ว
+  if (fieldKey === "job_type" && isReExportType(rec.job_type)) {
+    // Export ที่เกิดจาก Re-Export: Job Type sync จาก Import → ล็อกไม่ให้แก้ที่นี่
+    if (moduleId === "05_CS_Export" && (rec.re_export || "") === "Yes")
+      return { bg: C.red, locked: true, hint: "Job Type ของงาน Re-Export ดึงจาก CS Import — แก้ที่ tab Import" };
+    return { bg: C.red };
   }
 
   // ----- Entry Status (Import/Export) = Done → แดง -----

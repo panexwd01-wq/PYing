@@ -15,6 +15,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys } from "@/lib/collapseDefaults";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
+import { checkReExport } from "@/lib/reExport";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -252,6 +253,18 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     }
     const newRecords = rows.filter((r) => news.has(r.__id));
     const updRecords = rows.filter((r) => dirty.has(r.__id) && !news.has(r.__id));
+
+    // CS Import: Re-Export? ↔ Job Type ต้องสอดคล้องกัน (เตือนตั้งแต่ยังไม่ส่ง — ไม่บันทึกทั้งชุด)
+    if (mod.id === "04_CS_Import") {
+      for (const r of [...newRecords, ...updRecords]) {
+        const msg = checkReExport(r);
+        if (msg) {
+          flash(`บันทึกไม่ได้ (${r.imp_job_no || "รายการใหม่"}): ${msg}`, true);
+          return;
+        }
+      }
+    }
+
     setSavingMsg("กำลังบันทึก…");
     setSaving(true);
     try {
@@ -280,7 +293,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     } finally {
       setSaving(false);
     }
-  }, [dirty, news, rows, reload, flash, moduleKey]);
+  }, [dirty, news, rows, reload, flash, moduleKey, mod.id]);
 
   const refresh = useCallback(async () => {
     setSavingMsg("กำลังดึงข้อมูลจาก CS…");

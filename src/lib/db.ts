@@ -12,6 +12,7 @@ import {
   recordHeaders,
 } from "./schema";
 import { checkEnd, EndCtx } from "./endRules";
+import { checkReExport } from "./reExport";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
@@ -317,6 +318,24 @@ function enforceEnd(m: ModuleDef, rec: JobRecord, ctx?: EndCtx): void {
   }
 }
 
+// บังคับกติกา Re-Export (CS Import): Re-Export? = Yes ↔ Job Type = Re-Export/FCL หรือ /LCL
+// prev = ค่าเดิมในชีท (ตอน update) — ถ้าคู่ Re-Export?/Job Type ไม่ได้เปลี่ยน ไม่ต้องเช็ค
+// (กันงานเก่าที่ค้างผิดกติกามาบล็อกการ refresh/sync ทั้งชีท — ห้ามแค่ "ทำให้ผิด" ตอนแก้)
+function enforceReExport(m: ModuleDef, rec: JobRecord, prev?: JobRecord): void {
+  if (m.id !== "04_CS_Import") return;
+  if (
+    prev &&
+    (prev.re_export || "") === (rec.re_export || "") &&
+    (prev.job_type || "") === (rec.job_type || "")
+  )
+    return;
+  const msg = checkReExport(rec);
+  if (msg) {
+    const jn = rec[m.jobNoKey] || rec.__id || "";
+    throw new Error(`บันทึกไม่ได้ (${jn}): ${msg}`);
+  }
+}
+
 // สร้าง EndCtx (ข้อมูลข้ามโมดูล) เฉพาะตอน CS Import/Export จะตั้ง Status = End
 async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<EndCtx | undefined> {
   if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export") return undefined;
@@ -456,7 +475,10 @@ export async function getSnapshot(): Promise<Snapshot> {
         if ((r.re_export || "") !== "Yes") return r;
         const jn = impJobNoFromReadout(r.data_from_import || "");
         const imp = jn ? srcIdx.imp.get(jn) : undefined;
-        return imp ? { ...r, data_from_import: composeDataFromImport(imp) } : r;
+        // Job Type ก็ sync จาก Import ด้วย (ช่องนี้ล็อกที่หน้า Export)
+        return imp
+          ? { ...r, job_type: (imp.job_type || "").trim(), data_from_import: composeDataFromImport(imp) }
+          : r;
       });
     }
     modules[m.key] = rows;
@@ -499,6 +521,7 @@ export async function createJobs(
     const withId = en({ ...rec, __id: rec.__id || genId(i + 1) } as JobRecord);
     if (setCreated && !withId.created_at) withId.created_at = stamp; // วันเปิดงาน (ครั้งเดียว)
     const final = applyAutoRules(m, withId) as JobRecord;
+    enforceReExport(m, final);
     enforceEnd(m, final, endCtx);
     out.push(final);
     values.push(recordToRow(m, final));
@@ -553,6 +576,7 @@ export async function updateJobs(
     if (!rowNum) throw new Error(`ไม่พบระเบียนที่ต้องการแก้ไข (${rec.__id})`);
     const merged = { ...existingById.get(rec.__id), ...rec } as JobRecord;
     const withRules = applyAutoRules(m, merged) as JobRecord;
+    enforceReExport(m, withRules, existingById.get(rec.__id));
     enforceEnd(m, withRules, endCtx);
     data.push({
       range: `${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`,
@@ -635,7 +659,7 @@ const ACC_ID = "10_Accounting";
 // ตอน UPDATE ถ้าไม่มีช่องพวกนี้เปลี่ยน = ไม่ต้อง reconcile (ลดจำนวน API call ต่อการเซฟมาก)
 // โมดูลที่ไม่อยู่ใน map นี้ (Accounting/Rates) ไม่ต้อง reconcile อยู่แล้ว
 const RECON_KEYS: Record<string, string[]> = {
-  "04_CS_Import": ["re_export", "shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "imp_job_no"],
+  "04_CS_Import": ["re_export", "job_type", "shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "imp_job_no"],
   "05_CS_Export": ["shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "exp_job_no"],
   "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
   "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
@@ -705,11 +729,13 @@ function impJobNoFromReadout(dfi: string): string {
 
 // Re-Export: CS Import re_export=Yes → สร้าง "แถวเปล่า" ใน CS Export
 // ตามสเปก: กรอกแค่ EX/OPS Status=Open, Re-Export?=Yes, Data from Import, Job Create Date(auto)
+// + Job Type (ดึงจาก Import — sync ตลอด/ล็อกที่หน้าจอ ให้เห็นว่าเป็นงาน Re-Export)
 // ช่องอื่นว่างหมด — exp_job_no ก็ว่าง (ไม่ลิงก์กับ Import)
 function reExportSeed(r: JobRecord): Partial<JobRecord> {
   return {
     ex_ops_status: "Open",
     re_export: "Yes",
+    job_type: (r.job_type || "").trim(),
     data_from_import: composeDataFromImport(r),
   };
 }
@@ -725,7 +751,15 @@ async function reconcileReExport(rec: JobRecord): Promise<void> {
     (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
   );
   if ((rec.re_export || "") === "Yes") {
-    if (!matches.length) await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+    if (!matches.length) {
+      await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+    } else {
+      // Job Type ที่ Import เปลี่ยน → ดันลงแถว Export ที่สร้างไว้แล้ว (ช่องนี้ล็อกที่หน้าจอ)
+      const jt = (rec.job_type || "").trim();
+      const stale = matches.filter((r) => (r.job_type || "").trim() !== jt);
+      if (stale.length)
+        await updateJobs(EXPORT_MODULE, stale.map((r) => ({ __id: r.__id, job_type: jt })), false);
+    }
   } else {
     // Re-Export? กลับเป็น No → ลบรายการ Export ที่สร้างอัตโนมัติ (batch)
     await deleteRows(EXPORT_MODULE, matches.map((m) => m.__id!));
