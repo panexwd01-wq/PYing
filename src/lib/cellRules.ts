@@ -63,12 +63,16 @@ export function cellCue(
     // EX/OPS Status = Cancel → ล็อกทั้งแถวเป็นเทา (แก้ได้แค่ Status)
     if ((rec.ex_ops_status || "") === "Cancel" && fieldKey !== "ex_ops_status")
       return { bg: C.gray, locked: true };
-    // SI Submit = Done → ล็อก SI Cut Off / SI Submit
-    if ((rec.si_submit || "") === "Done" && (fieldKey === "si_cut_off" || fieldKey === "si_submit"))
-      return { bg: C.gray, locked: true };
-    // VGM Submit = Done → ล็อก VGM Cut Off / VGM Submit
-    if ((rec.vgm_submit || "") === "Done" && (fieldKey === "vgm_cut_off" || fieldKey === "vgm_submit"))
-      return { bg: C.gray, locked: true };
+    // SI/VGM Submit = Done → เทาทั้งคู่ แต่ **ช่อง Submit เองยังแก้ได้** (เผลอกดผิดต้องย้อนได้)
+    // ล็อกเฉพาะช่อง Cut Off ที่คู่กัน
+    if ((rec.si_submit || "") === "Done") {
+      if (fieldKey === "si_cut_off") return { bg: C.gray, locked: true };
+      if (fieldKey === "si_submit") return { bg: C.gray };
+    }
+    if ((rec.vgm_submit || "") === "Done") {
+      if (fieldKey === "vgm_cut_off") return { bg: C.gray, locked: true };
+      if (fieldKey === "vgm_submit") return { bg: C.gray };
+    }
     // สีตามวัน (ETD / SI Cut Off / VGM Cut Off)
     if (WEEKDAY_FIELDS.has(fieldKey)) {
       const bg = weekdayColor(rec[fieldKey] || "");
