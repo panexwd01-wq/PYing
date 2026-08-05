@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CenterLoading } from "@/components/Spinner";
 import { SavingOverlay } from "@/components/SavingOverlay";
+import { Toast } from "@/components/Toast";
 import { RequireTab } from "@/components/RequireTab";
 import { useAuth } from "@/components/AuthProvider";
 import { Perms, TABS, TabPerm, defaultUserPerms, emptyPerms } from "@/lib/perms";
@@ -314,7 +315,7 @@ function UsersPageInner() {
         </div>
       )}
 
-      {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
+      {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
     </main>
   );
 }

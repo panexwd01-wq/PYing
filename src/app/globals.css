@@ -539,16 +539,73 @@ tr.row-new td.sticky-col {
   box-shadow: var(--shadow);
   animation: slideup 0.22s ease;
 }
-/* error เด้งกลางบนจอ (เห็นชัด เช่น End ไม่ครบเงื่อนไข) */
-.toast.err {
+/* error เด้ง "กลางจอ" (เห็นชัด เช่น บันทึกไม่สำเร็จ / End ไม่ครบเงื่อนไข)
+   wrap เต็มจอ + flex center = อยู่กลางเสมอไม่ว่าจะ scroll อยู่ตรงไหน
+   pointer-events:none ที่ wrap → ฉากหลังหรี่แต่ยังคลิกทะลุไปทำงานต่อได้ */
+.toast-center-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 140; /* เหนือ overlay(100) และ modal(120) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.28);
+  animation: fadeonly 0.16s ease;
+}
+.toast-center-wrap .toast.err {
+  position: static;
+  transform: none;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: var(--danger);
-  bottom: auto;
-  right: auto;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: min(560px, calc(100vw - 24px));
-  animation: slidedown 0.22s ease;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500;
+  padding: 16px 18px;
+  border-radius: 12px;
+  max-width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  white-space: pre-line;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+  animation: pop 0.18s ease;
+}
+.toast-center-wrap .toast-ico {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.toast-center-wrap .toast-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.toast-center-wrap .toast-close {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.18);
+  border: 0;
+  color: #fff;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.toast-center-wrap .toast-close:hover {
+  background: rgba(255, 255, 255, 0.34);
 }
 @keyframes slideup {
   from {
@@ -556,9 +613,8 @@ tr.row-new td.sticky-col {
     opacity: 0;
   }
 }
-@keyframes slidedown {
+@keyframes fadeonly {
   from {
-    transform: translate(-50%, -14px);
     opacity: 0;
   }
 }

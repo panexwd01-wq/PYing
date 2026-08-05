@@ -8,6 +8,7 @@ import { AccountingLinesTable, ExtraLinesTable } from "@/components/LinesTable";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { SaveBar } from "@/components/SaveBar";
+import { Toast } from "@/components/Toast";
 import { CenterLoading } from "@/components/Spinner";
 import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
@@ -162,7 +163,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
   const flash = useCallback((text: string, err = false) => {
     setToast({ text, err });
-    setTimeout(() => setToast(null), err ? 4200 : 2600);
+    setTimeout(() => setToast(null), err ? 6000 : 2600); // error กลางจอ ให้เวลาอ่านนานขึ้น
   }, []);
 
   // sync แถวจาก snapshot (โหลดครั้งแรก / หลัง reload) — ทิ้ง state แก้ไขที่ค้าง
@@ -553,7 +554,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       )}
 
       {mayEdit && <SaveBar count={dirty.size} onSave={saveAll} onCancel={cancelAll} saving={saving} label="งาน" />}
-      {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
+      {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
 
       {showCfg && (
         <CollapseSettings

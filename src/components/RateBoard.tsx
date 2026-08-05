@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Cell } from "@/components/Cell";
 import { SavingOverlay } from "@/components/SavingOverlay";
+import { Toast } from "@/components/Toast";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, recordHeaders } from "@/lib/schema";
@@ -276,7 +277,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
         </table>
       </div>
 
-      {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
+      {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
     </section>
   );
 }

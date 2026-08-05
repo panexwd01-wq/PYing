@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SavingOverlay } from "@/components/SavingOverlay";
+import { Toast } from "@/components/Toast";
 import { CenterLoading } from "@/components/Spinner";
 import { useData } from "@/components/DataProvider";
 import { RequireTab } from "@/components/RequireTab";
@@ -221,7 +222,7 @@ function SettingsView() {
         </div>
       )}
 
-      {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
+      {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
     </main>
   );
 }
