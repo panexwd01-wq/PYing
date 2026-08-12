@@ -93,19 +93,9 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
       m.push("Extra/Service = Yes ต้องเลือก Req Type + ลงค่าใช้จ่ายใน Extra ให้ครบ");
     return m;
   },
-  "09_Extra_Service": (r) => {
-    const m: string[] = [];
-    if (!isOne(r.cost_sts, "Complete", "Completed")) m.push("Extra Cost Sts ต้อง Complete");
-    if (!isOne(r.sell_sts, "Complete", "Completed")) m.push("Extra Sell Sts ต้อง Complete");
-    if (!isOne(r.ready_acc, "Done", "Yes")) m.push("Ready Acc? ต้อง Done");
-    if (!has(r.profit_sts)) m.push("ต้องมี Extra Profit Sts");
-    if (isOne(r.profit_sts, "No Charge")) {
-      if (!has(r.no_charge_remark)) m.push("Profit Sts = No Charge ต้องมี No Charge Remark");
-    } else if (!has(r.sell_pic)) {
-      m.push("ต้องมี Extra Sell PIC");
-    }
-    return m;
-  },
+  // 09_Extra_Service: ไม่มีกฎ End ที่นี่แล้ว — Extra Status เป็น auto (End เมื่อ Input Status
+  // ของทุกบรรทัดในตาราง Sell/Job Cost = END) และตัว Input Status เองถูกคุมด้วยสถานะของ tab
+  // ต้นทาง (enforceInputStatus ใน db.ts) ถ้าใส่กฎไว้ตรงนี้จะกลายเป็นบล็อกการบันทึกอัตโนมัติ
   "10_Accounting": (r) => {
     const m: string[] = [];
     if (!isOne(r.acc_approved_sts, "Approved")) m.push("Acc Approved Sts ต้อง Approved");

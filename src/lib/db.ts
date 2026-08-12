@@ -13,6 +13,17 @@ import {
 } from "./schema";
 import { checkEnd, EndCtx } from "./endRules";
 import { checkReExport, impJobNoFromReadout } from "./reExport";
+import {
+  EXTRA_MODULE_LABEL,
+  INPUT_STATUS_KEYS,
+  INPUT_STATUS_PENDING,
+  isInputEnd,
+} from "./modules/extra";
+import {
+  ACC_FUEL_LABEL,
+  ACC_FUEL_NA,
+  ACC_FUEL_NA_KEYS,
+} from "./modules/accounting";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
@@ -59,7 +70,9 @@ export async function readLists(): Promise<Lists> {
     }
     out[key] = values;
   }
-  for (const k of ALL_LISTS) if (!(k in out)) out[k] = [];
+  // list ที่ยังไม่มีคอลัมน์ในชีท (เช่นเพิ่งเพิ่มใหม่ในโค้ด) → ใช้ค่าตั้งต้นจาก schema
+  // ไม่งั้น dropdown ของช่องใหม่จะว่างจนกว่าจะรัน Initialize ใหม่ (list ที่มีคอลัมน์แล้วยึดตามชีทเสมอ)
+  for (const k of ALL_LISTS) if (!(k in out)) out[k] = [...(LIST_SEED[k] || [])];
   return out;
 }
 
@@ -198,9 +211,18 @@ function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecor
   if (m.rate && hasField(m, "updated_at")) next.updated_at = nowStamp();
 
   if (m.id === "09_Extra_Service") {
-    // ยอดรวมมาจากช่อง BAHT ในตาราง Sell / Job Cost (ผู้ใช้กรอกเอง)
-    next.cost_total = String(numOf(next.cost_baht));
-    next.margin_total = String(numOf(next.sell_baht) - numOf(next.cost_baht));
+    // Input Status: ตั้งต้น Pending เสมอ (ทุกบรรทัดของตาราง Sell / Job Cost)
+    for (const k of INPUT_STATUS_KEYS) if (!String(next[k] ?? "").trim()) next[k] = INPUT_STATUS_PENDING;
+    // Total Rate = Qty. × Rate (auto) — ว่างถ้ายังไม่กรอกทั้งคู่
+    const totalOf = (qty: unknown, rate: unknown) =>
+      String(qty ?? "").trim() === "" && String(rate ?? "").trim() === ""
+        ? ""
+        : String(numOf(qty) * numOf(rate));
+    next.sell_total_rate = totalOf(next.sell_qty, next.sell_unit);
+    next.cost_total_rate = totalOf(next.cost_qty, next.cost_unit);
+    // ยอดรวมของรายการนี้ = Total Rate (ไม่แปลงค่าเงิน — ดูช่อง CUR ประกอบ)
+    next.cost_total = String(numOf(next.cost_total_rate));
+    next.margin_total = String(numOf(next.sell_total_rate) - numOf(next.cost_total_rate));
     // Ready Acc? = Done เมื่อ Cost/Sell Sts ครบ (auto)
     const done = (v: unknown) => ["Complete", "Completed"].includes(String(v ?? "").trim());
     next.ready_acc = done(next.cost_sts) && done(next.sell_sts) ? "Done" : "Pending";
@@ -336,6 +358,61 @@ function enforceReExport(m: ModuleDef, rec: JobRecord, prev?: JobRecord): void {
   }
 }
 
+// ===== Input Status ของตาราง Sell / Job Cost (09) =====
+// END ได้เฉพาะเมื่อ "รายการของ Job นี้ที่ tab ต้นทาง" (ตามป้าย Module ของแถว) เป็น End แล้ว
+export interface InputCtx {
+  end: Map<string, boolean>; // `${ป้าย Module}||${Job No.}` → ต้นทาง End แล้ว?
+}
+
+// อ่านสถานะของทุกโมดูลต้นทาง — ทำเฉพาะตอนมีแถวที่กำลังจะตั้ง END (ปกติไม่เสีย API เพิ่ม)
+async function buildInputCtx(
+  m: ModuleDef,
+  recs: Partial<JobRecord>[]
+): Promise<InputCtx | undefined> {
+  if (m.id !== EXTRA_ID) return undefined;
+  if (!recs.some((r) => INPUT_STATUS_KEYS.some((k) => isInputEnd(r[k])))) return undefined;
+  await primeWorkModules();
+  const end = new Map<string, boolean>();
+  for (const [id, label] of Object.entries(EXTRA_MODULE_LABEL)) {
+    const tm = MODULE_BY_ID[id];
+    const sk = tm.fields[0].key;
+    for (const r of await rawList(tm)) {
+      const jn = ((r[tm.jobNoKey] as string) || "").trim();
+      if (jn) end.set(`${label}||${jn}`, (r[sk] || "") === "End");
+    }
+  }
+  return { end };
+}
+
+function enforceInputStatus(m: ModuleDef, rec: JobRecord, ctx?: InputCtx): void {
+  if (m.id !== EXTRA_ID) return;
+  if (!INPUT_STATUS_KEYS.some((k) => isInputEnd(rec[k]))) return;
+  const label = (rec.module || "").trim();
+  const jn = (rec.job_no || "").trim();
+  if (!ctx || !label || !jn) return; // ไม่มีข้อมูลพอให้ตัดสิน = ปล่อยผ่าน (กันบล็อกงานเก่า)
+  if (ctx.end.get(`${label}||${jn}`)) return;
+  const srcId = Object.keys(EXTRA_MODULE_LABEL).find((k) => EXTRA_MODULE_LABEL[k] === label);
+  const tab = srcId ? MODULE_BY_ID[srcId].label : label;
+  throw new Error(
+    `บันทึกไม่ได้ (${jn}): รายการนี้ที่ tab ${tab} ยังไม่เป็น End — Input Status ตั้งเป็น END ไม่ได้`
+  );
+}
+
+// Extra Status (09) = auto — End เมื่อทุกบรรทัดของ Job นี้ (ทั้ง Sell และ Job Cost) เป็น END
+// เรียกหลังบันทึกแถว Extra (ค่าเป็นระดับ Job จึงคำนวณจากทุกแถวของ Job No. เดียวกัน)
+async function syncExtraStatus(jobNo: string): Promise<void> {
+  if (!jobNo) return;
+  const EXTRA = MODULE_BY_ID[EXTRA_ID];
+  const rows = (await rawList(EXTRA)).filter((r) => (r.job_no || "").trim() === jobNo);
+  if (!rows.length) return;
+  const allEnd = rows.every((r) => INPUT_STATUS_KEYS.every((k) => isInputEnd(r[k])));
+  const want = allEnd ? "End" : INPUT_STATUS_PENDING;
+  const changed = rows
+    .filter((r) => (r.extra_status || "") !== want)
+    .map((r) => ({ __id: r.__id, extra_status: want }));
+  if (changed.length) await updateJobs(EXTRA, changed, false);
+}
+
 // สร้าง EndCtx (ข้อมูลข้ามโมดูล) เฉพาะตอน CS Import/Export จะตั้ง Status = End
 async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<EndCtx | undefined> {
   if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export") return undefined;
@@ -431,7 +508,9 @@ function parseListRows(values: string[][]): Lists {
     }
     out[key] = vals;
   }
-  for (const k of ALL_LISTS) if (!(k in out)) out[k] = [];
+  // list ที่ยังไม่มีคอลัมน์ในชีท (เช่นเพิ่งเพิ่มใหม่ในโค้ด) → ใช้ค่าตั้งต้นจาก schema
+  // ไม่งั้น dropdown ของช่องใหม่จะว่างจนกว่าจะรัน Initialize ใหม่ (list ที่มีคอลัมน์แล้วยึดตามชีทเสมอ)
+  for (const k of ALL_LISTS) if (!(k in out)) out[k] = [...(LIST_SEED[k] || [])];
   return out;
 }
 
@@ -513,6 +592,7 @@ export async function createJobs(
   if (!recs.length) return [];
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
   const endCtx = await buildEndCtx(m, recs);
+  const inputCtx = await buildInputCtx(m, recs);
   const stamp = nowStamp();
   const setCreated = hasField(m, "created_at");
   const out: JobRecord[] = [];
@@ -522,6 +602,7 @@ export async function createJobs(
     if (setCreated && !withId.created_at) withId.created_at = stamp; // วันเปิดงาน (ครั้งเดียว)
     const final = applyAutoRules(m, withId) as JobRecord;
     enforceReExport(m, final);
+    enforceInputStatus(m, final, inputCtx);
     enforceEnd(m, final, endCtx);
     out.push(final);
     values.push(recordToRow(m, final));
@@ -568,6 +649,7 @@ export async function updateJobs(
   // ไม่ enrich ตอนบันทึก (ประหยัดโควต้าอ่าน) — ค่าที่ pull ไว้เดิมถูกเก็บไว้ครบใน existing
   const merged0 = recs.map((rec) => ({ ...existingById.get(rec.__id || ""), ...rec }));
   const endCtx = await buildEndCtx(m, merged0);
+  const inputCtx = await buildInputCtx(m, merged0);
   const data: { range: string; values: string[][] }[] = [];
   const out: JobRecord[] = [];
   for (const rec of recs) {
@@ -577,6 +659,7 @@ export async function updateJobs(
     const merged = { ...existingById.get(rec.__id), ...rec } as JobRecord;
     const withRules = applyAutoRules(m, merged) as JobRecord;
     enforceReExport(m, withRules, existingById.get(rec.__id));
+    enforceInputStatus(m, withRules, inputCtx);
     enforceEnd(m, withRules, endCtx);
     data.push({
       range: `${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`,
@@ -642,15 +725,6 @@ const CS_FLAG_LINKS: { flag: string; id: string }[] = [
   { flag: "warehouse_flag", id: "08_Warehouse" },
 ];
 
-// โมดูลต้นทาง → ป้าย "Module" ที่ใช้ในแถว Extra (09) / Accounting (10)
-const EXTRA_MODULE_LABEL: Record<string, string> = {
-  "04_CS_Import": "FREIGHT IMPORT",
-  "05_CS_Export": "FREIGHT EXPORT",
-  "06_Shipping": "SHIPPING",
-  "07_Transportation": "TRANSPORT",
-  "08_Warehouse": "WAREHOUSE",
-};
-
 const MID_MODULE_IDS = ["06_Shipping", "07_Transportation", "08_Warehouse"];
 const EXTRA_ID = "09_Extra_Service";
 const ACC_ID = "10_Accounting";
@@ -664,7 +738,11 @@ const RECON_KEYS: Record<string, string[]> = {
   "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
   "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
   "08_Warehouse": ["extra_require", "extra_req_type", "job_no", "wh_pic", "wh_supp1"],
-  "09_Extra_Service": ["job_no", "module", "extra_req_type", "supplier", "root_cause", "cost_unit", "cost_cur", "cost_baht", "sell_unit", "sell_cur", "sell_baht"],
+  "09_Extra_Service": [
+    "job_no", "module", "extra_req_type", "supplier", "root_cause",
+    "cost_unit", "cost_cur", "cost_qty", "cost_paid_to", "cost_input_status",
+    "sell_unit", "sell_cur", "sell_qty", "sell_received_from", "sell_input_status",
+  ],
 };
 
 function reconcileNeeded(m: ModuleDef, oldRec: JobRecord | undefined, newRec: JobRecord): boolean {
@@ -805,53 +883,75 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
   if (!origin) return; // job ไม่มีต้นทาง CS → ไม่ต้องมี Accounting
 
   const extras = (await rawList(EXTRA)).filter((e) => (e.job_no || "").trim() === jobNo);
-  // desired: key = module||req_type → ค่าที่ต้องมี
-  interface Want { module: string; type: string; data: Partial<JobRecord> }
+  // desired: key = module||req_type (แถว Fuel เติมชื่อ supplier ต่อท้าย เพราะมีได้หลายแถว)
+  interface Want { module: string; type: string; supplier: string; data: Partial<JobRecord> }
+  const keyOf = (module: string, type: string, supplier: string) =>
+    `${module}||${type}||${type === ACC_FUEL_LABEL ? supplier : ""}`;
   const wants: Want[] = [];
   if (extras.length === 0) {
-    wants.push({ module: origin, type: "", data: { module: origin, acc_job_status: "Open" } });
+    wants.push({ module: origin, type: "", supplier: "", data: { module: origin, acc_job_status: "Open" } });
   } else {
     for (const e of extras) {
       wants.push({
         module: e.module || origin,
         type: e.extra_req_type || "",
+        supplier: e.supplier || "",
         data: {
           module: e.module || origin,
           acc_job_status: "Open",
           supplier: e.supplier || "",
           ap_extra_req_type: e.extra_req_type || "",
+          ap_paid_to: e.cost_paid_to || "",
           ap_root_cause: e.root_cause || "",
           ap_cost_unit: e.cost_unit || "",
           ap_cost_cur: e.cost_cur || "",
-          ap_total_cost: String(numOf(e.cost_baht)),
+          ap_total_cost: String(numOf(e.cost_total_rate)),
+          ar_received_from: e.sell_received_from || "",
           ar_sell_unit: e.sell_unit || "",
           ar_sell_cur: e.sell_cur || "",
-          ar_total_sell: String(numOf(e.sell_baht)),
+          ar_total_sell: String(numOf(e.sell_total_rate)),
         },
       });
     }
   }
-  const wantKeys = new Set(wants.map((w) => `${w.module}||${w.type}`));
+  // แถว Fuel Rate: Trans Supp ตัวไหนกรอก Fuel Rate ไว้ = 1 แถว AP ของตัวเอง (ไม่ผูกกับ Extra)
+  // ช่วง Extra Root Cause → Received Ship Close Acc ใส่ N/A ทั้งหมด · ตาราง AR ไม่แสดงแถวนี้
+  const transLabel = EXTRA_MODULE_LABEL["07_Transportation"];
+  for (const t of await rawList(MODULE_BY_ID["07_Transportation"])) {
+    if ((t.job_no || "").trim() !== jobNo) continue;
+    for (const n of [1, 2, 3]) {
+      const fuel = (t[`supp${n}_fuel`] || "").toString().trim();
+      if (!fuel) continue;
+      const name = (t[`supp${n}`] || "").toString().trim() || `Supp ${n}`;
+      const data: Partial<JobRecord> = {
+        module: transLabel,
+        acc_job_status: "Open",
+        supplier: name,
+        ap_extra_req_type: ACC_FUEL_LABEL,
+        ap_paid_to: name,
+        ap_fuel_rate: fuel,
+      };
+      for (const k of ACC_FUEL_NA_KEYS) data[k] = ACC_FUEL_NA;
+      wants.push({ module: transLabel, type: ACC_FUEL_LABEL, supplier: name, data });
+    }
+  }
+  const wantKeys = new Set(wants.map((w) => keyOf(w.module, w.type, w.supplier)));
 
   const existing = (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo);
+  const rowKey = (r: JobRecord) =>
+    keyOf(r.module || "", r.ap_extra_req_type || "", r.supplier || "");
   const byKey = new Map<string, JobRecord>();
-  for (const r of existing) byKey.set(`${r.module || ""}||${r.ap_extra_req_type || ""}`, r);
+  for (const r of existing) byKey.set(rowKey(r), r);
 
   const toCreate: Partial<JobRecord>[] = [];
   const toUpdate: Partial<JobRecord>[] = [];
   for (const w of wants) {
-    const key = `${w.module}||${w.type}`;
-    const cur = byKey.get(key);
+    const cur = byKey.get(keyOf(w.module, w.type, w.supplier));
     if (cur) toUpdate.push({ __id: cur.__id, ...w.data }); // refresh ค่าที่ดึงจาก extra (คงค่าที่กรอกเอง)
     else toCreate.push({ job_no: jobNo, ...w.data });
   }
-  // ลบแถว Accounting ที่ไม่มี extra/base คู่แล้ว (batch)
-  await deleteRows(
-    ACC,
-    existing
-      .filter((r) => !wantKeys.has(`${r.module || ""}||${r.ap_extra_req_type || ""}`))
-      .map((r) => r.__id!)
-  );
+  // ลบแถว Accounting ที่ไม่มี extra/base/fuel คู่แล้ว (batch)
+  await deleteRows(ACC, existing.filter((r) => !wantKeys.has(rowKey(r))).map((r) => r.__id!));
   if (toCreate.length) await createJobs(ACC, toCreate, true, false);
   if (toUpdate.length) await updateJobs(ACC, toUpdate, false);
 }
@@ -886,10 +986,13 @@ async function reconcileLinks(
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = MID_MODULE_IDS.includes(m.id);
 
-  // Extra (09) ถูกแก้ (Cost/Sell PIC ลงค่า) → refresh Accounting ของ job นั้น
+  // Extra (09) ถูกแก้ (Cost/Sell ลงค่า, Input Status) → คิด Extra Status ใหม่ + refresh Accounting
   if (m.id === EXTRA_ID) {
     const jobs = new Set(saved.map((r) => (r.job_no || "").trim()).filter(Boolean));
-    for (const j of jobs) await reconcileAccounting(j);
+    for (const j of jobs) {
+      await syncExtraStatus(j);
+      await reconcileAccounting(j);
+    }
     return;
   }
   if (!isCS && !isMid) return;
@@ -974,7 +1077,7 @@ async function reconcileLinks(
       }
       for (const t of want) if (!have.has(t))
         toCreate.push({
-          job_no: jobNo, module: label, extra_req_type: t, extra_status: "Open",
+          job_no: jobNo, module: label, extra_req_type: t, extra_status: INPUT_STATUS_PENDING,
           supplier: meta.supplier, cost_pic: meta.cost_pic,
         });
     }

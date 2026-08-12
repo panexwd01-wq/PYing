@@ -12,9 +12,11 @@
  *
  * ไฟล์นี้ generate จาก schema ของเว็บโดยตรง — header ตรงกับที่เว็บอ่าน/เขียน
  *
- * ⚠️ เวอร์ชันนี้เปลี่ยนคอลัมน์ของ 04/05/06 (PERMIT/Form E), 09 (ตาราง Sell/Job Cost)
- *    และ 13 (Service Types / Remarks-Conditions) → ควรเคลียร์ข้อมูลในชีท 09 และ 13
- *    ก่อนรัน Initialize เพื่อไม่ให้ค่าเดิมเลื่อนคอลัมน์
+ * ⚠️ เวอร์ชันนี้เปลี่ยนคอลัมน์ของ 09_Extra_Service (Input Status / Total Rate / CUR 2 ช่อง /
+ *    ย้าย Profit Sts-Root Cause เข้าตาราง) และ 10_Accounting (AR ขึ้นก่อน AP + Received From /
+ *    Paid To / Fuel Rate / Qty-Unit-CUR)
+ *    → มีข้อมูลอยู่แล้ว ให้รัน **PANEX_MIGRATE()** (ย้ายตามชื่อหัวคอลัมน์ + สำรองชีทเป็น BAK_)
+ *      แทนการเคลียร์ชีท จากนั้นค่อยรัน PANEX_INITIALIZE() ตามปกติ
  *
  * หมายเหตุ: ฝั่งเว็บไม่มีปุ่ม Initialize แล้ว — การตั้งค่าชีททั้งหมดทำที่ไฟล์นี้เท่านั้น
  */
@@ -128,7 +130,7 @@ var PANEX_HEADERS = {
     "wh_supp1_end",
     "im_ops_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "05_CS_Export": [
     "__id",
@@ -222,7 +224,7 @@ var PANEX_HEADERS = {
     "ex_ops_status_date",
     "data_from_import",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "06_Shipping": [
     "__id",
@@ -268,7 +270,7 @@ var PANEX_HEADERS = {
     "ship_close_acc_date",
     "shipp_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "07_Transportation": [
     "__id",
@@ -325,7 +327,7 @@ var PANEX_HEADERS = {
     "actual_delivery_date",
     "trans_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "08_Warehouse": [
     "__id",
@@ -354,7 +356,7 @@ var PANEX_HEADERS = {
     "actual_finished_date",
     "wha_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "09_Extra_Service": [
     "__id",
@@ -370,45 +372,42 @@ var PANEX_HEADERS = {
     "supplier",
     "extra_req_type",
     "cost_pic",
-    "root_cause",
     "cost_remark",
     "cost_total",
-    "cost_sts",
     "sell_pic",
     "margin_total",
-    "profit_sts",
-    "no_charge_remark",
     "sell_sts",
     "sell_remark",
-    "sell_line_type",
+    "sell_input_status",
     "sell_qty",
     "sell_unit_name",
     "sell_unit",
     "sell_cur",
-    "sell_exchange",
     "sell_received_from",
-    "sell_usd",
-    "sell_baht",
-    "cost_line_type",
+    "sell_total_rate",
+    "sell_total_cur",
+    "profit_sts",
+    "no_charge_remark",
+    "cost_input_status",
     "cost_qty",
     "cost_unit_name",
     "cost_unit",
     "cost_cur",
-    "cost_exchange",
     "cost_paid_to",
-    "cost_usd",
-    "cost_baht",
+    "cost_total_rate",
+    "cost_total_cur",
+    "cost_sts",
+    "root_cause",
     "ready_acc",
     "extra_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "10_Accounting": [
     "__id",
     "acc_job_status",
     "acc_pic",
     "acc_approved_sts",
-    "ap_pic",
     "job_type",
     "job_no",
     "booking_mbl",
@@ -417,17 +416,11 @@ var PANEX_HEADERS = {
     "cs_pic",
     "sales_bkg_by",
     "supplier",
-    "supp_inv",
-    "ap_extra_req_type",
-    "ap_root_cause",
-    "ap_cost_unit",
-    "ap_cost_cur",
-    "ap_total_cost",
-    "received_ship_close_acc",
-    "ap_remark",
-    "ap_status",
     "ar_pic",
+    "ar_received_from",
     "customer_inv",
+    "ar_qty",
+    "ar_unit",
     "ar_sell_unit",
     "ar_sell_cur",
     "ar_total_sell",
@@ -436,9 +429,24 @@ var PANEX_HEADERS = {
     "cus_paid_date",
     "ar_remark",
     "ar_status",
+    "ap_extra_req_type",
+    "ap_pic",
+    "ap_paid_to",
+    "supp_inv",
+    "ap_fuel_rate",
+    "ap_root_cause",
+    "ap_qty",
+    "ap_unit",
+    "ap_cur",
+    "ap_cost_unit",
+    "ap_cost_cur",
+    "ap_total_cost",
+    "received_ship_close_acc",
+    "ap_remark",
+    "ap_status",
     "acc_job_status_date",
     "created_at",
-    "ended_at",
+    "ended_at"
   ],
   "13_Cost_Rates": [
     "__id",
@@ -453,7 +461,7 @@ var PANEX_HEADERS = {
     "service_type",
     "remarks_conditions",
     "checked_by",
-    "updated_at",
+    "updated_at"
   ],
   "13_Sell_Rates": [
     "__id",
@@ -468,7 +476,7 @@ var PANEX_HEADERS = {
     "remarks_conditions",
     "sell_confirmed",
     "quoted_by",
-    "updated_at",
+    "updated_at"
   ]
 };
 
@@ -506,6 +514,7 @@ var PANEX_LIST_SEED = {
   "receipt_lost": ["Received","Lost"],
   "clearance_status": ["Pending","Cleared","Completed"],
   "complete_sts": ["Complete","Pending"],
+  "input_status": ["Pending","END"],
   "supplier_status": ["Active","Pending","End"],
   "kpi": ["On Time","Delay","No Charge"],
   "yes_no": ["Yes","No"],
@@ -571,6 +580,129 @@ function PANEX_INITIALIZE() {
     "PANEX Initialize เสร็จ" + NL + NL + report.join(NL) + NL + NL +
     "ล็อกอินด้วยชื่อผู้ใช้เดิม (รหัสผ่านเดิม) ได้ทันที"
   );
+}
+
+// ===================== MIGRATE (ย้ายข้อมูลเดิมเมื่อคอลัมน์เปลี่ยน) =====================
+// ใช้เมื่ออัปเดตโค้ดแล้วหัวตารางของชีทเปลี่ยน (เพิ่ม/ลบ/สลับคอลัมน์)
+// จับคู่ข้อมูลเดิม "ตามชื่อหัวคอลัมน์" แล้วเขียนใหม่ตามลำดับใหม่ → ข้อมูลไม่เลื่อน
+// สำรองชีทเดิมไว้เป็น BAK_<ชื่อชีท> ทุกครั้งก่อนเขียนทับ
+//
+// วิธีใช้: วางไฟล์นี้ทับใน Apps Script → รัน PANEX_MIGRATE() → ตรวจข้อมูล → ลบชีท BAK_ ทิ้งได้
+
+// คอลัมน์ที่ "เปลี่ยนชื่อ/แตกเป็นหลายช่อง" — นอกเหนือจากนี้ใช้ชื่อเดิมตรง ๆ
+// [] = ทิ้งไปเลย (ไม่มีคอลัมน์นี้แล้ว)
+var PANEX_MIGRATE_MAP = {
+  "09_Extra_Service": {
+    "sell_baht": ["sell_total_rate"],   // ยอดเดิม → Total Rate (ของใหม่คิดจาก Qty. × Rate)
+    "cost_baht": ["cost_total_rate"],
+    "sell_cur": ["sell_cur", "sell_total_cur"], // CUR เดิมใช้เป็นทั้งของ Rate และของยอดรวม
+    "cost_cur": ["cost_cur", "cost_total_cur"],
+    "sell_line_type": [],
+    "cost_line_type": [],
+    "sell_exchange": [],
+    "cost_exchange": [],
+    "sell_usd": [],
+    "cost_usd": []
+  }
+};
+
+// ค่าตั้งต้นของคอลัมน์ใหม่ (เติมเฉพาะช่องที่ยังว่างหลังย้าย)
+var PANEX_MIGRATE_DEFAULT = {
+  "09_Extra_Service": {
+    "sell_input_status": "Pending",
+    "cost_input_status": "Pending"
+  }
+};
+
+function PANEX_MIGRATE() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var report = [];
+  Object.keys(PANEX_HEADERS).forEach(function (name) {
+    report.push(migrateSheet_(ss, name));
+  });
+  var NL = String.fromCharCode(10);
+  SpreadsheetApp.getUi().alert(
+    "PANEX Migrate เสร็จ" + NL + NL + report.join(NL) + NL + NL +
+    "ชีทสำรองชื่อขึ้นต้นด้วย BAK_ — ตรวจข้อมูลแล้วลบทิ้งได้"
+  );
+}
+
+function migrateSheet_(ss, name) {
+  var sh = ss.getSheetByName(name);
+  var newHeaders = PANEX_HEADERS[name];
+  if (!sh) return name + " : ไม่พบชีท (ข้าม — รัน PANEX_INITIALIZE เพื่อสร้าง)";
+
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) {
+    writeHeader_(ss, name, newHeaders);
+    return name + " : ชีทว่าง — เขียนหัวตารางใหม่";
+  }
+
+  var values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  var oldHeaders = values[0].map(function (v) { return String(v).trim(); });
+  if (oldHeaders.join("|") === newHeaders.join("|")) return name + " : หัวตารางตรงอยู่แล้ว (ข้าม)";
+
+  var map = PANEX_MIGRATE_MAP[name] || {};
+  var defs = PANEX_MIGRATE_DEFAULT[name] || {};
+  var newIdx = {};
+  newHeaders.forEach(function (h, i) { newIdx[h] = i; });
+
+  var targetsOf = function (key) {
+    return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : [key];
+  };
+
+  // คอลัมน์เดิมที่ไม่มีปลายทางในหัวตารางใหม่ (จะหายไป — แจ้งให้รู้)
+  var dropped = [];
+  oldHeaders.forEach(function (k) {
+    if (!k) return;
+    var t = targetsOf(k).filter(function (x) { return newIdx[x] != null; });
+    if (!t.length) dropped.push(k);
+  });
+
+  var out = [newHeaders];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    var any = row.some(function (c) { return String(c).trim() !== ""; });
+    if (!any) continue;
+
+    var nr = [];
+    for (var i = 0; i < newHeaders.length; i++) nr.push("");
+    for (var c = 0; c < oldHeaders.length; c++) {
+      var key = oldHeaders[c];
+      if (!key) continue;
+      var targets = targetsOf(key);
+      for (var t = 0; t < targets.length; t++) {
+        var j = newIdx[targets[t]];
+        if (j != null) nr[j] = row[c];
+      }
+    }
+    Object.keys(defs).forEach(function (k) {
+      var j = newIdx[k];
+      if (j != null && String(nr[j]).trim() === "") nr[j] = defs[k];
+    });
+    out.push(nr);
+  }
+
+  // สำรองชีทเดิมก่อนเขียนทับ
+  var bak = "BAK_" + name;
+  if (ss.getSheetByName(bak)) {
+    var n = 2;
+    while (ss.getSheetByName(bak + "_" + n)) n++;
+    bak = bak + "_" + n;
+  }
+  sh.copyTo(ss).setName(bak);
+
+  var width = newHeaders.length;
+  if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
+  sh.getRange(1, 1, lastRow, Math.max(lastCol, width)).clearContent();
+  sh.getRange(1, 1, out.length, width).setValues(out);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, width).setFontWeight("bold");
+
+  return name + " : ย้าย " + (out.length - 1) + " แถว → " + width + " คอลัมน์" +
+    (dropped.length ? " · ทิ้งคอลัมน์ " + dropped.join(", ") : "") +
+    " · สำรองที่ " + bak;
 }
 
 // seed ผู้ใช้ + สิทธิ์ — ข้ามทันทีถ้ามีแถวผู้ใช้อยู่แล้ว (ไม่ทับของเดิมเด็ดขาด)

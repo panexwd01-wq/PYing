@@ -13,9 +13,10 @@ import { CenterLoading } from "@/components/Spinner";
 import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
-import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
+import { MODULE_BY_ID, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
+import { EXTRA_LINE_COLUMNS, EXTRA_SOURCE_ID_BY_LABEL } from "@/lib/modules/extra";
 import { checkReExport, impJobNoFromReadout } from "@/lib/reExport";
 import { JobRecord } from "@/lib/types";
 
@@ -99,10 +100,29 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   // ยกเว้นช่องของตาราง Sell / Job Cost ที่ยังแยกราย Type (hidden อยู่แล้ว)
   // Accounting: ช่องของตาราง AP / AR ก็แยกราย Type เหมือนกัน → ตัดออกจากแผงกันซ้ำ
   const panelFields = useMemo(() => {
-    if (moduleKey !== "accounting") return mod.fields;
-    const lineKeys = new Set<string>([ACC_LINE_LEAD, ...ACC_LINE_COLUMNS.ap, ...ACC_LINE_COLUMNS.ar]);
-    return mod.fields.filter((f) => !lineKeys.has(f.key));
+    const lineKeys =
+      moduleKey === "accounting"
+        ? new Set<string>([ACC_LINE_LEAD, ...ACC_LINE_COLUMNS.ap, ...ACC_LINE_COLUMNS.ar])
+        : moduleKey === "extra"
+        ? new Set<string>([...EXTRA_LINE_COLUMNS.sell, ...EXTRA_LINE_COLUMNS.cost])
+        : null;
+    return lineKeys ? mod.fields.filter((f) => !lineKeys.has(f.key)) : mod.fields;
   }, [mod, moduleKey]);
+
+  // รายการนี้ที่ tab ต้นทาง (ตามป้าย Module ของแถว Extra) เป็น End แล้วหรือยัง
+  // → คุมว่าจะเลือก Input Status = END ได้ไหม (server เช็คซ้ำอีกชั้นตอนบันทึก)
+  const upstreamEnd = useCallback(
+    (r: JobRecord) => {
+      const srcId = EXTRA_SOURCE_ID_BY_LABEL[(r.module || "").trim()];
+      const jn = (r.job_no || "").trim();
+      if (!srcId || !jn) return false;
+      const sm = MODULE_BY_ID[srcId];
+      return (data?.modules?.[sm.key] || []).some(
+        (x) => (x[sm.jobNoKey] || "").trim() === jn && (x[sm.fields[0].key] || "") === "End"
+      );
+    },
+    [data]
+  );
 
   // ค่าที่ต้องแสดงเป็น "ของทั้ง Job" ในแผงเดียว — ยอดรวม + ค่าที่ต่างกันราย Type ให้รวมข้อความ
   const groupTotals = useCallback(
@@ -117,10 +137,10 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         return seen.join(" · ");
       };
       if (moduleKey === "extra") {
-        const cost = sum("cost_baht");
+        const cost = sum("cost_total_rate");
         return {
           cost_total: String(cost),
-          margin_total: String(sum("sell_baht") - cost),
+          margin_total: String(sum("sell_total_rate") - cost),
           extra_req_type: merge("extra_req_type"),
           module: merge("module"),
           supplier: merge("supplier"),
@@ -486,6 +506,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       picKey={mod.picKey}
                       unlockedIds={unlocked}
                       readOnly={!mayEdit}
+                      upstreamEnd={upstreamEnd}
                       onChange={onChange}
                     />
                   )}

@@ -1,11 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
 import { cellState } from "@/lib/cellState";
-import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
-import { ACC_LINE_COLUMNS, ACC_LINE_LEAD, ACC_LINE_SUMS } from "@/lib/modules/accounting";
+import {
+  EXTRA_LINE_COLUMNS,
+  INPUT_STATUS_OPTIONS,
+  INPUT_STATUS_PENDING,
+} from "@/lib/modules/extra";
+import {
+  ACC_FUEL_NA_KEYS,
+  ACC_LINE_COLUMNS,
+  ACC_LINE_LEAD,
+  ACC_LINE_SUMS,
+  isFuelRow,
+} from "@/lib/modules/accounting";
 import { Cell } from "./Cell";
 
 // ===== ตารางรายบรรทัดของ 1 Job No. =====
@@ -38,7 +48,9 @@ export interface LineSide {
   columns: readonly string[];
   sumKeys: readonly string[]; // คอลัมน์ที่รวมยอดท้ายตาราง
   totalLabel?: string; // ข้อความหน้ายอดรวม
-  optionsFor?: (key: string) => string[] | undefined; // ตัวเลือก dropdown ที่ไม่ได้มาจาก f.list
+  rowFilter?: (r: JobRecord) => boolean; // แถวที่ตารางนี้แสดง (เช่น AR ไม่เอาแถว Fuel)
+  lockCell?: (key: string, r: JobRecord) => boolean; // ช่องที่ระบบเป็นคนใส่ (แสดงเป็นข้อความ)
+  optionsFor?: (key: string, r: JobRecord) => string[] | undefined; // ตัวเลือก dropdown ที่ไม่ได้มาจาก f.list
 }
 
 interface Props {
@@ -73,8 +85,9 @@ export function LinesTable({
       <div className="extra-origin">{origin}</div>
       {sides.map((side) => {
         const keys = side.columns;
+        const sideRows = side.rowFilter ? rows.filter(side.rowFilter) : rows;
         const firstSum = keys.findIndex((k) => side.sumKeys.includes(k));
-        const isNum = (k: string) => side.sumKeys.includes(k) || k.endsWith("_usd") || k.endsWith("_baht");
+        const isNum = (k: string) => side.sumKeys.includes(k) || k.endsWith("_total_rate");
 
         return (
           <div className="extra-side" key={side.key}>
@@ -90,7 +103,7 @@ export function LinesTable({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {sideRows.map((r) => {
                   const unlocked = unlockedIds.has(r.__id);
                   return (
                     <tr key={r.__id}>
@@ -102,7 +115,8 @@ export function LinesTable({
                         const f = fieldByKey[k];
                         if (!f) return <td key={k} />;
                         const st = cellState(moduleId, r, f, { statusKey, picKey, unlocked, readOnly });
-                        const opts = side.optionsFor?.(k) ?? (f.list ? lists[f.list] || [] : []);
+                        const sysLocked = side.lockCell?.(k, r) ?? false;
+                        const opts = side.optionsFor?.(k, r) ?? (f.list ? lists[f.list] || [] : []);
                         return (
                           <td key={k} className={isNum(k) ? "num" : undefined}>
                             <Cell
@@ -110,8 +124,8 @@ export function LinesTable({
                               value={r[k] || ""}
                               options={opts}
                               onChange={(v) => onChange(r.__id, k, v)}
-                              locked={st.locked}
-                              lockHint={st.hint}
+                              locked={st.locked || sysLocked}
+                              lockHint={sysLocked ? "ช่องนี้ระบบใส่ให้ (แถวที่ไม่เกี่ยวกับ Extra)" : st.hint}
                             />
                           </td>
                         );
@@ -132,7 +146,7 @@ export function LinesTable({
                     {keys.slice(firstSum).map((k) =>
                       side.sumKeys.includes(k) ? (
                         <td key={k} className="num tot">
-                          {money(rows.reduce((a, r) => a + num(r[k]), 0))}
+                          {money(sideRows.reduce((a, r) => a + num(r[k]), 0))}
                         </td>
                       ) : (
                         <td key={k} />
@@ -149,10 +163,13 @@ export function LinesTable({
   );
 }
 
-type WrapProps = Omit<Props, "sides" | "moduleId">;
+type WrapProps = Omit<Props, "sides" | "moduleId"> & {
+  // รายการนี้ที่ tab ต้นทาง (ตามป้าย Module) เป็น End แล้วหรือยัง — คุมการเลือก Input Status = END
+  upstreamEnd?: (r: JobRecord) => boolean;
+};
 
 // ----- Extra (09): Sell / Job Cost -----
-export function ExtraLinesTable(props: WrapProps) {
+export function ExtraLinesTable({ upstreamEnd, ...props }: WrapProps) {
   const { lists } = props;
   // ตัวเลือกคู่ค้า — รวมจากหลาย list ตามสเปก
   const receivedFrom = useMemo(
@@ -164,6 +181,13 @@ export function ExtraLinesTable(props: WrapProps) {
     [lists]
   );
 
+  // Input Status: เลือก END ได้เฉพาะเมื่อรายการที่ tab ต้นทางเป็น End แล้ว (server บังคับซ้ำอีกชั้น)
+  const inputOptions = useCallback(
+    (r: JobRecord) =>
+      !upstreamEnd || upstreamEnd(r) ? INPUT_STATUS_OPTIONS : [INPUT_STATUS_PENDING],
+    [upstreamEnd]
+  );
+
   const sides: LineSide[] = useMemo(
     () => [
       {
@@ -171,38 +195,40 @@ export function ExtraLinesTable(props: WrapProps) {
         title: "Sell",
         leadKey: "extra_req_type",
         columns: EXTRA_LINE_COLUMNS.sell,
-        sumKeys: ["sell_usd", "sell_baht"],
+        sumKeys: ["sell_total_rate"],
         totalLabel: "Local Amt. =",
-        optionsFor: (k) => (k === "sell_received_from" ? receivedFrom : undefined),
+        optionsFor: (k, r) =>
+          k === "sell_received_from"
+            ? receivedFrom
+            : k === "sell_input_status"
+            ? inputOptions(r)
+            : undefined,
       },
       {
         key: "cost",
         title: "Job Cost",
         leadKey: "extra_req_type",
         columns: EXTRA_LINE_COLUMNS.cost,
-        sumKeys: ["cost_usd", "cost_baht"],
+        sumKeys: ["cost_total_rate"],
         totalLabel: "Local Amt. =",
-        optionsFor: (k) => (k === "cost_paid_to" ? paidTo : undefined),
+        optionsFor: (k, r) =>
+          k === "cost_paid_to"
+            ? paidTo
+            : k === "cost_input_status"
+            ? inputOptions(r)
+            : undefined,
       },
     ],
-    [receivedFrom, paidTo]
+    [receivedFrom, paidTo, inputOptions]
   );
 
   return <LinesTable {...props} moduleId="09_Extra_Service" sides={sides} />;
 }
 
-// ----- Accounting (10): AP / AR -----
-export function AccountingLinesTable(props: WrapProps) {
+// ----- Accounting (10): AR ขึ้นก่อน AP -----
+export function AccountingLinesTable({ upstreamEnd: _u, ...props }: WrapProps) {
   const sides: LineSide[] = useMemo(
     () => [
-      {
-        key: "ap",
-        title: "AP",
-        leadKey: ACC_LINE_LEAD,
-        columns: ACC_LINE_COLUMNS.ap,
-        sumKeys: ACC_LINE_SUMS.ap,
-        totalLabel: "Total Cost =",
-      },
       {
         key: "ar",
         title: "AR",
@@ -210,6 +236,18 @@ export function AccountingLinesTable(props: WrapProps) {
         columns: ACC_LINE_COLUMNS.ar,
         sumKeys: ACC_LINE_SUMS.ar,
         totalLabel: "Total Sell =",
+        // แถว Fuel Rate ของ Transport เป็นรายการฝั่งจ่ายล้วน — ไม่แสดงในตาราง AR
+        rowFilter: (r) => !isFuelRow(r),
+      },
+      {
+        key: "ap",
+        title: "AP",
+        leadKey: ACC_LINE_LEAD,
+        columns: ACC_LINE_COLUMNS.ap,
+        sumKeys: ACC_LINE_SUMS.ap,
+        totalLabel: "Total Cost =",
+        // แถว Fuel: ช่วง Extra Root Cause → Received Ship Close Acc ระบบใส่ N/A ให้ (แก้ไม่ได้)
+        lockCell: (k, r) => isFuelRow(r) && (ACC_FUEL_NA_KEYS as readonly string[]).includes(k),
       },
     ],
     []
