@@ -1,14 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
 import { cellState } from "@/lib/cellState";
-import {
-  EXTRA_LINE_COLUMNS,
-  INPUT_STATUS_OPTIONS,
-  INPUT_STATUS_PENDING,
-} from "@/lib/modules/extra";
+import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import {
   ACC_FUEL_NA_KEYS,
   ACC_LINE_COLUMNS,
@@ -163,13 +159,10 @@ export function LinesTable({
   );
 }
 
-type WrapProps = Omit<Props, "sides" | "moduleId"> & {
-  // รายการนี้ที่ tab ต้นทาง (ตามป้าย Module) เป็น End แล้วหรือยัง — คุมการเลือก Input Status = END
-  upstreamEnd?: (r: JobRecord) => boolean;
-};
+type WrapProps = Omit<Props, "sides" | "moduleId">;
 
 // ----- Extra (09): Sell / Job Cost -----
-export function ExtraLinesTable({ upstreamEnd, ...props }: WrapProps) {
+export function ExtraLinesTable(props: WrapProps) {
   const { lists } = props;
   // ตัวเลือกคู่ค้า — รวมจากหลาย list ตามสเปก
   const receivedFrom = useMemo(
@@ -181,13 +174,6 @@ export function ExtraLinesTable({ upstreamEnd, ...props }: WrapProps) {
     [lists]
   );
 
-  // Input Status: เลือก END ได้เฉพาะเมื่อรายการที่ tab ต้นทางเป็น End แล้ว (server บังคับซ้ำอีกชั้น)
-  const inputOptions = useCallback(
-    (r: JobRecord) =>
-      !upstreamEnd || upstreamEnd(r) ? INPUT_STATUS_OPTIONS : [INPUT_STATUS_PENDING],
-    [upstreamEnd]
-  );
-
   const sides: LineSide[] = useMemo(
     () => [
       {
@@ -197,12 +183,7 @@ export function ExtraLinesTable({ upstreamEnd, ...props }: WrapProps) {
         columns: EXTRA_LINE_COLUMNS.sell,
         sumKeys: ["sell_total_rate"],
         totalLabel: "Local Amt. =",
-        optionsFor: (k, r) =>
-          k === "sell_received_from"
-            ? receivedFrom
-            : k === "sell_input_status"
-            ? inputOptions(r)
-            : undefined,
+        optionsFor: (k) => (k === "sell_received_from" ? receivedFrom : undefined),
       },
       {
         key: "cost",
@@ -211,22 +192,17 @@ export function ExtraLinesTable({ upstreamEnd, ...props }: WrapProps) {
         columns: EXTRA_LINE_COLUMNS.cost,
         sumKeys: ["cost_total_rate"],
         totalLabel: "Local Amt. =",
-        optionsFor: (k, r) =>
-          k === "cost_paid_to"
-            ? paidTo
-            : k === "cost_input_status"
-            ? inputOptions(r)
-            : undefined,
+        optionsFor: (k) => (k === "cost_paid_to" ? paidTo : undefined),
       },
     ],
-    [receivedFrom, paidTo, inputOptions]
+    [receivedFrom, paidTo]
   );
 
   return <LinesTable {...props} moduleId="09_Extra_Service" sides={sides} />;
 }
 
 // ----- Accounting (10): AR ขึ้นก่อน AP -----
-export function AccountingLinesTable({ upstreamEnd: _u, ...props }: WrapProps) {
+export function AccountingLinesTable(props: WrapProps) {
   const sides: LineSide[] = useMemo(
     () => [
       {

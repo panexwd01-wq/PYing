@@ -358,46 +358,6 @@ function enforceReExport(m: ModuleDef, rec: JobRecord, prev?: JobRecord): void {
   }
 }
 
-// ===== Input Status ของตาราง Sell / Job Cost (09) =====
-// END ได้เฉพาะเมื่อ "รายการของ Job นี้ที่ tab ต้นทาง" (ตามป้าย Module ของแถว) เป็น End แล้ว
-export interface InputCtx {
-  end: Map<string, boolean>; // `${ป้าย Module}||${Job No.}` → ต้นทาง End แล้ว?
-}
-
-// อ่านสถานะของทุกโมดูลต้นทาง — ทำเฉพาะตอนมีแถวที่กำลังจะตั้ง END (ปกติไม่เสีย API เพิ่ม)
-async function buildInputCtx(
-  m: ModuleDef,
-  recs: Partial<JobRecord>[]
-): Promise<InputCtx | undefined> {
-  if (m.id !== EXTRA_ID) return undefined;
-  if (!recs.some((r) => INPUT_STATUS_KEYS.some((k) => isInputEnd(r[k])))) return undefined;
-  await primeWorkModules();
-  const end = new Map<string, boolean>();
-  for (const [id, label] of Object.entries(EXTRA_MODULE_LABEL)) {
-    const tm = MODULE_BY_ID[id];
-    const sk = tm.fields[0].key;
-    for (const r of await rawList(tm)) {
-      const jn = ((r[tm.jobNoKey] as string) || "").trim();
-      if (jn) end.set(`${label}||${jn}`, (r[sk] || "") === "End");
-    }
-  }
-  return { end };
-}
-
-function enforceInputStatus(m: ModuleDef, rec: JobRecord, ctx?: InputCtx): void {
-  if (m.id !== EXTRA_ID) return;
-  if (!INPUT_STATUS_KEYS.some((k) => isInputEnd(rec[k]))) return;
-  const label = (rec.module || "").trim();
-  const jn = (rec.job_no || "").trim();
-  if (!ctx || !label || !jn) return; // ไม่มีข้อมูลพอให้ตัดสิน = ปล่อยผ่าน (กันบล็อกงานเก่า)
-  if (ctx.end.get(`${label}||${jn}`)) return;
-  const srcId = Object.keys(EXTRA_MODULE_LABEL).find((k) => EXTRA_MODULE_LABEL[k] === label);
-  const tab = srcId ? MODULE_BY_ID[srcId].label : label;
-  throw new Error(
-    `บันทึกไม่ได้ (${jn}): รายการนี้ที่ tab ${tab} ยังไม่เป็น End — Input Status ตั้งเป็น END ไม่ได้`
-  );
-}
-
 // Extra Status (09) = auto — End เมื่อทุกบรรทัดของ Job นี้ (ทั้ง Sell และ Job Cost) เป็น END
 // เรียกหลังบันทึกแถว Extra (ค่าเป็นระดับ Job จึงคำนวณจากทุกแถวของ Job No. เดียวกัน)
 async function syncExtraStatus(jobNo: string): Promise<void> {
@@ -413,12 +373,37 @@ async function syncExtraStatus(jobNo: string): Promise<void> {
   if (changed.length) await updateJobs(EXTRA, changed, false);
 }
 
-// สร้าง EndCtx (ข้อมูลข้ามโมดูล) เฉพาะตอน CS Import/Export จะตั้ง Status = End
+// แถว Extra ของแต่ละ (โมดูลต้นทาง, Job No.) เคลียร์ END ครบหรือยัง
+// key = `${ป้าย Module}||${job_no}` · ไม่มีแถว = ไม่มีคีย์ = ไม่มีเงื่อนไข
+async function buildExtraEndMap(): Promise<Map<string, boolean>> {
+  const map = new Map<string, boolean>();
+  for (const e of await rawList(MODULE_BY_ID[EXTRA_ID])) {
+    const jn = (e.job_no || "").trim();
+    const label = (e.module || "").trim();
+    if (!jn || !label) continue;
+    const k = `${label}||${jn}`;
+    const done = INPUT_STATUS_KEYS.every((key) => isInputEnd(e[key]));
+    map.set(k, (map.get(k) ?? true) && done);
+  }
+  return map;
+}
+
+// สร้าง EndCtx (ข้อมูลข้ามโมดูล) เฉพาะตอนโมดูลต้นทาง (04–08) จะตั้ง Status = End
 async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<EndCtx | undefined> {
-  if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export") return undefined;
+  if (!EXTRA_MODULE_LABEL[m.id]) return undefined; // 09/10/rates ไม่ต้องมี ctx
   const statusKey = m.fields[0].key;
   if (!recs.some((r) => r[statusKey] === "End")) return undefined;
   await primeWorkModules(); // ดึงรวดเดียวก่อนอ่านหลายชีท
+  const extraEnd = await buildExtraEndMap();
+
+  // Shipping/Transport/Warehouse: เช็คแค่แถว Extra ของตัวเอง (เงื่อนไขอื่นอยู่ในแถวตัวเอง)
+  if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export")
+    return {
+      hasAcc: new Set(), hasExport: new Set(),
+      shipEnd: new Map(), transEnd: new Map(), whEnd: new Map(),
+      extraEnd,
+    };
+
   const [expRows, shipRows, transRows, whRows, accRows] = await Promise.all([
     rawList(EXPORT_MODULE),
     rawList(MODULE_BY_ID["06_Shipping"]),
@@ -440,6 +425,7 @@ async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<En
     shipEnd: endMap(shipRows, "shipp_status"),
     transEnd: endMap(transRows, "trans_status"),
     whEnd: endMap(whRows, "wha_status"),
+    extraEnd,
   };
 }
 
@@ -592,7 +578,6 @@ export async function createJobs(
   if (!recs.length) return [];
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
   const endCtx = await buildEndCtx(m, recs);
-  const inputCtx = await buildInputCtx(m, recs);
   const stamp = nowStamp();
   const setCreated = hasField(m, "created_at");
   const out: JobRecord[] = [];
@@ -602,7 +587,6 @@ export async function createJobs(
     if (setCreated && !withId.created_at) withId.created_at = stamp; // วันเปิดงาน (ครั้งเดียว)
     const final = applyAutoRules(m, withId) as JobRecord;
     enforceReExport(m, final);
-    enforceInputStatus(m, final, inputCtx);
     enforceEnd(m, final, endCtx);
     out.push(final);
     values.push(recordToRow(m, final));
@@ -649,7 +633,6 @@ export async function updateJobs(
   // ไม่ enrich ตอนบันทึก (ประหยัดโควต้าอ่าน) — ค่าที่ pull ไว้เดิมถูกเก็บไว้ครบใน existing
   const merged0 = recs.map((rec) => ({ ...existingById.get(rec.__id || ""), ...rec }));
   const endCtx = await buildEndCtx(m, merged0);
-  const inputCtx = await buildInputCtx(m, merged0);
   const data: { range: string; values: string[][] }[] = [];
   const out: JobRecord[] = [];
   for (const rec of recs) {
@@ -659,7 +642,6 @@ export async function updateJobs(
     const merged = { ...existingById.get(rec.__id), ...rec } as JobRecord;
     const withRules = applyAutoRules(m, merged) as JobRecord;
     enforceReExport(m, withRules, existingById.get(rec.__id));
-    enforceInputStatus(m, withRules, inputCtx);
     enforceEnd(m, withRules, endCtx);
     data.push({
       range: `${m.id}!A${rowNum}:${lastCol(m)}${rowNum}`,

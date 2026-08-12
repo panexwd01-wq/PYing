@@ -1,4 +1,5 @@
 import { ModuleDef } from "./schema";
+import { EXTRA_MODULE_LABEL } from "./modules/extra";
 import { JobRecord } from "./types";
 
 // ตรวจเงื่อนไขก่อนกด End ของแต่ละโมดูล — คืน list เหตุผลที่ยัง End ไม่ได้ (ว่าง = ผ่าน)
@@ -8,13 +9,25 @@ type Rec = Partial<JobRecord>;
 const has = (v: unknown) => String(v ?? "").trim() !== "";
 const isOne = (v: unknown, ...opts: string[]) => opts.includes(String(v ?? "").trim());
 
-// ข้อมูลข้ามโมดูล (สร้างใน db.ts เฉพาะตอน CS จะ End) — ใช้เช็คว่าปลายทาง End/มีรายการแล้ว
+// ข้อมูลข้ามโมดูล (สร้างใน db.ts เฉพาะตอนโมดูลนั้นจะตั้ง Status = End)
 export interface EndCtx {
   hasAcc: Set<string>; // job_no ที่มีใน Accounting
   hasExport: Set<string>; // job_no ที่มีใน CS Export
   shipEnd: Map<string, boolean>; // job_no → Shipping = End?
   transEnd: Map<string, boolean>; // job_no → Transport = End?
   whEnd: Map<string, boolean>; // job_no → Warehouse = End?
+  // `${ป้าย Module}||${job_no}` → แถวใน tab Extra ของโมดูลนั้น Input Status = END ครบทุกบรรทัดแล้ว?
+  // (ไม่มีแถว Extra = ไม่มีเงื่อนไข)
+  extraEnd: Map<string, boolean>;
+}
+
+// ต้องเคลียร์รายการที่ tab Extra ของโมดูลนี้ให้ END ก่อน ถึงจะปิดงานได้
+function extraLinesEnd(r: Rec, moduleId: string, jn: string, ctx: EndCtx | undefined, m: string[]): void {
+  if (!ctx || !jn) return;
+  const label = EXTRA_MODULE_LABEL[moduleId];
+  if (!label) return;
+  if (ctx.extraEnd.get(`${label}||${jn}`) === false)
+    m.push("ยังมีรายการที่ tab Extra ของโมดูลนี้ที่ Input Status ไม่เป็น END");
 }
 
 // เงื่อนไข downstream End เมื่อ flag = Yes (ใช้ร่วม Import/Export)
@@ -37,6 +50,7 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type อย่างน้อย 1");
     downstreamEnd(r, jn, ctx, m);
+    extraLinesEnd(r, "04_CS_Import", jn, ctx, m);
     // หมายเหตุ: ไม่เช็ค "ต้องมีรายการที่ tab Export" อีกต่อไป —
     // Export ที่สร้างจาก Re-Export? เป็นแถวอิสระ (exp_job_no ว่าง) ตรวจย้อนไม่ได้
     return m;
@@ -52,9 +66,10 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Type อย่างน้อย 1");
     downstreamEnd(r, jn, ctx, m);
+    extraLinesEnd(r, "05_CS_Export", jn, ctx, m);
     return m;
   },
-  "06_Shipping": (r) => {
+  "06_Shipping": (r, ctx) => {
     const m: string[] = [];
     if (!has(r.entry_pic)) m.push("ต้องมี Entry PIC");
     if (!isOne(r.clearance_status, "Cleared", "Completed")) m.push("Clearance Status ต้อง Cleared/Completed");
@@ -64,9 +79,10 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (!isOne(r.ship_close_acc_status, "Complete", "Completed")) m.push("Ship Close Acc Status ต้อง Completed");
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type + ลงค่าใช้จ่ายใน Extra ให้ครบ");
+    extraLinesEnd(r, "06_Shipping", String(r.job_no ?? "").trim(), ctx, m);
     return m;
   },
-  "07_Transportation": (r) => {
+  "07_Transportation": (r, ctx) => {
     const m: string[] = [];
     if (!has(r.trans_pic)) m.push("ต้องมี Trans PIC");
     for (const n of [1, 2, 3]) {
@@ -80,9 +96,10 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (!has(r.actual_delivery_date)) m.push("ต้องมี Actual Delivery Date");
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type + ลงค่าใช้จ่ายใน Extra ให้ครบ");
+    extraLinesEnd(r, "07_Transportation", String(r.job_no ?? "").trim(), ctx, m);
     return m;
   },
-  "08_Warehouse": (r) => {
+  "08_Warehouse": (r, ctx) => {
     const m: string[] = [];
     if (!has(r.wh_pic)) m.push("ต้องมี WH PIC");
     if (!has(r.wh_actual_rcv)) m.push("ต้องมี ACTUAL RCV CARGO TOTAL");
@@ -91,11 +108,12 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     if (!has(r.actual_finished_date)) m.push("ต้องมี Actual Finished Date");
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type + ลงค่าใช้จ่ายใน Extra ให้ครบ");
+    extraLinesEnd(r, "08_Warehouse", String(r.job_no ?? "").trim(), ctx, m);
     return m;
   },
-  // 09_Extra_Service: ไม่มีกฎ End ที่นี่แล้ว — Extra Status เป็น auto (End เมื่อ Input Status
-  // ของทุกบรรทัดในตาราง Sell/Job Cost = END) และตัว Input Status เองถูกคุมด้วยสถานะของ tab
-  // ต้นทาง (enforceInputStatus ใน db.ts) ถ้าใส่กฎไว้ตรงนี้จะกลายเป็นบล็อกการบันทึกอัตโนมัติ
+  // 09_Extra_Service: ไม่มีกฎ End ที่นี่ — Extra Status เป็น auto (End เมื่อ Input Status ของ
+  // ทุกบรรทัดในตาราง Sell/Job Cost = END) ถ้าใส่กฎไว้จะกลายเป็นบล็อกการบันทึกอัตโนมัติ
+  // ตัว Input Status เป็นคนคุมทางกลับ: ต้อง END ก่อน tab ต้นทาง (04–08) ถึงจะ End ได้ (extraLinesEnd)
   "10_Accounting": (r) => {
     const m: string[] = [];
     if (!isOne(r.acc_approved_sts, "Approved")) m.push("Acc Approved Sts ต้อง Approved");
