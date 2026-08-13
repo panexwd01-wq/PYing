@@ -7,10 +7,10 @@ import { CenterLoading } from "@/components/Spinner";
 import { useData } from "@/components/DataProvider";
 import { RequireTab } from "@/components/RequireTab";
 import { useAuth } from "@/components/AuthProvider";
-import { ALL_LISTS, LIST_LABEL } from "@/lib/schema";
+import { ALL_LISTS, LIST_LABEL, COLOR_LISTS } from "@/lib/schema";
 import { Lists } from "@/lib/types";
 
-const CARRIER_KEY = "carrier"; // list ที่มี color picker ต่อรายการ
+const COLOR_KEYS = new Set(COLOR_LISTS); // list ที่มี color picker ต่อรายการ (carrier, sc)
 
 export default function SettingsPage() {
   return (
@@ -105,10 +105,10 @@ function SettingsView() {
         body: JSON.stringify({ lists: clean }),
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
-      // บันทึกสี Co-Agent/Carrier — เก็บเฉพาะรายการที่ยังมีในลิสต์ (ตัด orphan)
-      const carrierSet = new Set(clean[CARRIER_KEY] || []);
+      // บันทึกสีของ list ที่เลือกสีได้ (Carrier / S/C) — เก็บเฉพาะรายการที่ยังมีในลิสต์ (ตัด orphan)
+      const colorable = new Set(COLOR_LISTS.flatMap((k) => clean[k] || []));
       const cleanColors: Record<string, string> = {};
-      for (const [name, c] of Object.entries(colors)) if (carrierSet.has(name) && c) cleanColors[name] = c;
+      for (const [name, c] of Object.entries(colors)) if (colorable.has(name) && c) cleanColors[name] = c;
       const rc = await fetch("/api/carrier-colors", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -144,7 +144,7 @@ function SettingsView() {
         </div>
         <p className="muted">
           {editable ? (
-            <>แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> เลือกสีต่อรายการได้ (ระบายช่องทุก tab)</>
+            <>แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> และ <b>S/C (EXP)</b> เลือกสีต่อรายการได้ (ระบายช่องในตาราง)</>
           ) : (
             <>บัญชีนี้<b>ดูได้อย่างเดียว</b> — สิทธิ์แก้ไข Dropdown ตั้งค่าได้ที่หน้า “ผู้ใช้” โดย admin</>
           )}
@@ -189,8 +189,8 @@ function SettingsView() {
                       ≡
                     </span>
                     <input value={v} readOnly={!editable} onChange={(e) => setItem(key, i, e.target.value)} />
-                    {key === CARRIER_KEY && editable && (
-                      <span className="color-pick" title="เลือกสีของรายการนี้ (ระบายช่อง Co-Agent/Carrier ทุก tab)">
+                    {COLOR_KEYS.has(key) && editable && (
+                      <span className="color-pick" title="เลือกสีของรายการนี้ (ระบายช่องที่ใช้ list นี้)">
                         <input
                           type="color"
                           value={colors[v.trim()] || "#ffffff"}

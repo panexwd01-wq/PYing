@@ -75,6 +75,13 @@ function SupervisorView() {
             </select>
           </div>
         </div>
+        <p className="muted" style={{ margin: "8px 4px 0", fontSize: 12 }}>
+          ปี/เดือนที่เลือกกรองจาก <b>วันที่สร้างงาน (Job 1st Assigned)</b> ทุกตารางในหน้านี้ ยกเว้น <b>Exception Dashboard</b> (งานค้างเรียลไทม์ นับจากวันนี้เสมอ)
+          และ <b>End เดือนนี้</b> (ยึดวันที่ปิดงาน)
+          {s && s.undated > 0 && (
+            <> · <b>{s.undated}</b> แถวไม่มีวันที่สร้าง (ข้อมูลเก่าที่ย้ายมาจากชีท) จะแสดงในทุกเดือน</>
+          )}
+        </p>
         {error && <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={reload}>ลองใหม่</button></p>}
       </div>
 
@@ -110,7 +117,14 @@ function SupervisorView() {
           <h3 style={{ margin: "14px 4px 6px" }}>Internal Error Health (รายทีม)</h3>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>Team / Module</th><th>No Charge Cases</th><th>Most Risk PIC</th><th>Most Extra Service Type</th><th>Total Lost Amount</th><th>Error Rate %</th></tr></thead>
+              <thead><tr className="field-row">
+                <th>Team / Module</th>
+                <th title="แถว Extra ของทีมนี้ที่ Profit Status = No Charge">No Charge Cases</th>
+                <th title="Extra Cost PIC ที่มีเคส Error มากสุดของทีมนี้ (นับจาก Extra Root Cause ที่เป็น Error ทุกแบบ — Internal / CS / Transportation / Warehouse / Shipping / Documentation; ไม่นับ Customer Request)">Most Risk PIC</th>
+                <th title="Extra Req Type ที่พบบ่อยสุดของทีมนี้">Most Extra Service Type</th>
+                <th title="ผลรวม Cost Total ของเคส No Charge">Total Lost Amount</th>
+                <th title="เคส Error ÷ งานที่ End ของทีมนี้ (ในเดือนที่เลือก)">Error Rate %</th>
+              </tr></thead>
               <tbody>
                 {s.errorHealth.map((h, i) => (
                   <tr key={i}><td>{h.team}</td><td>{h.noChargeCases}</td><td>{h.riskPic}</td><td>{h.extraType}</td><td>{h.lost.toLocaleString()}</td><td>{h.errorRate}%</td></tr>
@@ -125,7 +139,13 @@ function SupervisorView() {
           </p>
           <div className="grid-wrap">
             <table className="view-table team-workload">
-              <thead><tr className="field-row"><th style={{ width: 40 }} /><th>Team</th><th>งานเดือนนี้</th><th>Active</th><th>End วันนี้</th><th>End เดือนนี้</th></tr></thead>
+              <thead><tr className="field-row">
+                <th style={{ width: 40 }} /><th>Team</th>
+                <th title="งานที่ถูกสร้างในเดือนที่เลือก">งานเดือนนี้</th>
+                <th title="งานที่สร้างในเดือนที่เลือกและยังไม่ End/Cancel">Active</th>
+                <th title="งานที่ End วันนี้ (ยึด ended_at = วันนี้จริง)">End วันนี้</th>
+                <th title="งานที่ End ในเดือนที่เลือก (ยึด ended_at ไม่ว่างานจะสร้างเดือนไหน)">End เดือนนี้</th>
+              </tr></thead>
               <tbody>
                 {s.team.map((t, i) => {
                   const open = openTeams.has(t.team);
@@ -192,9 +212,21 @@ function SupervisorView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Staff KPI (ตาม PIC)</h3>
+          <p className="muted" style={{ margin: "0 4px 6px", fontSize: 12 }}>
+            นับ <b>รายแถวงาน</b> ของเดือนที่เลือก จาก 6 tab (Import / Export / Shipping / Transport / Warehouse / Accounting)
+            โดยยึด PIC ของ tab นั้น ๆ (Ship PIC / Trans PIC / WH PIC / Acc PIC — ไม่ใช่ CS PIC ที่ดึงมาแสดง)
+            → งาน 1 ใบที่วิ่งหลาย tab จะถูกนับให้เจ้าของแต่ละ tab คนละ 1
+          </p>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>PIC</th><th>Team</th><th>Total</th><th>Active</th><th>End</th><th>Delay (&gt;7 วัน)</th><th>Internal Error</th></tr></thead>
+              <thead><tr className="field-row">
+                <th>PIC</th><th>Team</th>
+                <th title="จำนวนแถวงานที่คนนี้เป็น PIC (รวมทุก tab) ที่สร้างในเดือนที่เลือก">Total</th>
+                <th title="ยังไม่ End และไม่ใช่ Cancel">Active</th>
+                <th title="Status = End">End</th>
+                <th title="สร้างมาเกิน 7 วันแล้วยังไม่ End">Delay (&gt;7 วัน)</th>
+                <th title="แถว Extra ที่คนนี้เป็น Extra Cost PIC และ Root Cause เป็น Error (ทุกแบบ ยกเว้น Customer Request)">Internal Error</th>
+              </tr></thead>
               <tbody>
                 {staff.map((t, i) => (
                   <tr key={i}><td>{t.pic}</td><td>{t.team || "—"}</td><td>{t.total}</td><td>{t.active}</td><td>{t.end}</td><td>{t.delay}</td><td>{t.error}</td></tr>

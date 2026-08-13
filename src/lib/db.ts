@@ -179,7 +179,22 @@ function pushMap<T>(map: Map<string, T[]>, k: string, v: T): void {
 // กติกาอัตโนมัติ: ลงวันที่เมื่อ Status = End + ช่องคำนวณของ Extra
 const hasField = (m: ModuleDef, key: string) => m.fields.some((f) => f.key === key);
 
-function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecord> {
+// ช่องวันที่อัตโนมัติที่ผูกกับ "สถานะย่อย" ในแถวเดียวกัน (นอกเหนือจาก *_status_date ของทั้งงาน)
+// [ช่องวันที่, ช่องสถานะที่คุม, ค่าที่ถือว่าจบ] — ตรงค่า = ลงวันเวลาให้ถ้ายังว่าง, ไม่ตรง = ล้างทิ้ง
+const AUTO_DATE_RULES: Record<string, [string, string, string[]][]> = {
+  "06_Shipping": [
+    ["clearance_end_date", "clearance_status", ["Cleared", "Completed"]],
+    ["ship_close_acc_date", "ship_close_acc_status", ["Complete", "Completed"]],
+  ],
+  "07_Transportation": [1, 2, 3].map(
+    (n) => [`supp${n}_end`, `supp${n}_sts`, ["End", "Completed"]] as [string, string, string[]]
+  ),
+  "08_Warehouse": [["wh_supp1_end", "wh_supp1_sts", ["End", "Completed"]]],
+  "10_Accounting": [["cus_paid_date", "cus_paid", ["Done"]]],
+};
+
+// export ไว้ให้เทสเรียกได้ (ตัวเรียกจริงอยู่ใน createJobs/updateJobs)
+export function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecord> {
   const next = { ...rec };
   const statusKey = m.fields[0]?.key;
   const isEnd = (next[statusKey] || "") === "End";
@@ -197,6 +212,15 @@ function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<JobRecor
       if (!next.check_deposit_done_date) next.check_deposit_done_date = nowStamp();
     } else {
       next.check_deposit_done_date = "";
+    }
+  }
+  // วันที่อัตโนมัติของสถานะย่อย (Supp End Date / Clearance End Date / Cus Paid Date ฯลฯ)
+  for (const [dateKey, stsKey, doneVals] of AUTO_DATE_RULES[m.id] || []) {
+    if (!hasField(m, dateKey)) continue;
+    if (doneVals.includes(String(next[stsKey] ?? "").trim())) {
+      if (!next[dateKey]) next[dateKey] = nowStamp();
+    } else {
+      next[dateKey] = "";
     }
   }
   // ช่องระบบ: ended_at (วันปิดงาน) ตาม Status = End
@@ -1099,6 +1123,13 @@ async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
       ACC,
       (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo).map((r) => r.__id!)
     );
+    // ลบงาน Export ที่เกิดจาก Re-Export? ของ Import ใบนี้ (ตัวเชื่อม = Job No. ที่ฝังใน Data from Import)
+    // ใช้ deleteJob เพื่อให้ cascade ต่อไปถึงลูกของแถว Export นั้นด้วย (ถ้ามีการกรอก Job No. แล้ว)
+    if (m.id === "04_CS_Import") {
+      for (const r of await rawList(EXPORT_MODULE))
+        if ((r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo)
+          await deleteJob(EXPORT_MODULE, r.__id!);
+    }
     return;
   }
 

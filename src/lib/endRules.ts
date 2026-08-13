@@ -44,8 +44,11 @@ const RULES: Record<string, (r: Rec, ctx?: EndCtx) => string[]> = {
     const jn = String(r.imp_job_no ?? "").trim();
     if (!has(r.im_doc)) m.push("ต้องเลือก IM/DOC");
     if (!isOne(r.enter_doc, "Done")) m.push("Enter Doc ต้อง Done");
-    if (!isOne(r.check_deposit, "Done", "N/A")) m.push("Check Deposit ต้อง Done/N/A");
-    if (!isOne(r.scan_file, "Done")) m.push("Scan File ต้อง Done");
+    // Job Type = Transportation Only: ไม่มีงานเอกสาร/พิธีการ → ยกเว้น Check Deposit + Scan File
+    if (!isOne(r.job_type, "Transportation Only")) {
+      if (!isOne(r.check_deposit, "Done", "N/A")) m.push("Check Deposit ต้อง Done/N/A");
+      if (!isOne(r.scan_file, "Done")) m.push("Scan File ต้อง Done");
+    }
     if (ctx && !ctx.hasAcc.has(jn)) m.push("ยังไม่มีรายการนี้ที่ tab Accounting");
     if (isOne(r.extra_require, "Yes") && !has(r.extra_req_type))
       m.push("Extra/Service = Yes ต้องเลือก Req Type อย่างน้อย 1");

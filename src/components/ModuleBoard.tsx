@@ -18,6 +18,7 @@ import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaul
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import { checkReExport, impJobNoFromReadout } from "@/lib/reExport";
+import { deleteImpact } from "@/lib/stats";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -233,7 +234,13 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         });
         return;
       }
-      if (!confirm("ยืนยันลบงานนี้?")) return;
+      // เตือนก่อนลบ: บอกด้วยว่ามีอะไรถูกลบตามไปบ้าง (ปลายทาง/Extra/Accounting/งาน Export จาก Re-Export?)
+      const rec = rows.find((r) => r.__id === id);
+      const impact = data && rec ? deleteImpact(data, moduleKey, rec) : [];
+      const msg = impact.length
+        ? `ยืนยันลบงานนี้?\n\nรายการที่เชื่อมอยู่จะถูกลบไปด้วย:\n${impact.map((s) => `• ${s}`).join("\n")}\n\nกู้คืนไม่ได้`
+        : "ยืนยันลบงานนี้?";
+      if (!confirm(msg)) return;
       setSavingMsg("กำลังลบ…");
       setSaving(true);
       try {
@@ -248,7 +255,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         setSaving(false);
       }
     },
-    [news, flash, moduleKey, reload]
+    [news, flash, moduleKey, reload, rows, data]
   );
 
   // ยกเลิกการแก้ไขทั้งหมด → กลับเป็นค่าจาก snapshot ล่าสุด

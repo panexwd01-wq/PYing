@@ -47,6 +47,12 @@ export const EXPORT_FIELDS: Field[] = [
   // กลุ่ม 4
   { key: "pv_no", label: "PV No.", group: "OPS", type: "text", width: 130 },
   { key: "pv_status", label: "PV Status", group: "OPS", type: "dropdown", list: "pv_status", width: 120, help: "รอจ่าย(ส้ม) / จ่ายแล้ว(เขียว) / จบแล้ว(เทา)" },
+  // กลุ่ม 5 (แก้ตัวเลือกได้ที่หน้า “ตั้งค่า Dropdown”)
+  { key: "agent", label: "AGENT", group: "OPS", type: "dropdown", list: "agent", width: 130 },
+  { key: "bc_by", label: "BC BY", group: "OPS", type: "dropdown", list: "bc_by", width: 110 },
+  { key: "sc", label: "S/C", group: "OPS", type: "dropdown", list: "sc", width: 140, help: "มีสีตามที่ตั้งค่าไว้ต่อรายการ (หน้าตั้งค่า Dropdown)" },
+  { key: "ops_remark", label: "REMARK", group: "OPS", type: "text", width: 200 },
+  { key: "return_place", label: "RETURN", group: "OPS", type: "dropdown", list: "return_place", width: 130 },
 
   // ----- Documentation -----
   { key: "ex_doc", label: "EX/DOC", group: "Documentation", type: "dropdown", list: "ex_doc", mandatory: true, width: 110 },

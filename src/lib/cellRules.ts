@@ -46,6 +46,12 @@ function weekdayColor(v: string): string | undefined {
   return WEEKDAY_COLORS[d.getDay()];
 }
 
+// ช่องที่ระบายสีตามค่าที่ตั้งไว้ในหน้าตั้งค่า (คีย์ช่อง = ค่าที่เอาไปหาสี) — คู่กับ COLOR_LISTS ใน schema
+const COLORED_FIELDS = new Set(["co_agent_carrier", "sc"]);
+
+// ช่องใน section Clearance Monitoring ของ tab Shipping (ช่อง End Date เป็น auto อยู่แล้ว)
+const SHIP_CLEARANCE_KEYS = new Set(["clearance_status", "clearance_pending_reason"]);
+
 export interface CellCue {
   bg?: string;
   locked?: boolean;
@@ -80,6 +86,15 @@ export function cellCue(
     }
   }
 
+  // ----- Shipping: section Clearance Monitoring แก้ได้เมื่อระบุ Entry PIC + Ship PIC แล้ว -----
+  if (moduleId === "06_Shipping" && SHIP_CLEARANCE_KEYS.has(fieldKey)) {
+    const missing: string[] = [];
+    if (!(rec.entry_pic || "").trim()) missing.push("Entry PIC");
+    if (!(rec.ship_pic || "").trim()) missing.push("Ship PIC");
+    if (missing.length)
+      return { locked: true, hint: `ต้องเลือก ${missing.join(" และ ")} ก่อนจึงจะแก้ช่องนี้ได้` };
+  }
+
   // ----- Job Type = Re-Export/* → แดงทุก tab (สัญลักษณ์ว่างานนี้เป็น Re-Export) -----
   // โมดูลปลายทาง (Shipping/Transport/Warehouse/Extra/Accounting) ดึง Job Type มาจาก CS อยู่แล้ว
   if (fieldKey === "job_type" && isReExportType(rec.job_type)) {
@@ -111,9 +126,9 @@ export function cellCue(
     if (bg) return { bg };
   }
 
-  // ----- Co-Agent / Carrier → สีตามที่ตั้งค่าไว้ต่อรายการ (settings) -----
-  if (fieldKey === "co_agent_carrier" && carrierColors) {
-    const c = carrierColors[(rec.co_agent_carrier || "").trim()];
+  // ----- Co-Agent / Carrier + S/C → สีตามที่ตั้งค่าไว้ต่อรายการ (settings) -----
+  if (COLORED_FIELDS.has(fieldKey) && carrierColors) {
+    const c = carrierColors[(rec[fieldKey] || "").trim()];
     if (c) return { bg: c };
   }
 

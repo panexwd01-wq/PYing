@@ -97,7 +97,7 @@ function ManagementView() {
             <KPI label="Internal Error Cases" value={s.internalErrCases} />
           </div>
 
-          <div className="lists-grid" style={{ marginTop: 14 }}>
+          <div className="lists-grid wide" style={{ marginTop: 14 }}>
             <div className="list-card">
               <h3>Top 5 Customer</h3>
               {s.topCustomers.length === 0 && <div className="muted">—</div>}
@@ -163,7 +163,7 @@ function ManagementView() {
             </table>
           </div>
 
-          <div className="lists-grid" style={{ marginTop: 14 }}>
+          <div className="lists-grid wide" style={{ marginTop: 14 }}>
             <SuppCard title="Transport Supplier — Top 5 On-Time" rows={s.topTransOnTime} metric="onTime" />
             <SuppCard title="Transport Supplier — Top 5 Delay" rows={s.topTransDelay} metric="delay" />
             <SuppCard title="Warehouse Supplier — Top 5 On-Time" rows={s.topWhOnTime} metric="onTime" />

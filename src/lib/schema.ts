@@ -89,6 +89,10 @@ export const LIST_LABEL: Record<string, string> = {
   ex_cs: "EX/CS",
   carrier: "Co-Agent / Carrier",
   sales: "Sales / BKG by",
+  agent: "AGENT (EXP)",
+  bc_by: "BC BY (EXP)",
+  sc: "S/C (EXP)",
+  return_place: "RETURN (EXP)",
   customer: "Customer",
   pol: "POL",
   pod: "POD",
@@ -151,6 +155,10 @@ export const LIST_SEED: Record<string, string[]> = {
   ex_cs: ["NATTHANA", "NATTHAYA", "NANTHAWAN", "KAWINPAT"],
   carrier: ["Maersk", "ONE", "Evergreen", "Co-Agent X", "HMM", "SHIPCO", "KMTC", "NAMSUNG", "PILOT", "UWS", "MARINE", "OOCL", "YOUNGFUN", "KLN", "SINOTRANS", "MSC", "HEUNG-A", "YANGMING", "TSLINE", "COSCO", "DPOWER", "ASL / FUJI", "CMA/CNC", "ZIM", "ORIENTAL", "RCL", "HPL", "WANHAI", "TOP INTER", "GOLDSTAR", "BENLINE", "JINJIANG"],
   sales: ["SEA AND LAND", "SWIFTTHAI", "EGF/SARAH", "TVL LOGISTICS", "YANKEY - DIRECT"],
+  agent: ["DP WORLD", "OTH"],
+  bc_by: ["PANEX", "SAL"],
+  sc: ["SQF382642", "SQF293020"],
+  return_place: ["MAANSHAN", "JINGZHOU"],
   customer: [
     "YANKEY ENGINEERING (THAILAND) CO., LTD.",
     "JPF INTER SUPPLY CO., LTD.",
@@ -279,9 +287,13 @@ export const LIST_SEED: Record<string, string[]> = {
 // list ทั้งหมดที่ต้อง seed/อ่าน
 export const ALL_LISTS = Object.keys(LIST_SEED);
 
-// สีตั้งต้นของ Co-Agent / Carrier (ใช้เมื่อยังไม่เคยตั้งค่าใน _settings!A2)
-// ตั้งค่าเพิ่ม/แก้ได้ที่หน้าตั้งค่า → Co-Agent / Carrier
+// list ที่เลือกสีต่อรายการได้ในหน้าตั้งค่า (สีเก็บรวมกันที่ _settings!A2 → ใช้ระบายช่องที่ผูกกับ list นั้น)
+export const COLOR_LISTS = ["carrier", "sc"];
+
+// สีตั้งต้น (ใช้เมื่อยังไม่เคยตั้งค่าใน _settings!A2) — แก้/เพิ่มได้ที่หน้าตั้งค่า Dropdown
 export const CARRIER_COLOR_SEED: Record<string, string> = {
+  SQF382642: "#bfe9c8", // S/C — เขียว
+  SQF293020: "#bcdcff", // S/C — ฟ้า
   Evergreen: "#50f262",
   YANGMING: "#3eeade",
   MSC: "#fbefa2",

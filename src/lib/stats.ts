@@ -1,5 +1,7 @@
 // ฟังก์ชันสรุปผล (pure) ทำงานบน Snapshot ในหน่วยความจำฝั่ง client — ไม่ยิง server
 import { MODULES, MODULE_BY_KEY } from "./schema";
+import { EXTRA_MODULE_LABEL } from "./modules/extra";
+import { impJobNoFromReadout } from "./reExport";
 import { Snapshot } from "./types";
 
 const num = (v: unknown) => {
@@ -75,6 +77,21 @@ const pick = (r: Record<string, string>, keys: string[]) => {
   for (const k of keys) if ((r[k] || "").trim()) return r[k];
   return "";
 };
+
+// PIC ที่ "ทำงานแถวนั้นจริง" ของแต่ละโมดูล
+// สำคัญ: ห้ามเอา cs_pic มารวม — ทุกโมดูลปลายทางมีช่อง cs_pic ที่ auto-pull มาจาก CS
+// ถ้าใช้ PIC_KEYS รวม ๆ (cs_pic มาก่อน) งานทุก tab จะถูกนับเป็นของ CS คนเดียว
+// คนที่ทำ Shipping/Transport/WH/Accounting จริงจะไม่โผล่ใน KPI เลย
+const MODULE_PIC_KEYS: Record<string, string[]> = {
+  "cs-import": ["im_cs"],
+  "cs-export": ["ex_cs"],
+  shipping: ["ship_pic", "entry_pic"],
+  transport: ["trans_pic"],
+  warehouse: ["wh_pic"],
+  extra: ["cost_pic", "sell_pic"],
+  accounting: ["acc_pic", "ap_pic", "ar_pic"],
+};
+const modulePic = (key: string, r: Record<string, string>) => pick(r, MODULE_PIC_KEYS[key] || PIC_KEYS);
 
 export interface FlatJob {
   short: string;
@@ -195,7 +212,10 @@ const daysSince = (d: string): number | null => {
 };
 const contQty = (r: Record<string, string>) =>
   num(r.cnt_4w) + num(r.cnt_6w) + num(r.cnt_10w) + num(r.cnt_20gp) + num(r.cnt_40hq);
-const isInternalErr = (v: string) => /internal/i.test(v || "");
+// "ความผิดพลาดภายในองค์กร" = root_cause ที่เป็น Error ทุกแบบ
+// (Internal / CS / Transportation / Warehouse / Shipping / Documentation Error)
+// ไม่นับ Customer Request เพราะไม่ใช่ความผิดของเรา
+const isInternalErr = (v: string) => /error/i.test(v || "");
 
 // ================= 00 Management (รายเดือน) =================
 export interface MgmtDash {
@@ -440,8 +460,16 @@ export interface SupervisorDash {
   errorHealth: { team: string; noChargeCases: number; riskPic: string; extraType: string; lost: number; errorRate: number }[];
   staff: { pic: string; team: string; total: number; active: number; end: number; delay: number; error: number }[];
   noChargeList: { jobNo: string; date: string; team: string; pic: string; type: string; lost: number; reason: string; remark: string }[];
+  undated: number; // แถวที่ไม่มี created_at → แสดงทุกเดือน (ข้อมูลเก่าที่ย้ายมาจากชีท)
 }
 export function supervisorDash(snap: Snapshot, year: string, month: string): SupervisorDash {
+  // ---- กรองตามปี/เดือนที่เลือก: ยึด created_at (วันที่งานถูกสร้าง) ----
+  // แถวที่ไม่มี created_at (ข้อมูลเก่าที่ย้ายมาจากชีท) ให้แสดงทุกเดือน ไม่งั้นจะหายไปเฉย ๆ
+  const noDate = (r: Record<string, string>) => !(r.created_at || "").trim();
+  const inSel = (r: Record<string, string>) => noDate(r) || inMonth(r.created_at, year, month);
+  const rowsIn = (key: string) => rowsOf(snap, key).filter(inSel);
+
+  // Exception Dashboard = งานค้างแบบเรียลไทม์ → ใช้ข้อมูลทุกช่วงเวลา ไม่กรองตามเดือนที่เลือก
   const imp = rowsOf(snap, "cs-import");
   const exp = rowsOf(snap, "cs-export");
   const acc = rowsOf(snap, "accounting");
@@ -485,21 +513,31 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
     ["warehouse", "wha_status", "Warehouse"],
     ["accounting", "acc_job_status", "Accounting"],
   ];
-  const todayY = String(new Date().getFullYear());
-  const todayM = String(new Date().getMonth() + 1).padStart(2, "0");
   const todayD = new Date().toISOString().slice(0, 10);
+  // ป้าย Module ในชีท Extra (FREIGHT IMPORT ฯลฯ) → ชื่อทีมที่ใช้แสดงผล
+  const EXTRA_MODS = [
+    { key: "FREIGHT IMPORT", team: "Import" },
+    { key: "FREIGHT EXPORT", team: "Export" },
+    { key: "SHIPPING", team: "Shipping" },
+    { key: "TRANSPORT", team: "Transport" },
+    { key: "WAREHOUSE", team: "Warehouse" },
+  ];
+  const extraTeam = (label: string) =>
+    EXTRA_MODS.find((e) => e.key === (label || "").trim())?.team || (label || "").trim();
+
   const team = teamDefs.map(([key, sk, label]) => {
-    const rs = rowsOf(snap, key);
+    const rs = rowsIn(key); // งานที่ "สร้าง" ในเดือนที่เลือก
     return {
       team: label,
-      total: rs.filter((r) => inMonth(r.created_at, year, month)).length,
+      total: rs.length,
       active: rs.filter((r) => !["End", "Cancel"].includes(r[sk] || "")).length,
       endToday: rs.filter((r) => (r[sk] || "") === "End" && (r.ended_at || "").slice(0, 10) === todayD).length,
-      endMonth: rs.filter((r) => (r[sk] || "") === "End" && inMonth(r.ended_at, todayY, todayM)).length,
+      // "End เดือนนี้" = ปิดงานในเดือนที่เลือก (ยึด ended_at ไม่ใช่เดือนที่สร้าง)
+      endMonth: rowsOf(snap, key).filter((r) => (r[sk] || "") === "End" && inMonth(r.ended_at, year, month)).length,
     };
   });
 
-  // Staff KPI รวมทุกโมดูล ตาม PIC
+  // Staff KPI รวมทุกโมดูล ตาม PIC ของโมดูลนั้น ๆ (ไม่ใช่ CS PIC ที่ pull มา)
   type SV = { team: string; total: number; active: number; end: number; delay: number; error: number };
   const staffMap = new Map<string, SV>();
   const ensure = (pic: string, team: string): SV => {
@@ -509,8 +547,8 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
     return cur;
   };
   for (const [key, sk, label] of teamDefs) {
-    for (const r of rowsOf(snap, key)) {
-      const pic = pick(r, PIC_KEYS);
+    for (const r of rowsIn(key)) {
+      const pic = modulePic(key, r);
       if (!pic) continue;
       const cur = ensure(pic, label);
       cur.total++;
@@ -521,23 +559,23 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
       if (d != null && d > 7 && s !== "End") cur.delay++;
     }
   }
-  for (const r of rowsOf(snap, "extra")) {
+  for (const r of rowsIn("extra")) {
     if (!isInternalErr(r.root_cause)) continue;
-    const pic = pick(r, PIC_KEYS);
+    const pic = modulePic("extra", r);
     if (!pic) continue;
-    ensure(pic, r.module || "").error++;
+    ensure(pic, extraTeam(r.module || "")).error++;
   }
   const staff = Array.from(staffMap.entries())
     .map(([pic, v]) => ({ pic, ...v }))
     .sort((a, b) => b.total - a.total);
 
-  const noChargeList = rowsOf(snap, "extra")
+  const noChargeList = rowsIn("extra")
     .filter((r) => r.profit_sts === "No Charge")
     .map((r) => ({
       jobNo: r.job_no || "",
       date: (r.ended_at || r.created_at || "").slice(0, 10),
-      team: r.module || "",
-      pic: pick(r, PIC_KEYS),
+      team: extraTeam(r.module || ""),
+      pic: modulePic("extra", r),
       type: r.extra_req_type || "",
       lost: num(r.cost_total),
       reason: r.root_cause || "",
@@ -547,24 +585,18 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   // Internal Error Health รายทีม (จาก Extra.module) + End Job รายทีมสำหรับ Error Rate
   const endByTeam: Record<string, number> = {};
   for (const [key, sk, label] of teamDefs) {
-    endByTeam[label] = rowsOf(snap, key).filter((r) => (r[sk] || "") === "End").length;
+    endByTeam[label] = rowsIn(key).filter((r) => (r[sk] || "") === "End").length;
   }
-  const EXTRA_MODS = [
-    { key: "FREIGHT IMPORT", team: "Import" },
-    { key: "FREIGHT EXPORT", team: "Export" },
-    { key: "SHIPPING", team: "Shipping" },
-    { key: "TRANSPORT", team: "Transport" },
-    { key: "WAREHOUSE", team: "Warehouse" },
-  ];
+  const extraRows = rowsIn("extra");
   const errorHealth = EXTRA_MODS.map(({ key, team }) => {
-    const rs = rowsOf(snap, "extra").filter((r) => (r.module || "").trim() === key);
+    const rs = extraRows.filter((r) => (r.module || "").trim() === key);
     const nc = rs.filter((r) => r.profit_sts === "No Charge");
     const errs = rs.filter((r) => isInternalErr(r.root_cause));
     const end = endByTeam[team] || 0;
     return {
       team,
       noChargeCases: nc.length,
-      riskPic: topCount(errs.map((r) => pick(r, PIC_KEYS)), 1)[0]?.name || "—",
+      riskPic: topCount(errs.map((r) => modulePic("extra", r)), 1)[0]?.name || "—",
       extraType: topCount(rs.map((r) => r.extra_req_type || ""), 1)[0]?.name || "—",
       lost: nc.reduce((a, r) => a + num(r.cost_total), 0),
       errorRate: end ? Math.round((errs.length / end) * 100) : 0,
@@ -575,7 +607,7 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   const topErr = [...errorHealth].sort((a, b) => b.noChargeCases - a.noChargeCases)[0];
   const pendByTeam = teamDefs.map(([key, sk, label]) => ({
     team: label,
-    count: rowsOf(snap, key).filter((r) => (r[sk] || "") === "Pending").length,
+    count: rowsIn(key).filter((r) => (r[sk] || "") === "Pending").length,
   }));
   const topPend = [...pendByTeam].sort((a, b) => b.count - a.count)[0];
   const risk = {
@@ -586,7 +618,12 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
     mostPendingCount: topPend?.count || 0,
   };
 
-  return { risk, exceptions, team, errorHealth, staff, noChargeList };
+  // แถวที่ไม่มี created_at → ถูกนับรวมในทุกเดือน (แจ้งเตือนบนหน้าจอ)
+  const undated =
+    teamDefs.reduce((a, [key]) => a + rowsOf(snap, key).filter(noDate).length, 0) +
+    rowsOf(snap, "extra").filter(noDate).length;
+
+  return { risk, exceptions, team, errorHealth, staff, noChargeList, undated };
 }
 
 // ================= 02 Action Follow-up (Current Module) =================
@@ -646,7 +683,8 @@ export function actionRows(snap: Snapshot): ActionRow[] {
   };
 
   const out: ActionRow[] = [];
-  const consider = (csRows: Record<string, string>[], jobKey: string, statusKey: string, csLabel: string) => {
+  const consider = (csKey: string, jobKey: string, statusKey: string, csLabel: string) => {
+    const csRows = rowsOf(snap, csKey);
     for (const r of csRows) {
       const jobNo = (r[jobKey] || "").trim();
       if (!jobNo) continue;
@@ -663,7 +701,7 @@ export function actionRows(snap: Snapshot): ActionRow[] {
         if (st !== "End") {
           current = step.label;
           cStatus = st || "Waiting";
-          cPic = rec ? pick(rec, PIC_KEYS) : "";
+          cPic = rec ? modulePic(step.key, rec) : "";
           break;
         }
       }
@@ -672,7 +710,7 @@ export function actionRows(snap: Snapshot): ActionRow[] {
         if (csStatus !== "End") {
           current = csLabel;
           cStatus = csStatus || "Waiting";
-          cPic = pick(r, PIC_KEYS);
+          cPic = modulePic(csKey, r);
         } else continue; // จบทุกอย่างแล้ว ไม่ต้องติดตาม
       }
       out.push({
@@ -680,7 +718,7 @@ export function actionRows(snap: Snapshot): ActionRow[] {
         booking: r.imp_booking_mbl || r.exp_booking_mbl || "",
         jobType: r.job_type || "",
         customer: r.customer || "",
-        csPic: pick(r, PIC_KEYS),
+        csPic: modulePic(csKey, r),
         currentModule: current,
         conts: contQty(r),
         c4w: num(r.cnt_4w),
@@ -698,9 +736,44 @@ export function actionRows(snap: Snapshot): ActionRow[] {
       });
     }
   };
-  consider(rowsOf(snap, "cs-import"), "imp_job_no", "im_ops_status", "CS Import");
-  consider(rowsOf(snap, "cs-export"), "exp_job_no", "ex_ops_status", "CS Export");
+  consider("cs-import", "imp_job_no", "im_ops_status", "CS Import");
+  consider("cs-export", "exp_job_no", "ex_ops_status", "CS Export");
   return out.sort((a, b) => (b.aging ?? -1) - (a.aging ?? -1));
+}
+
+// ===== ผลกระทบตอนลบงาน (ใช้เตือนก่อนกดลบ) =====
+// คืนรายการสิ่งที่จะถูกลบตามไปด้วย — ต้องตรงกับ cascadeDelete ใน db.ts
+export function deleteImpact(snap: Snapshot, moduleKey: string, rec: Record<string, string>): string[] {
+  const m = MODULE_BY_KEY[moduleKey];
+  if (!m) return [];
+  const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
+  const isMid = ["06_Shipping", "07_Transportation", "08_Warehouse"].includes(m.id);
+  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
+  if (!jobNo || (!isCS && !isMid)) return [];
+
+  const byJob = (r: Record<string, string>) => (r.job_no || "").trim() === jobNo;
+  const count = (key: string, fn: (r: Record<string, string>) => boolean) => rowsOf(snap, key).filter(fn).length;
+  const out: string[] = [];
+
+  if (isMid) {
+    const label = EXTRA_MODULE_LABEL[m.id];
+    const ex = count("extra", (r) => byJob(r) && (r.module || "") === label);
+    if (ex) out.push(`Extra ของโมดูลนี้ ${ex} รายการ`);
+    return out;
+  }
+
+  for (const [key, label] of [["shipping", "Shipping"], ["transport", "Transport"], ["warehouse", "Warehouse"], ["extra", "Extra"], ["accounting", "Accounting"]]) {
+    const n = count(key, byJob);
+    if (n) out.push(`${label} ${n} รายการ`);
+  }
+  if (m.id === "04_CS_Import") {
+    const n = count(
+      "cs-export",
+      (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
+    );
+    if (n) out.push(`งาน Export ที่สร้างจาก Re-Export? ${n} รายการ`);
+  }
+  return out;
 }
 
 // ปีที่มีในระบบ (จาก created_at ของ CS)
