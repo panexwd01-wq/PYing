@@ -19,6 +19,8 @@ import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import { checkReExport, impJobNoFromReadout } from "@/lib/reExport";
 import { deleteImpact } from "@/lib/stats";
+import { CS_DRIVEN_KEYS } from "@/lib/xlsxSchema";
+import { XlsxIO } from "@/components/XlsxIO";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
@@ -59,7 +61,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   );
   const hasPull = useMemo(() => mod.fields.some((f) => f.pull || f.rpull), [mod]);
   // 4 โมดูลนี้ผูกกับ CS: สร้าง/ลบอัตโนมัติเมื่อบันทึก CS Import/Export — ห้ามเพิ่ม/ลบเอง
-  const csDriven = ["shipping", "transport", "warehouse", "extra"].includes(moduleKey);
+  const csDriven = CS_DRIVEN_KEYS.includes(moduleKey);
 
   // ตัวเลือกวันที่สำหรับเรียง (เฉพาะที่มีในโมดูลนี้)
   const sortFields = useMemo(
@@ -443,7 +445,21 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
               ＋ เพิ่มงาน
             </button>
           )}
+          <XlsxIO
+            moduleKey={moduleKey}
+            moduleLabel={mod.label}
+            canImport={mayEdit}
+            onDone={reload}
+            flash={flash}
+          />
         </div>
+      </div>
+
+      <div className="toolbar" style={{ paddingTop: 0 }}>
+        <span className="muted" style={{ fontSize: 12 }}>
+          ⬇ Export = โหลดข้อมูล tab นี้เป็น Excel · ⬆ Import = แก้ในไฟล์แล้วโยนไฟล์กลับมาวางบนหน้านี้ได้เลย
+          (แถวที่ Job No. ตรงกัน = อัปเดตทับ{csDriven ? " · tab นี้เพิ่มงานใหม่จากไฟล์ไม่ได้" : ""})
+        </span>
       </div>
 
       <div className="toolbar">

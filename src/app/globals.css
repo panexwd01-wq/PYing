@@ -1768,6 +1768,24 @@ table.extra-lines tfoot .tot {
   text-align: center;
   padding: 10px 16px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* ปุ่ม Export/Import บนแถบหัวตารางเรท (พื้นเข้ม → ปุ่มต้องอ่านออก) */
+.rate-head .rate-io {
+  display: flex;
+  gap: 6px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.rate-head .rate-io .btn {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.rate-head .rate-io .btn:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 .rate-block {
   border-bottom: 1px solid var(--line-soft);
@@ -2049,4 +2067,60 @@ tr.wl-min td {
 }
 .detail-item.has-cue .cellbox {
   background: transparent;
+}
+
+/* ===== Export / Import .xlsx ===== */
+/* โซนวางไฟล์ (โผล่ตอนลากไฟล์เข้ามาในหน้า) */
+.drop-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(15, 25, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.12s ease both;
+}
+.drop-box {
+  background: var(--surface);
+  border: 3px dashed var(--petrol, #2a6f86);
+  border-radius: 14px;
+  padding: 28px 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  max-width: 520px;
+}
+.drop-box .drop-ic {
+  font-size: 40px;
+  line-height: 1;
+  color: var(--petrol, #2a6f86);
+}
+.drop-box .muted {
+  font-size: 12px;
+}
+/* สรุปผลนำเข้า */
+.imp-sum {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.imp-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  background: #f3f6f8;
+}
+.imp-pill.ok {
+  background: #e6f6ec;
+  border-color: #a8d8b9;
+}
+.imp-pill.warn {
+  background: #fdf1d8;
+  border-color: #e6c98a;
 }

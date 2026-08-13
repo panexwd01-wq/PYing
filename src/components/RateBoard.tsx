@@ -8,6 +8,7 @@ import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, recordHeaders } from "@/lib/schema";
 import { RATE_FILTER_KEYS, RATE_SIGNER_KEY } from "@/lib/modules/rates";
+import { XlsxIO } from "@/components/XlsxIO";
 import { JobRecord } from "@/lib/types";
 
 function tempId() {
@@ -141,7 +142,19 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
     <section className="rate-section">
       <SavingOverlay show={saving} message="กำลังบันทึกเรท…" />
 
-      <div className="rate-head">{title}</div>
+      <div className="rate-head">
+        <span style={{ flex: 1 }}>{title}</span>
+        <span className="rate-io">
+          <XlsxIO
+            moduleKey={moduleKey}
+            moduleLabel={mod.label}
+            canImport={mayAdd}
+            onDone={reload}
+            flash={flash}
+            dropzone={false} /* หน้านี้มี 2 ตาราง (Cost/Sell) — เลือกไฟล์ด้วยปุ่มจะได้ไม่สับสนว่าเข้าตารางไหน */
+          />
+        </span>
+      </div>
 
       {/* ===== Add New List ===== */}
       {mayAdd && (
