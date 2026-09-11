@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createJobs, deleteJob, listJobs, listJobsRaw, updateJobs } from "@/lib/db";
+import { writeThenSnapshot } from "@/lib/apiWrite";
 import { withSheetCache } from "@/lib/sheets";
 import { MODULE_BY_KEY, ModuleDef } from "@/lib/schema";
 import { AuthError, assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
@@ -15,6 +16,10 @@ function resolve(req: NextRequest) {
   if (!m) throw new Error(`ไม่รู้จักโมดูล: ${key}`);
   return { m, tab: MODULE_TAB_KEY[key] || key };
 }
+
+// ?snapshot=0 = ยังไม่ต้องสร้าง snapshot (คำขอเขียนหลายก้อนติดกัน เอาแค่ก้อนสุดท้ายพอ)
+const wantSnapshot = (req: NextRequest) =>
+  new URL(req.url).searchParams.get("snapshot") !== "0";
 
 // เรทที่บันทึกแล้ว ห้ามแก้/ลบ — ยกเว้น admin (ต้องติดต่อฝ่ายบัญชี)
 function assertRateWritable(u: AppUser, tab: string) {
@@ -50,8 +55,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const records = Array.isArray(body.records) ? body.records : body.record ? [body.record] : [];
     assertEnd(u, tab, m, records);
-    const jobs = await withSheetCache(() => createJobs(m, records));
-    return NextResponse.json({ jobs });
+    const { result, snapshot } = await writeThenSnapshot(() => createJobs(m, records), {
+      snapshot: wantSnapshot(req),
+    });
+    return NextResponse.json({ jobs: result, snapshot });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
     return NextResponse.json({ error: message }, { status });
@@ -67,8 +74,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const records = Array.isArray(body.records) ? body.records : body.record ? [body.record] : [];
     assertEnd(u, tab, m, records);
-    const saved = await withSheetCache(() => updateJobs(m, records));
-    return NextResponse.json({ jobs: saved });
+    const { result, snapshot } = await writeThenSnapshot(() => updateJobs(m, records), {
+      snapshot: wantSnapshot(req),
+    });
+    return NextResponse.json({ jobs: result, snapshot });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
     return NextResponse.json({ error: message }, { status });
@@ -83,7 +92,7 @@ export async function DELETE(req: NextRequest) {
     assertRateWritable(u, tab);
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
-    await withSheetCache(async () => {
+    const { snapshot } = await writeThenSnapshot(async () => {
       // ลบงานที่ End แล้ว ต้องมีสิทธิ์ END ด้วย
       const statusKey = m.fields[0]?.key;
       if (statusKey) {
@@ -92,7 +101,7 @@ export async function DELETE(req: NextRequest) {
       }
       await deleteJob(m, id);
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, snapshot });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
     return NextResponse.json({ error: message }, { status });

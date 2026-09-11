@@ -28,12 +28,12 @@ import { JobRecord, Lists, Snapshot } from "./types";
 import {
   appendRows,
   batchClearRanges,
-  batchGetRanges,
   batchWriteRanges,
   clearRange,
   ensureSheet,
   primeReadCache,
   readRange,
+  sheetExists,
   writeRange,
 } from "./sheets";
 
@@ -102,19 +102,33 @@ export async function seedListsIfEmpty(): Promise<void> {
 
 // ===== _settings : เก็บค่าตั้งค่าส่วนกลาง (JSON) เช่น คอลัมน์ตอนย่อของแต่ละโมดูล =====
 const SETTINGS_SHEET = "_settings";
+// อ่านทั้งสองค่า (A1 = คอลัมน์ตอนย่อ, A2 = สี Carrier) ในช่วงเดียว → 1 API call แทน 2
+export const SETTINGS_RANGE = `${SETTINGS_SHEET}!A1:A2`;
 export type CollapseConfig = Record<string, string[]>; // moduleKey → รายชื่อ field key ที่โชว์ตอนย่อ
 
-// อ่านแบบกันพัง: ถ้าชีท/ค่าไม่มี คืน {} (ไม่ให้ snapshot ล้ม)
-export async function readCollapseConfig(): Promise<CollapseConfig> {
+// อ่านแบบกันพัง: ถ้าชีทยังไม่มี คืนช่องว่าง (ไม่ให้ snapshot ล้ม)
+async function readSettingsCells(): Promise<[string, string]> {
   try {
-    const rows = await readRange(`${SETTINGS_SHEET}!A1`);
-    const raw = rows?.[0]?.[0];
-    if (!raw) return {};
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : {};
+    const rows = await readRange(SETTINGS_RANGE);
+    return [rows?.[0]?.[0] || "", rows?.[1]?.[0] || ""];
   } catch {
-    return {};
+    return ["", ""];
   }
+}
+
+function parseJsonObject<T>(raw: string, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === "object" ? (obj as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function readCollapseConfig(): Promise<CollapseConfig> {
+  const [collapseRaw] = await readSettingsCells();
+  return parseJsonObject<CollapseConfig>(collapseRaw, {});
 }
 
 export async function writeCollapseConfig(cfg: CollapseConfig): Promise<void> {
@@ -128,15 +142,8 @@ export type CarrierColors = Record<string, string>; // ชื่อ carrier → 
 // ยังไม่เคยตั้งค่า (ชีท/ช่องว่าง) = ใช้สีตั้งต้นจาก schema; เคยบันทึกแล้วยึดค่าที่บันทึกล้วน ๆ
 // (ไม่ merge กับ default ไม่งั้นสีที่ผู้ใช้ตั้งใจล้างจะเด้งกลับมา)
 export async function readCarrierColors(): Promise<CarrierColors> {
-  try {
-    const rows = await readRange(`${SETTINGS_SHEET}!A2`);
-    const raw = rows?.[0]?.[0];
-    if (!raw) return { ...CARRIER_COLOR_SEED };
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : { ...CARRIER_COLOR_SEED };
-  } catch {
-    return { ...CARRIER_COLOR_SEED };
-  }
+  const [, colorsRaw] = await readSettingsCells();
+  return parseJsonObject<CarrierColors>(colorsRaw, { ...CARRIER_COLOR_SEED });
 }
 
 export async function writeCarrierColors(colors: CarrierColors): Promise<void> {
@@ -524,13 +531,29 @@ function parseListRows(values: string[][]): Lists {
   return out;
 }
 
+// อ่านหลายช่วงรวดเดียว (ผ่าน cache) — ข้ามชีทที่ยังไม่มีจริง เพื่อไม่ให้ batch ทั้งก้อนล้ม
+async function readRanges(ranges: string[]): Promise<Record<string, string[][]>> {
+  const names = Array.from(new Set(ranges.map((r) => r.split("!")[0])));
+  const ok = new Set<string>();
+  await Promise.all(names.map(async (n) => (await sheetExists(n)) && ok.add(n)));
+  await primeReadCache(ranges.filter((r) => ok.has(r.split("!")[0])));
+  const out: Record<string, string[][]> = {};
+  for (const r of ranges) out[r] = ok.has(r.split("!")[0]) ? await readRange(r) : [];
+  return out;
+}
+
 export async function getSnapshot(): Promise<Snapshot> {
-  const dataRanges = ALL_MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`);
-  const all = await batchGetRanges([...dataRanges, `${DB_SHEET}!A1:CZ`]);
-  const lists = parseListRows(all[ALL_MODULES.length]);
+  // ทุกชีทที่หน้าเว็บต้องใช้ อ่านรวดเดียว (โมดูล + dropdown + ค่าตั้งค่า) = 1 API call
+  const listRange = `${DB_SHEET}!A1:CZ`;
+  const all = await readRanges([
+    ...ALL_MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`),
+    listRange,
+    SETTINGS_RANGE,
+  ]);
+  const lists = parseListRows(all[listRange]);
 
   const rawById: Record<string, JobRecord[]> = {};
-  ALL_MODULES.forEach((m, i) => (rawById[m.id] = parseModuleRows(m, all[i])));
+  ALL_MODULES.forEach((m) => (rawById[m.id] = parseModuleRows(m, all[`${m.id}!A1:${lastCol(m)}`])));
 
   // สร้าง index ต้นทาง (CS) + ปลายทาง (downstream) จากข้อมูลในหน่วยความจำ (ไม่อ่านซ้ำ)
   const srcIdx: SourceIndex = { imp: new Map(), exp: new Map() };
@@ -572,9 +595,13 @@ export async function getSnapshot(): Promise<Snapshot> {
     }
     modules[m.key] = rows;
   }
-  const collapse = await readCollapseConfig();
-  const carrierColors = await readCarrierColors();
-  return { modules, lists, collapse, carrierColors };
+  const settings = all[SETTINGS_RANGE];
+  return {
+    modules,
+    lists,
+    collapse: parseJsonObject<CollapseConfig>(settings?.[0]?.[0] || "", {}),
+    carrierColors: parseJsonObject<CarrierColors>(settings?.[1]?.[0] || "", { ...CARRIER_COLOR_SEED }),
+  };
 }
 
 function genId(salt = 0): string {

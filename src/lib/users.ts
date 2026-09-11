@@ -97,18 +97,15 @@ interface RawUser {
   _row: number;
 }
 
-async function ensureUsersSheet(): Promise<void> {
+// อ่านชีท _users รอบเดียว (หัวตาราง + ข้อมูล) แล้วซ่อมหัวตารางถ้าไม่ตรง
+// currentUser() ถูกเรียกทุกคำขอ — การอ่านหัวตารางแยกอีกช่วงหนึ่งคือ API call ที่เสียเปล่า
+async function rawUsers(): Promise<RawUser[]> {
   await ensureSheet(USERS_SHEET);
-  const rows = await readRange(`${USERS_SHEET}!A1:${LAST_COL}1`);
+  const rows = await readRange(`${USERS_SHEET}!A1:${LAST_COL}`);
   const header = rows[0] || [];
   if (header.join("|") !== USER_HEADERS.join("|")) {
     await writeRange(`${USERS_SHEET}!A1`, [USER_HEADERS]);
   }
-}
-
-async function rawUsers(): Promise<RawUser[]> {
-  await ensureUsersSheet();
-  const rows = await readRange(`${USERS_SHEET}!A1:${LAST_COL}`);
   if (rows.length < 2) return [];
   const out: RawUser[] = [];
   for (let i = 1; i < rows.length; i++) {

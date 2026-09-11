@@ -10,7 +10,7 @@ interface Props {
   moduleKey: string;
   moduleLabel: string;
   canImport: boolean;
-  onDone: () => void | Promise<void>; // reload snapshot หลัง import สำเร็จ
+  onDone: (snapshot?: unknown) => void | Promise<void>; // รับ snapshot ที่ API แนบมาหลัง import
   flash: (msg: string, err?: boolean) => void;
   dropzone?: boolean; // รับไฟล์ที่ลากมาวางทั้งหน้า — เปิดได้ตัวเดียวต่อหน้า (หน้าที่มีหลายตารางให้ใช้ปุ่มแทน)
 }
@@ -53,7 +53,7 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropz
         const j = await r.json();
         if (j.error) throw new Error(j.error);
         setResult(j as ImportResult);
-        if (j.created || j.updated) await onDone();
+        if (j.created || j.updated) await onDone(j.snapshot);
       } catch (e) {
         flash("นำเข้าไม่สำเร็จ: " + (e as Error).message, true);
       } finally {

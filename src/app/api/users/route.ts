@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     await requireAdmin();
     const body = await req.json();
-    const user = await withSheetCache(() => createUser(body));
+    const user = await withSheetCache(() => createUser(body), { fresh: true });
     return NextResponse.json({ user });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest) {
     await requireAdmin();
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
-    const user = await withSheetCache(() => updateUser(body.id, body));
+    const user = await withSheetCache(() => updateUser(body.id, body), { fresh: true });
     return NextResponse.json({ user });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
@@ -47,7 +47,7 @@ export async function DELETE(req: NextRequest) {
     await requireAdmin();
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
-    await withSheetCache(() => deleteUser(id));
+    await withSheetCache(() => deleteUser(id), { fresh: true });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const { message, status } = authErrorResponse(e);

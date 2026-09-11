@@ -96,7 +96,7 @@ function ActionView() {
           </div>
         </div>
         {error ? (
-          <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={reload}>ลองใหม่</button></p>
+          <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={() => reload(true)}>ลองใหม่</button></p>
         ) : (
           <p className="muted">งานที่ต้องติดตาม {rows.length} รายการ · Current Module = โมดูลแรกในลำดับที่ยังไม่ End · เลือก Active/Pending เพื่อดูงานที่ยังไม่ Finished</p>
         )}

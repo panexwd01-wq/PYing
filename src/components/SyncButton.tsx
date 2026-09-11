@@ -7,7 +7,7 @@ import { useAuth } from "./AuthProvider";
 
 // ปุ่ม Sync: สร้าง Extra (09) + Accounting queue (10) ตาม Workflow Rules — admin เท่านั้น
 export function SyncButton() {
-  const { reload } = useData();
+  const { applyOrReload } = useData();
   const { isAdmin } = useAuth();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
@@ -20,7 +20,7 @@ export function SyncButton() {
       const j = await res.json();
       if (j.error) throw new Error(j.error);
       setMsg({ text: j.message || "Sync เรียบร้อย" });
-      await reload();
+      await applyOrReload(j.snapshot);
     } catch (e: any) {
       setMsg({ text: "Sync ไม่สำเร็จ: " + e.message, err: true });
     } finally {

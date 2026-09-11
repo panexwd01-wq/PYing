@@ -22,7 +22,7 @@ export function CollapseSettings({
   fullConfig: Record<string, string[]>; // config ทั้งหมด (ทุกโมดูล)
   moduleKey: string;
   onClose: () => void;
-  onSaved: () => Promise<void> | void;
+  onSaved: (snapshot?: unknown) => Promise<void> | void;
 }) {
   const [sel, setSel] = useState<Set<string>>(new Set(currentKeys.length ? currentKeys : defaultKeys));
   const [saving, setSaving] = useState(false);
@@ -57,7 +57,7 @@ export function CollapseSettings({
         body: JSON.stringify({ collapse: next }),
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
-      await onSaved();
+      await onSaved(r.snapshot);
       onClose();
     } catch (e: any) {
       setErr(e.message);

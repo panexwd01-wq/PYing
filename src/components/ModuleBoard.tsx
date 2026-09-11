@@ -40,7 +40,7 @@ function tempId() {
 
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading: dataLoading, error: dataError, reload } = useData();
+  const { data, loading: dataLoading, error: dataError, reload, applyOrReload } = useData();
   const { can } = useAuth();
   const lists = data?.lists || {};
 
@@ -169,6 +169,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [showCfg, setShowCfg] = useState(false);
 
+  // เปลี่ยนตัวกรอง/การเรียง/โมดูล = คนละชุดข้อมูล → ตารางเริ่มนับแถวที่วาดใหม่
+  const windowKey = useMemo(
+    () => [moduleKey, filters.year, filters.month, filters.status, filters.cs, filters.q, sortKey, sortDir].join("|"),
+    [moduleKey, filters, sortKey, sortDir]
+  );
+
   const flash = useCallback((text: string, err = false) => {
     setToast({ text, err });
     setTimeout(() => setToast(null), err ? 6000 : 2600); // error กลางจอ ให้เวลาอ่านนานขึ้น
@@ -249,7 +255,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         const res = await fetch(`/api/jobs?module=${moduleKey}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
-        await reload();
+        await applyOrReload(j.snapshot); // API ส่งข้อมูลล่าสุดกลับมาแล้ว ไม่ต้องยิงอ่านซ้ำ
         flash("ลบเรียบร้อย");
       } catch (e: any) {
         flash("ลบไม่สำเร็จ: " + e.message, true);
@@ -257,7 +263,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         setSaving(false);
       }
     },
-    [news, flash, moduleKey, reload, rows, data]
+    [news, flash, moduleKey, applyOrReload, rows, data]
   );
 
   // ยกเลิกการแก้ไขทั้งหมด → กลับเป็นค่าจาก snapshot ล่าสุด
@@ -288,14 +294,20 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     setSavingMsg("กำลังบันทึก…");
     setSaving(true);
     try {
+      let snap: unknown = null;
       if (newRecords.length) {
-        const res = await fetch(`/api/jobs?module=${moduleKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ records: newRecords }),
-        });
+        // มีทั้งเพิ่มและแก้ → ก้อนแรกไม่ต้องสร้าง snapshot (ใช้ของก้อนสุดท้ายก้อนเดียว)
+        const res = await fetch(
+          `/api/jobs?module=${moduleKey}${updRecords.length ? "&snapshot=0" : ""}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ records: newRecords }),
+          }
+        );
         const j = await res.json();
         if (j.error) throw new Error(j.error);
+        snap = j.snapshot;
       }
       if (updRecords.length) {
         const res = await fetch(`/api/jobs?module=${moduleKey}`, {
@@ -305,15 +317,16 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         });
         const j = await res.json();
         if (j.error) throw new Error(j.error);
+        snap = j.snapshot;
       }
-      await reload();
+      await applyOrReload(snap);
       flash("บันทึกเรียบร้อย");
     } catch (e: any) {
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
     } finally {
       setSaving(false);
     }
-  }, [dirty, news, rows, reload, flash, moduleKey, mod.id]);
+  }, [dirty, news, rows, applyOrReload, flash, moduleKey, mod.id]);
 
   const refresh = useCallback(async () => {
     setSavingMsg("กำลังดึงข้อมูลจาก CS…");
@@ -322,14 +335,14 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       const res = await fetch(`/api/refresh?module=${moduleKey}`, { method: "POST" });
       const j = await res.json();
       if (j.error) throw new Error(j.error);
-      await reload();
+      await applyOrReload(j.snapshot);
       flash(j.message || "ดึงข้อมูลเรียบร้อย");
     } catch (e: any) {
       flash("ดึงข้อมูลไม่สำเร็จ: " + e.message, true);
     } finally {
       setSaving(false);
     }
-  }, [moduleKey, reload, flash]);
+  }, [moduleKey, applyOrReload, flash]);
 
   // ===== filter =====
   const years = useMemo(() => {
@@ -432,7 +445,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         )}
 
         <div className="actions">
-          <button className="btn" onClick={reload} disabled={dataLoading}>
+          <button className="btn" onClick={() => reload(true)} disabled={dataLoading}>
             รีเฟรช
           </button>
           {hasPull && mayEdit && (
@@ -449,7 +462,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             moduleKey={moduleKey}
             moduleLabel={mod.label}
             canImport={mayEdit}
-            onDone={reload}
+            onDone={applyOrReload}
             flash={flash}
           />
         </div>
@@ -496,6 +509,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             <GroupedGrid
               displayFields={groupedDisplayFields}
               rows={filtered}
+              windowKey={windowKey}
               moduleId={mod.id}
               carrierColors={data?.carrierColors}
               statusKey={statusKey}
@@ -561,6 +575,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             fields={mod.fields}
             groups={groups}
             rows={filtered}
+            windowKey={windowKey}
             lists={lists}
             carrierColors={data?.carrierColors}
             dirtyIds={dirty}
@@ -593,7 +608,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           fullConfig={data?.collapse || {}}
           moduleKey={moduleKey}
           onClose={() => setShowCfg(false)}
-          onSaved={reload}
+          onSaved={applyOrReload}
         />
       )}
     </main>

@@ -133,7 +133,7 @@ function ShipDailyView() {
           </div>
         </div>
         {error ? (
-          <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={reload}>ลองใหม่</button></p>
+          <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={() => reload(true)}>ลองใหม่</button></p>
         ) : (
           <p className="muted">{header} (งานที่ยังไม่ End + งาน Pending เก่า)</p>
         )}

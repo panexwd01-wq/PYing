@@ -6,6 +6,7 @@ import { JobRecord, Lists } from "@/lib/types";
 import { cellCue } from "@/lib/cellRules";
 import { cellState } from "@/lib/cellState";
 import { Cell } from "./Cell";
+import { useRowWindow } from "./useRowWindow";
 
 const ROWNUM_W = 48;
 
@@ -214,6 +215,7 @@ export function JobGrid({
   hideDeleteFor,
   readOnly = false,
   canUnlock = true,
+  windowKey = "",
   onChange,
   onDelete,
   onUnlock,
@@ -232,12 +234,16 @@ export function JobGrid({
   collapsed?: boolean;
   collapsedKeys?: string[]; // คอลัมน์ที่โชว์ตอนย่อ (ตั้งค่าส่วนกลาง) — ไม่ส่ง = ใช้ summary จาก schema
   hideDeleteFor?: (rec: JobRecord) => boolean; // แถวที่ไม่ให้ลบ (เช่น Export ที่มาจาก Re-Export)
+  windowKey?: string; // เปลี่ยนค่านี้ = เริ่มนับจำนวนแถวที่วาดใหม่ (ตัวกรอง/การเรียงเปลี่ยน)
   readOnly?: boolean; // ไม่มีสิทธิ์แก้ไข → ทั้งตารางอ่านอย่างเดียว
   canUnlock?: boolean; // มีสิทธิ์จัดการงานที่ End
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
 }) {
+  // วาดทีละชุด — ข้อมูลมาครบตั้งแต่แรกแล้ว แค่ทยอยวาดให้ตารางขึ้นเร็ว
+  const { limit, hasMore, sentinel, showAll } = useRowWindow(rows.length, windowKey);
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const onToggleExpand = React.useCallback((id: string) => {
     setExpanded((prev) => {
@@ -331,7 +337,7 @@ export function JobGrid({
           </tr>
         </thead>
         <tbody>
-          {rows.map((rec, i) => (
+          {rows.slice(0, limit).map((rec, i) => (
             <Row
               key={rec.__id}
               rec={rec}
@@ -359,6 +365,16 @@ export function JobGrid({
               onUnlock={onUnlock}
             />
           ))}
+          {hasMore && (
+            <tr ref={sentinel} className="row-more">
+              <td colSpan={displayFields.length + (collapsed ? 3 : 2)} style={{ padding: 14, textAlign: "center", color: "#777" }}>
+                แสดง {limit} จาก {rows.length} แถว — เลื่อนลงเพื่อดูต่อ
+                <button className="btn sm" style={{ marginLeft: 10 }} onClick={showAll}>
+                  แสดงทั้งหมด
+                </button>
+              </td>
+            </tr>
+          )}
           {rows.length === 0 && (
             <tr>
               <td colSpan={displayFields.length + (collapsed ? 3 : 2)} style={{ padding: 30, textAlign: "center", color: "#777" }}>

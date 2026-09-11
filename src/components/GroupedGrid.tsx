@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord } from "@/lib/types";
 import { cellCue } from "@/lib/cellRules";
+import { useRowWindow } from "./useRowWindow";
 
 // ตารางที่ "รวบหลายแถวของ Job No. เดียวกันเป็น 1 บรรทัด"
 // - ค่าที่ต่างกันในกลุ่ม จะถูกรวมแสดงคั่นด้วย " · " (เช่น Extra/Service Req Type)
@@ -48,6 +49,7 @@ export function GroupedGrid({
   dirtyIds,
   unlockedIds,
   canUnlock = true,
+  windowKey = "",
   renderDetail,
   onUnlockGroup,
 }: {
@@ -60,6 +62,7 @@ export function GroupedGrid({
   dirtyIds: Set<string>;
   unlockedIds: Set<string>;
   canUnlock?: boolean;
+  windowKey?: string; // เปลี่ยนค่านี้ = เริ่มนับจำนวนกลุ่มที่วาดใหม่ (ตัวกรอง/การเรียงเปลี่ยน)
   renderDetail: (rows: JobRecord[]) => React.ReactNode;
   onUnlockGroup: (ids: string[]) => void;
 }) {
@@ -74,6 +77,8 @@ export function GroupedGrid({
 
   const groups = useMemo(() => groupRows(rows, groupKey), [rows, groupKey]);
   const cols = 1 + 1 + displayFields.length + 1;
+  // วาดทีละชุดเหมือนตารางปกติ (1 กลุ่ม = 1 บรรทัด แต่คอลัมน์เยอะ)
+  const { limit, hasMore, sentinel, showAll } = useRowWindow(groups.length, windowKey);
 
   return (
     <div className="grid-wrap collapsed">
@@ -91,7 +96,7 @@ export function GroupedGrid({
           </tr>
         </thead>
         <tbody>
-          {groups.map((g, i) => {
+          {groups.slice(0, limit).map((g, i) => {
             const open = expanded.has(g.key);
             const anyEnd = g.rows.some((r) => (r[statusKey] || "") === "End");
             const anyDirty = g.rows.some((r) => dirtyIds.has(r.__id));
@@ -151,6 +156,16 @@ export function GroupedGrid({
               </React.Fragment>
             );
           })}
+          {hasMore && (
+            <tr ref={sentinel} className="row-more">
+              <td colSpan={cols} style={{ padding: 14, textAlign: "center", color: "#777" }}>
+                แสดง {limit} จาก {groups.length} รายการ — เลื่อนลงเพื่อดูต่อ
+                <button className="btn sm" style={{ marginLeft: 10 }} onClick={showAll}>
+                  แสดงทั้งหมด
+                </button>
+              </td>
+            </tr>
+          )}
           {groups.length === 0 && (
             <tr>
               <td colSpan={cols} style={{ padding: 30, textAlign: "center", color: "#777" }}>

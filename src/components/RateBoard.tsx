@@ -21,7 +21,7 @@ function tempId() {
 //   3) ตารางผลลัพธ์ — บันทึกแล้ว "แก้ไขไม่ได้" (เฉพาะ admin แก้/ลบได้)
 export function RateBoard({ moduleKey, title }: { moduleKey: string; title: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading, reload } = useData();
+  const { data, loading, applyOrReload } = useData();
   const { user, isAdmin, can } = useAuth();
   const lists = data?.lists || {};
 
@@ -79,7 +79,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
       setDraft(emptyDraft());
-      await reload();
+      await applyOrReload(r.snapshot);
       flash("บันทึกเรทเรียบร้อย — แถวที่บันทึกแล้วแก้ไขไม่ได้");
     } catch (e: any) {
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
@@ -101,7 +101,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
       setEditing(null);
-      await reload();
+      await applyOrReload(r.snapshot);
       flash("แก้ไขเรทเรียบร้อย");
     } catch (e: any) {
       flash("แก้ไขไม่สำเร็จ: " + e.message, true);
@@ -118,7 +118,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
         method: "DELETE",
       }).then((x) => x.json());
       if (r.error) throw new Error(r.error);
-      await reload();
+      await applyOrReload(r.snapshot);
       flash("ลบเรียบร้อย");
     } catch (e: any) {
       flash("ลบไม่สำเร็จ: " + e.message, true);
@@ -149,7 +149,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             moduleKey={moduleKey}
             moduleLabel={mod.label}
             canImport={mayAdd}
-            onDone={reload}
+            onDone={applyOrReload}
             flash={flash}
             dropzone={false} /* หน้านี้มี 2 ตาราง (Cost/Sell) — เลือกไฟล์ด้วยปุ่มจะได้ไม่สับสนว่าเข้าตารางไหน */
           />

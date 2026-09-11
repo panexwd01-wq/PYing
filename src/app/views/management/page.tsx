@@ -66,7 +66,7 @@ function ManagementView() {
             </select>
           </div>
         </div>
-        {error && <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={reload}>ลองใหม่</button></p>}
+        {error && <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={() => reload(true)}>ลองใหม่</button></p>}
       </div>
 
       {s && (

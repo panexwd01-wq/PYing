@@ -21,7 +21,7 @@ export default function SettingsPage() {
 }
 
 function SettingsView() {
-  const { data, loading, error, reload: reloadApp } = useData();
+  const { data, loading, error, reload: reloadApp, applyOrReload } = useData();
   const { canLists } = useAuth();
   const editable = canLists(); // ไม่มีสิทธิ์ = ดูได้อย่างเดียว
   const [lists, setLists] = useState<Lists>({});
@@ -99,7 +99,7 @@ function SettingsView() {
     try {
       const clean: Lists = {};
       for (const k of Object.keys(lists)) clean[k] = lists[k].map((s) => s.trim()).filter(Boolean);
-      const r = await fetch("/api/lists", {
+      const r = await fetch("/api/lists?snapshot=0", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lists: clean }),
@@ -116,7 +116,7 @@ function SettingsView() {
       }).then((x) => x.json());
       if (rc.error) throw new Error(rc.error);
       setDirty(false);
-      await reloadApp();
+      await applyOrReload(rc.snapshot); // snapshot ล่าสุดมากับคำตอบแล้ว
       flash("บันทึก dropdown + สีเรียบร้อย");
     } catch (e: any) {
       flash("บันทึกไม่สำเร็จ: " + e.message, true);
@@ -133,7 +133,7 @@ function SettingsView() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h2 style={{ flex: 1 }}>จัดการ Dropdown (Lists)</h2>
           {dirty && <span className="unsaved-pill">● ยังไม่บันทึก</span>}
-          <button className="btn" onClick={reloadApp} disabled={loading || saving}>
+          <button className="btn" onClick={() => reloadApp(true)} disabled={loading || saving}>
             รีเฟรช
           </button>
           {editable && (
@@ -156,7 +156,7 @@ function SettingsView() {
       ) : error ? (
         <div className="panel">
           <p className="muted">โหลดไม่สำเร็จ: {error}</p>
-          <button className="btn primary" onClick={reloadApp}>ลองใหม่</button>
+          <button className="btn primary" onClick={() => reloadApp(true)}>ลองใหม่</button>
         </div>
       ) : (
         <div className="lists-grid">

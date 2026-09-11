@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createJobs, listJobs, listJobsRaw, updateJobs } from "@/lib/db";
 import { withSheetCache } from "@/lib/sheets";
+import { writeThenSnapshot } from "@/lib/apiWrite";
 import { MODULE_BY_KEY, ModuleDef } from "@/lib/schema";
 import { assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
 import { can, MODULE_TAB_KEY } from "@/lib/perms";
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
       ? "ไม่มีงานนี้ในระบบ และบัญชีนี้ไม่มีสิทธิ์เพิ่มงาน"
       : "ไม่มีงานนี้ในระบบ — โมดูลนี้สร้างแถวเองไม่ได้ (แถวสร้างอัตโนมัติจาก CS)";
 
-    const result = await withSheetCache(async () => {
+    const { result, snapshot } = await writeThenSnapshot(async () => {
       const existing = await listJobsRaw(m);
       const plan = planImport(m, parsed.rows, existing as Record<string, string>[], {
         mayCreate,
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, snapshot });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
     return NextResponse.json({ error: message }, { status });

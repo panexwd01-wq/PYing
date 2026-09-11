@@ -101,8 +101,29 @@ npm run dev                  # http://localhost:3000
 | `GOOGLE_PRIVATE_KEY` | ✅ | เชื่อม Google Sheets |
 | `SHEET_ID` | ✅ | ชีทที่ใช้เก็บข้อมูล |
 | `AUTH_SECRET` | แนะนำ | กุญแจเซ็น session cookie (ไม่ตั้ง = fallback ไปใช้ `SHEET_ID`) |
+| `SHEET_CACHE_TTL_MS` | ไม่จำเป็น | อายุ cache ข้อมูลจากชีท (ตั้งต้น 30000 = 30 วิ) |
+| `SHEET_META_TTL_MS` | ไม่จำเป็น | อายุ cache รายชื่อ tab (ตั้งต้น 300000 = 5 นาที) |
 
 ---
+
+## ความเร็ว — ระบบลดการคุยกับ Google Sheets ยังไง
+
+Google Sheets ตอบช้าประมาณ 0.3–3 วินาทีต่อการเรียก 1 ครั้ง เวลาที่รู้สึกว่า "ช้า" เกือบทั้งหมดคือเวลารอตรงนี้
+ไม่ใช่ปริมาณข้อมูล ระบบจึงลดจำนวนครั้งที่ต้องเรียกลงด้วย 4 อย่าง:
+
+1. **อ่านทุกอย่างรวดเดียว** — เปิดหน้าเว็บ 1 ครั้ง = อ่านทุก tab + dropdown + ค่าตั้งค่า ใน `batchGet` ก้อนเดียว
+2. **Cache ฝั่ง server** (`src/lib/sheets.ts`) — 2 ชั้น: ชั้นในต่อ 1 คำขอ, ชั้นนอกข้ามคำขออายุ `SHEET_CACHE_TTL_MS`
+   เปิดหน้าซ้ำภายในช่วงนี้ **ไม่แตะ Google เลย** · เขียนชีทไหน cache ชีทนั้นถูกล้างทันที (คนอื่นเห็นของใหม่)
+   · เส้นบันทึกอ่านสดเสมอ ไม่เอาค่าจาก cache มา merge · คนหลายคนกดพร้อมกันจะรอผลก้อนเดียวกัน ไม่ยิงซ้ำ
+3. **บันทึกแล้วได้ข้อมูลใหม่กลับมาเลย** — API ที่เขียนข้อมูลจะแนบ snapshot ล่าสุดกลับมาในคำตอบเดียวกัน
+   หน้าเว็บจึงไม่ต้องยิงอ่านซ้ำหลังเซฟ (ประหยัดไปเต็ม ๆ 1 รอบ)
+4. **ตารางวาดทีละชุด** (`useRowWindow.ts`) — ข้อมูลมาครบตั้งแต่แรก แต่วาดทีละ 60 แถว เลื่อนถึงท้ายตารางค่อยต่อ
+   (ตารางมีหลายสิบคอลัมน์ต่อแถว — วาดพันแถวรวดเดียวคือจุดที่หน่วงที่สุดฝั่งเบราว์เซอร์)
+
+> ผลที่วัดได้: เปิดหน้าครั้งแรก = เรียก Google 2 ครั้ง · เปิดซ้ำในช่วง cache = 0 ครั้ง · บันทึก 1 แถว = 3 ครั้ง
+
+**ข้อควรรู้:** ถ้าไปแก้ข้อมูลใน Google Sheet ตรง ๆ หน้าเว็บจะเห็นช้าได้ถึง `SHEET_CACHE_TTL_MS`
+กดปุ่ม **รีเฟรช** เพื่อบังคับอ่านสดได้ตลอด (และหลังบันทึกผ่านเว็บ ระบบบังคับอ่านสดให้อัตโนมัติอยู่แล้ว)
 
 ## Deploy ขึ้น Vercel + GitHub
 
@@ -136,6 +157,8 @@ src/
     JobGrid / GroupedGrid / RecordPanel     ตารางปกติ / รวบตาม Job No. / แผงรายละเอียด
     ExtraLinesTable                         ตาราง Sell / Job Cost ของ Extra
     RateBoard, Cell, Toggle, DateTimePicker, FilterBar, Spinner, Overlay ...
+    DataProvider                            โหลด snapshot ครั้งเดียวแล้วแชร์ทุกหน้า
+    useRowWindow                            วาดตารางทีละชุด (ข้อมูลเยอะแล้วยังลื่น)
   lib/
     session.ts          เซ็น/ตรวจ session cookie (Web Crypto — ใช้ได้ทั้ง Node/Edge)
     users.ts            _users sheet + scrypt hash
@@ -145,7 +168,8 @@ src/
     modules/*.ts        นิยามคอลัมน์ของแต่ละโมดูล
     schema.ts           ทะเบียนโมดูล (MODULES) + master lists ตั้งต้น
     cellRules.ts        กติกาสีของช่อง · cellState.ts กติกาล็อก
-    sheets.ts           เชื่อม Google Sheets (Service Account)
+    sheets.ts           เชื่อม Google Sheets (Service Account) + cache 2 ชั้น + retry 429/503
+    apiWrite.ts         เส้นเขียนของ API: อ่านสด + แนบ snapshot ล่าสุดกลับไปในคำตอบเดียว
     db.ts               CRUD ต่อโมดูล + cross-module pull + reconcile
 ```
 

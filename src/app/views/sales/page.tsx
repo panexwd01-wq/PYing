@@ -25,7 +25,7 @@ function SalesView() {
         {error || !s ? (
           <p className="muted">
             โหลดข้อมูลไม่สำเร็จ: {error}{" "}
-            <button className="btn sm" onClick={reload}>ลองใหม่</button>
+            <button className="btn sm" onClick={() => reload(true)}>ลองใหม่</button>
           </p>
         ) : (
           <div className="lists-grid">
