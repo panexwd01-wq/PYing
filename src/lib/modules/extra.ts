@@ -36,7 +36,7 @@ export const EXTRA_FIELDS: Field[] = [
   // Extra Status = auto: Pending จนกว่าทุกบรรทัดของ Job นี้ (ทั้ง Sell และ Job Cost) จะเป็น END
   { key: "extra_status", label: "Extra Status", group: "Job Info", type: "auto", list: "im_ops_status", sticky: true, summary: true, width: 130, help: "อัตโนมัติ: End เมื่อ Input Status ของทุกบรรทัดในตาราง = END" },
   { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "imp_job_no", exp: "exp_job_no" }, help: "ดึงจากงาน CS แม่ (แก้ที่ CS เท่านั้น)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "cs_pic", label: "CS (IMP/EXP)", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },

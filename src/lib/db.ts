@@ -5,6 +5,11 @@ import {
   DB_SHEET,
   EXPORT_MODULE,
   IMPORT_MODULE,
+  LINK_CS,
+  LINK_IMP,
+  LINK_KEY,
+  LINK_KEYS,
+  LINK_SRC,
   LIST_SEED,
   MODULE_BY_ID,
   MODULES,
@@ -12,7 +17,18 @@ import {
   recordHeaders,
 } from "./schema";
 import { checkEnd, EndCtx } from "./endRules";
-import { checkReExport, impJobNoFromReadout } from "./reExport";
+import { checkReExport } from "./reExport";
+import {
+  ACC_BASE_KEY,
+  accExtraKey,
+  accFuelKey,
+  applyLegacyLinks,
+  csJobNoKey,
+  csLabel,
+  duplicateJobNoNotes,
+  linkOf,
+  resolveLegacyLinks,
+} from "./links";
 import {
   EXTRA_MODULE_LABEL,
   INPUT_STATUS_KEYS,
@@ -30,6 +46,7 @@ import {
   batchClearRanges,
   batchWriteRanges,
   clearRange,
+  ensureColumns,
   ensureSheet,
   primeReadCache,
   readRange,
@@ -261,11 +278,18 @@ export function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<J
   return next;
 }
 
-// ===== cross-module pull (ดึงหัว Job จาก CS Import/Export ด้วย Job No.) =====
+// ===== cross-module pull (ดึงหัว Job จากงาน CS แม่ — จับคู่ด้วยรหัสเชื่อม link_cs) =====
 
+type CsSide = "imp" | "exp";
 interface SourceIndex {
-  imp: Map<string, JobRecord>;
-  exp: Map<string, JobRecord>;
+  byId: Map<string, { side: CsSide; rec: JobRecord }>; // __id ของงาน CS → แถว + ฝั่ง
+}
+
+function buildSourceIndex(impRows: JobRecord[], expRows: JobRecord[]): SourceIndex {
+  const byId = new Map<string, { side: CsSide; rec: JobRecord }>();
+  for (const rec of impRows) byId.set(rec.__id, { side: "imp", rec });
+  for (const rec of expRows) byId.set(rec.__id, { side: "exp", rec });
+  return { byId };
 }
 
 // อ่าน CS Import/Export สดทุกครั้ง (ไม่ cache ข้ามคำขอ กันค่าที่ pull มาค้าง)
@@ -274,35 +298,16 @@ async function getSourceIndex(): Promise<SourceIndex> {
     rawList(IMPORT_MODULE),
     rawList(EXPORT_MODULE),
   ]);
-  const imp = new Map<string, JobRecord>();
-  const exp = new Map<string, JobRecord>();
-  for (const r of impRows) {
-    const k = (r.imp_job_no || "").trim();
-    if (k) imp.set(k, r);
-  }
-  for (const r of expRows) {
-    const k = (r.exp_job_no || "").trim();
-    if (k) exp.set(k, r);
-  }
-  return { imp, exp };
+  return buildSourceIndex(impRows, expRows);
 }
 
 const moduleHasPull = (m: ModuleDef) => m.fields.some((f) => f.pull);
 const moduleHasRPull = (m: ModuleDef) => m.fields.some((f) => f.rpull);
 
 function applyPull(m: ModuleDef, rec: JobRecord, idx: SourceIndex): JobRecord {
-  const jn = (rec.job_no || "").trim();
-  if (!jn) return rec;
-  let side: "imp" | "exp" | null = null;
-  let src: JobRecord | undefined;
-  if (idx.imp.has(jn)) {
-    side = "imp";
-    src = idx.imp.get(jn);
-  } else if (idx.exp.has(jn)) {
-    side = "exp";
-    src = idx.exp.get(jn);
-  }
-  if (!side || !src) return rec;
+  const hit = idx.byId.get(linkOf(rec, LINK_CS));
+  if (!hit) return rec;
+  const { side, rec: src } = hit;
   const next = { ...rec };
   for (const f of m.fields) {
     if (!f.pull) continue;
@@ -313,33 +318,34 @@ function applyPull(m: ModuleDef, rec: JobRecord, idx: SourceIndex): JobRecord {
   return next;
 }
 
-// ===== reverse pull (CS Import/Export ดึงค่าจากโมดูลปลายทางด้วย Job No.) =====
+// ===== reverse pull (CS Import/Export ดึงค่าจากโมดูลปลายทาง — link_cs ของปลายทาง = __id ของ CS) =====
 type DownIndex = Record<string, Map<string, JobRecord>>;
+
+function indexByCs(rows: JobRecord[]): Map<string, JobRecord> {
+  const map = new Map<string, JobRecord>();
+  for (const r of rows) {
+    const k = linkOf(r, LINK_CS);
+    if (k) map.set(k, r);
+  }
+  return map;
+}
 
 async function getDownstreamIndex(m: ModuleDef): Promise<DownIndex> {
   const ids = Array.from(new Set(m.fields.filter((f) => f.rpull).map((f) => f.rpull!.from)));
   const out: DownIndex = {};
   await Promise.all(
     ids.map(async (id) => {
-      const rows = await rawList(MODULE_BY_ID[id]);
-      const map = new Map<string, JobRecord>();
-      for (const r of rows) {
-        const j = (r.job_no || "").trim();
-        if (j) map.set(j, r);
-      }
-      out[id] = map;
+      out[id] = indexByCs(await rawList(MODULE_BY_ID[id]));
     })
   );
   return out;
 }
 
 function applyRPull(m: ModuleDef, rec: JobRecord, dIdx: DownIndex): JobRecord {
-  const jn = (rec[m.jobNoKey] || "").trim();
-  if (!jn) return rec;
   const next = { ...rec };
   for (const f of m.fields) {
     if (!f.rpull) continue;
-    const src = dIdx[f.rpull.from]?.get(jn);
+    const src = dIdx[f.rpull.from]?.get(rec.__id);
     if (!src) continue;
     next[f.key] = (src[f.rpull.field] ?? "").toString();
   }
@@ -390,11 +396,11 @@ function enforceReExport(m: ModuleDef, rec: JobRecord, prev?: JobRecord): void {
 }
 
 // Extra Status (09) = auto — End เมื่อทุกบรรทัดของ Job นี้ (ทั้ง Sell และ Job Cost) เป็น END
-// เรียกหลังบันทึกแถว Extra (ค่าเป็นระดับ Job จึงคำนวณจากทุกแถวของ Job No. เดียวกัน)
-async function syncExtraStatus(jobNo: string): Promise<void> {
-  if (!jobNo) return;
+// เรียกหลังบันทึกแถว Extra (ค่าเป็นระดับ Job จึงคำนวณจากทุกแถวของงาน CS เดียวกัน)
+async function syncExtraStatus(csId: string): Promise<void> {
+  if (!csId) return;
   const EXTRA = MODULE_BY_ID[EXTRA_ID];
-  const rows = (await rawList(EXTRA)).filter((r) => (r.job_no || "").trim() === jobNo);
+  const rows = (await rawList(EXTRA)).filter((r) => linkOf(r, LINK_CS) === csId);
   if (!rows.length) return;
   const allEnd = rows.every((r) => INPUT_STATUS_KEYS.every((k) => isInputEnd(r[k])));
   const want = allEnd ? "End" : INPUT_STATUS_PENDING;
@@ -404,15 +410,13 @@ async function syncExtraStatus(jobNo: string): Promise<void> {
   if (changed.length) await updateJobs(EXTRA, changed, false);
 }
 
-// แถว Extra ของแต่ละ (โมดูลต้นทาง, Job No.) เคลียร์ END ครบหรือยัง
-// key = `${ป้าย Module}||${job_no}` · ไม่มีแถว = ไม่มีคีย์ = ไม่มีเงื่อนไข
+// แถว Extra ของแต่ละแถวต้นทาง (04–08) เคลียร์ END ครบหรือยัง
+// key = __id ของแถวต้นทาง (link_src) · ไม่มีแถว = ไม่มีคีย์ = ไม่มีเงื่อนไข
 async function buildExtraEndMap(): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
   for (const e of await rawList(MODULE_BY_ID[EXTRA_ID])) {
-    const jn = (e.job_no || "").trim();
-    const label = (e.module || "").trim();
-    if (!jn || !label) continue;
-    const k = `${label}||${jn}`;
+    const k = linkOf(e, LINK_SRC);
+    if (!k) continue;
     const done = INPUT_STATUS_KEYS.every((key) => isInputEnd(e[key]));
     map.set(k, (map.get(k) ?? true) && done);
   }
@@ -430,13 +434,12 @@ async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<En
   // Shipping/Transport/Warehouse: เช็คแค่แถว Extra ของตัวเอง (เงื่อนไขอื่นอยู่ในแถวตัวเอง)
   if (m.id !== "04_CS_Import" && m.id !== "05_CS_Export")
     return {
-      hasAcc: new Set(), hasExport: new Set(),
+      hasAcc: new Set(),
       shipEnd: new Map(), transEnd: new Map(), whEnd: new Map(),
       extraEnd,
     };
 
-  const [expRows, shipRows, transRows, whRows, accRows] = await Promise.all([
-    rawList(EXPORT_MODULE),
+  const [shipRows, transRows, whRows, accRows] = await Promise.all([
     rawList(MODULE_BY_ID["06_Shipping"]),
     rawList(MODULE_BY_ID["07_Transportation"]),
     rawList(MODULE_BY_ID["08_Warehouse"]),
@@ -445,14 +448,13 @@ async function buildEndCtx(m: ModuleDef, recs: Partial<JobRecord>[]): Promise<En
   const endMap = (rows: JobRecord[], sk: string) => {
     const map = new Map<string, boolean>();
     for (const r of rows) {
-      const j = (r.job_no || "").trim();
-      if (j) map.set(j, r[sk] === "End");
+      const c = linkOf(r, LINK_CS);
+      if (c) map.set(c, r[sk] === "End");
     }
     return map;
   };
   return {
-    hasAcc: new Set(accRows.map((r) => (r.job_no || "").trim()).filter(Boolean)),
-    hasExport: new Set(expRows.map((r) => (r.exp_job_no || "").trim()).filter(Boolean)),
+    hasAcc: new Set(accRows.map((r) => linkOf(r, LINK_CS)).filter(Boolean)),
     shipEnd: endMap(shipRows, "shipp_status"),
     transEnd: endMap(transRows, "trans_status"),
     whEnd: endMap(whRows, "wha_status"),
@@ -476,6 +478,67 @@ export async function ensureDataSheet(m: ModuleDef): Promise<void> {
 // เรียกก่อน reconcile/buildEndCtx เพื่อให้ rawList ต่อ ๆ ไปใช้ cache (ลด API จาก ~7 read เหลือ 1 batch)
 async function primeWorkModules(): Promise<void> {
   await primeReadCache(MODULES.map((m) => `${m.id}!A1:${lastCol(m)}`));
+}
+
+// ===== รหัสเชื่อม: คอลัมน์ + เติมให้แถวเก่า =====
+
+// คอลัมน์รหัสเชื่อมอยู่ท้ายสุดของชีท — ชีทเดิม (ก่อนมีรหัสเชื่อม) ยังไม่มีคอลัมน์เหล่านี้
+// → ขยายชีท + เขียนหัวตารางต่อท้ายให้เอง (ครั้งแรกของ process ครั้งเดียว)
+// หัวตารางส่วนอื่นไม่ตรงกับระบบ = ไม่เดา (เขียนต่อไปจะลงผิดคอลัมน์) → ให้รัน PANEX_MIGRATE() ก่อน
+let linkColumnsReady = false;
+async function ensureLinkColumns(): Promise<void> {
+  if (linkColumnsReady) return;
+  const targets = MODULES.filter((m) => m.fields.some((f) => f.internal));
+  const heads = await readRanges(targets.map((m) => `${m.id}!A1:${lastCol(m)}1`));
+  for (const m of targets) {
+    const have = (heads[`${m.id}!A1:${lastCol(m)}1`]?.[0] || []).map((h) => String(h ?? "").trim());
+    if (!have.length) continue; // ชีทว่าง/ยังไม่มี — เป็นหน้าที่ของ PANEX_INITIALIZE()
+    const want = recordHeaders(m);
+    if (want.every((h, i) => have[i] === h)) continue;
+    const base = want.filter((h) => !LINK_KEYS.includes(h));
+    const onlyLinksMissing =
+      base.every((h, i) => have[i] === h) &&
+      have.slice(base.length).every((h) => !h || LINK_KEYS.includes(h));
+    if (!onlyLinksMissing)
+      throw new Error(`หัวตารางของชีท ${m.id} ไม่ตรงกับระบบ — ให้ admin รัน PANEX_MIGRATE() ใน Apps Script ก่อน`);
+    await ensureColumns(m.id, want.length);
+    await writeRange(`${m.id}!A1`, [want]);
+  }
+  linkColumnsReady = true;
+}
+
+// เติมรหัสเชื่อมให้แถวที่ยังไม่มี (ข้อมูลก่อนเปลี่ยนมาใช้รหัสเชื่อม) — จับคู่ด้วย Job No. แบบเดิม
+// เขียนเฉพาะช่องรหัสเชื่อมของแถวที่ขาด · ครบแล้ว = ไม่ยิงเขียนเลย
+// ต้องรัน "ก่อน" เขียนทุกครั้ง — ถ้าเขียนก่อน (เช่นแก้ Job No.) แถวเก่าจะจับคู่ด้วยเลขเดิมไม่ได้แล้ว
+// แถวที่ระบบสร้างมีรหัสเชื่อมเสมอ → เติมครบรอบเดียวต่อ process ก็พอ (force = ปุ่ม Sync ตรวจใหม่ทั้งหมด)
+// คืนรายการที่จับคู่ได้ไม่ชัด (ให้คนตรวจ — แสดงตอนกด Sync)
+let linksBackfilled = false;
+async function ensureLinks(force = false): Promise<string[]> {
+  if (linksBackfilled && !force) return [];
+  await ensureLinkColumns();
+  await primeWorkModules();
+  const rows: Record<string, JobRecord[]> = {};
+  for (const m of MODULES) rows[m.id] = await rawList(m);
+  const { patches, notes } = resolveLegacyLinks(rows);
+  const data: { range: string; values: string[][] }[] = [];
+  for (const [id, byId] of Object.entries(patches)) {
+    if (!byId.size) continue;
+    const m = MODULE_BY_ID[id];
+    const headers = recordHeaders(m);
+    const sheet = await readRange(`${m.id}!A1:${lastCol(m)}`);
+    for (let i = 1; i < sheet.length; i++) {
+      const p = byId.get((sheet[i]?.[0] || "").trim());
+      if (!p) continue;
+      for (const [k, v] of Object.entries(p))
+        data.push({ range: `${m.id}!${colLetter(headers.indexOf(k) + 1)}${i + 1}`, values: [[String(v ?? "")]] });
+    }
+  }
+  if (data.length) {
+    await batchWriteRanges(data);
+    await primeWorkModules(); // ชีทที่เพิ่งเขียนถูกล้าง cache → ดึงใหม่รอบเดียว
+  }
+  linksBackfilled = true;
+  return notes;
 }
 
 // อ่านดิบ (ไม่ pull) — ใช้ภายในสร้าง source index
@@ -554,39 +617,25 @@ export async function getSnapshot(): Promise<Snapshot> {
 
   const rawById: Record<string, JobRecord[]> = {};
   ALL_MODULES.forEach((m) => (rawById[m.id] = parseModuleRows(m, all[`${m.id}!A1:${lastCol(m)}`])));
+  // แถวเก่าที่ยังไม่มีรหัสเชื่อม → เติมในหน่วยความจำ (หน้าเว็บใช้รหัสเชื่อมได้เสมอ; ลงชีทจริงตอนมีการบันทึก)
+  applyLegacyLinks(rawById, resolveLegacyLinks(rawById).patches);
 
   // สร้าง index ต้นทาง (CS) + ปลายทาง (downstream) จากข้อมูลในหน่วยความจำ (ไม่อ่านซ้ำ)
-  const srcIdx: SourceIndex = { imp: new Map(), exp: new Map() };
-  for (const r of rawById["04_CS_Import"] || []) {
-    const k = (r.imp_job_no || "").trim();
-    if (k) srcIdx.imp.set(k, r);
-  }
-  for (const r of rawById["05_CS_Export"] || []) {
-    const k = (r.exp_job_no || "").trim();
-    if (k) srcIdx.exp.set(k, r);
-  }
+  const srcIdx = buildSourceIndex(rawById["04_CS_Import"] || [], rawById["05_CS_Export"] || []);
   const downIdx: DownIndex = {};
-  for (const id of ["06_Shipping", "07_Transportation", "08_Warehouse"]) {
-    const map = new Map<string, JobRecord>();
-    for (const r of rawById[id] || []) {
-      const k = (r.job_no || "").trim();
-      if (k) map.set(k, r);
-    }
-    downIdx[id] = map;
-  }
+  for (const id of ["06_Shipping", "07_Transportation", "08_Warehouse"]) downIdx[id] = indexByCs(rawById[id] || []);
 
   const modules: Record<string, JobRecord[]> = {};
   for (const m of ALL_MODULES) {
     let rows = rawById[m.id] || [];
     if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
     else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
-    // Export: ช่อง Data from Import อัปเดตสด (live) จาก Import ที่อ้างถึง
-    // exp_job_no ว่าง — ใช้ Job No. ที่ฝังใน readout เดิมเป็นตัว lookup
+    // Export: ช่อง Data from Import อัปเดตสด (live) จาก Import ที่อ้างถึง (link_imp)
     if (m.id === "05_CS_Export") {
       rows = rows.map((r) => {
         if ((r.re_export || "") !== "Yes") return r;
-        const jn = impJobNoFromReadout(r.data_from_import || "");
-        const imp = jn ? srcIdx.imp.get(jn) : undefined;
+        const hit = srcIdx.byId.get(linkOf(r, LINK_IMP));
+        const imp = hit?.side === "imp" ? hit.rec : undefined;
         // Job Type ก็ sync จาก Import ด้วย (ช่องนี้ล็อกที่หน้า Export)
         return imp
           ? { ...r, job_type: (imp.job_type || "").trim(), data_from_import: composeDataFromImport(imp) }
@@ -627,6 +676,7 @@ export async function createJobs(
   reconcile = true
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
+  await ensureLinks();
   const en: (r: JobRecord) => JobRecord = enrich ? await makeEnricher(m) : (r) => r;
   const endCtx = await buildEndCtx(m, recs);
   const stamp = nowStamp();
@@ -670,6 +720,7 @@ export async function updateJobs(
   reconcile = true
 ): Promise<JobRecord[]> {
   if (!recs.length) return [];
+  await ensureLinks();
   const rows = await readRange(`${m.id}!A1:${lastCol(m)}`);
   const headers = rows[0] || recordHeaders(m);
   const rowNumById = new Map<string, number>();
@@ -768,11 +819,11 @@ const ACC_ID = "10_Accounting";
 const RECON_KEYS: Record<string, string[]> = {
   "04_CS_Import": ["re_export", "job_type", "shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "imp_job_no"],
   "05_CS_Export": ["shipping_flag", "transport_flag", "warehouse_flag", "extra_require", "extra_req_type", "exp_job_no"],
-  "06_Shipping": ["extra_require", "extra_req_type", "job_no", "ship_pic", "ship_outsourcing"],
-  "07_Transportation": ["extra_require", "extra_req_type", "job_no", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
-  "08_Warehouse": ["extra_require", "extra_req_type", "job_no", "wh_pic", "wh_supp1"],
+  "06_Shipping": ["extra_require", "extra_req_type", "link_cs", "ship_pic", "ship_outsourcing"],
+  "07_Transportation": ["extra_require", "extra_req_type", "link_cs", "trans_pic", "supp1", "supp2", "supp3", "supp1_fuel", "supp2_fuel", "supp3_fuel"],
+  "08_Warehouse": ["extra_require", "extra_req_type", "link_cs", "wh_pic", "wh_supp1"],
   "09_Extra_Service": [
-    "job_no", "module", "extra_req_type", "supplier", "root_cause",
+    "link_cs", "module", "extra_req_type", "supplier", "root_cause",
     "cost_unit", "cost_cur", "cost_qty", "cost_paid_to", "cost_input_status",
     "sell_unit", "sell_cur", "sell_qty", "sell_received_from", "sell_input_status",
   ],
@@ -845,7 +896,7 @@ function reExportSeed(r: JobRecord): Partial<JobRecord> {
 
 // ช่องที่ระบบเป็นคนใส่ให้ตอนสร้างแถว Export อัตโนมัติ (นอกเหนือจากนี้ = ผู้ใช้กรอกเอง)
 const RE_EXPORT_SEED_KEYS = new Set([
-  "ex_ops_status", "re_export", "job_type", "data_from_import", "created_at", "ended_at",
+  "ex_ops_status", "re_export", "job_type", "data_from_import", "created_at", "ended_at", LINK_IMP,
 ]);
 
 // แถว Export ที่สร้างอัตโนมัติแล้วยัง "ไม่มีใครแตะ" (ยังเป็นแถวเปล่าตามที่ระบบ seed ไว้)
@@ -857,19 +908,14 @@ function isUntouchedReExportRow(r: JobRecord): boolean {
   );
 }
 
-// Sync Export ตาม Re-Export? ของ Import (จับคู่ด้วย Import Job No. ที่ฝังใน Data from Import)
+// Sync Export ตาม Re-Export? ของ Import (จับคู่ด้วย link_imp = __id ของงาน Import)
 // - re_export=Yes → ยังไม่มีแถว = สร้างใหม่ / มีแล้ว = **แก้แถวเดิม** (ห้ามสร้างซ้ำ)
 // - re_export=No  → ลบแถว Export ที่เชื่อมกันอยู่ทิ้ง
-// prev = ค่าเดิมในชีทก่อนบันทึก: ใช้จับคู่ด้วย Job No. เดิมด้วย เผื่อผู้ใช้เพิ่งแก้ Job No.
-// (ถ้าจับด้วย Job No. ใหม่อย่างเดียวจะหาแถวเดิมไม่เจอ → กลายเป็นสร้างรายการใหม่)
-async function reconcileReExport(rec: JobRecord, prev?: JobRecord): Promise<void> {
-  const jobNo = (rec.imp_job_no || "").trim();
-  const linkKeys = new Set([jobNo, (prev?.imp_job_no || "").trim()].filter(Boolean));
-  if (!linkKeys.size) return;
+// จับคู่ด้วยรหัส จึงไม่สนว่า Job No. จะถูกแก้หรือยังไม่ได้กรอก
+async function reconcileReExport(rec: JobRecord): Promise<void> {
   const expRows = await rawList(EXPORT_MODULE);
   const matches = expRows.filter(
-    (r) =>
-      (r.re_export || "") === "Yes" && linkKeys.has(impJobNoFromReadout(r.data_from_import || ""))
+    (r) => (r.re_export || "") === "Yes" && linkOf(r, LINK_IMP) === rec.__id
   );
 
   if ((rec.re_export || "") !== "Yes") {
@@ -878,14 +924,12 @@ async function reconcileReExport(rec: JobRecord, prev?: JobRecord): Promise<void
     return;
   }
 
-  if (!jobNo) return; // ยังไม่มี Job No. → ยังผูกแถว Export ไม่ได้ (รอบันทึกรอบหน้า)
   if (!matches.length) {
-    await createJobs(EXPORT_MODULE, [reExportSeed(rec)], false, false);
+    await createJobs(EXPORT_MODULE, [{ ...reExportSeed(rec), [LINK_IMP]: rec.__id }], false, false);
     return;
   }
 
   // มีแถวอยู่แล้ว → อัปเดตแถวเดิม: Job Type + Data from Import ให้ตรงกับ Import ปัจจุบัน
-  // (การเขียน readout ใหม่ทำให้ตัวเชื่อมตามไปด้วยเมื่อ Job No. เปลี่ยน)
   const keep = matches[0];
   const jt = (rec.job_type || "").trim();
   const readout = composeDataFromImport(rec);
@@ -901,34 +945,27 @@ async function reconcileReExport(rec: JobRecord, prev?: JobRecord): Promise<void
   await deleteRows(EXPORT_MODULE, dup);
 }
 
-// Accounting real-time: ทุก job ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09
+// Accounting real-time: ทุกงาน CS ต้องมีแถวใน 10 — ไม่มี extra=1 แถว, มี extra=แถวตาม 09
 // สร้างที่ขาด + อัปเดตค่า AP/AR ที่ดึงจาก extra + ลบแถวที่ไม่มี extra คู่แล้ว
-async function reconcileAccounting(jobNo: string): Promise<void> {
-  if (!jobNo) return;
+// แต่ละแถวผูกกับที่มาด้วย link_key (base / extra:<id> / fuel:<id>:<n>) — เปลี่ยนชื่อ Type/Supplier ก็ไม่หลุด
+async function reconcileAccounting(csId: string): Promise<void> {
+  if (!csId) return;
   const ACC = MODULE_BY_ID[ACC_ID];
   const EXTRA = MODULE_BY_ID[EXTRA_ID];
-  const src = await getSourceIndex();
-  const origin = src.imp.has(jobNo)
-    ? "FREIGHT IMPORT"
-    : src.exp.has(jobNo)
-    ? "FREIGHT EXPORT"
-    : "";
-  if (!origin) return; // job ไม่มีต้นทาง CS → ไม่ต้องมี Accounting
+  const hit = (await getSourceIndex()).byId.get(csId);
+  if (!hit) return; // ไม่มีงาน CS แม่ → ไม่ต้องมี Accounting
+  const origin = csLabel(hit.side);
+  const jobNo = linkOf(hit.rec, csJobNoKey(hit.side));
 
-  const extras = (await rawList(EXTRA)).filter((e) => (e.job_no || "").trim() === jobNo);
-  // desired: key = module||req_type (แถว Fuel เติมชื่อ supplier ต่อท้าย เพราะมีได้หลายแถว)
-  interface Want { module: string; type: string; supplier: string; data: Partial<JobRecord> }
-  const keyOf = (module: string, type: string, supplier: string) =>
-    `${module}||${type}||${type === ACC_FUEL_LABEL ? supplier : ""}`;
+  const extras = (await rawList(EXTRA)).filter((e) => linkOf(e, LINK_CS) === csId);
+  interface Want { key: string; data: Partial<JobRecord> }
   const wants: Want[] = [];
   if (extras.length === 0) {
-    wants.push({ module: origin, type: "", supplier: "", data: { module: origin, acc_job_status: "Open" } });
+    wants.push({ key: ACC_BASE_KEY, data: { module: origin, acc_job_status: "Open" } });
   } else {
     for (const e of extras) {
       wants.push({
-        module: e.module || origin,
-        type: e.extra_req_type || "",
-        supplier: e.supplier || "",
+        key: accExtraKey(e.__id),
         data: {
           module: e.module || origin,
           acc_job_status: "Open",
@@ -951,7 +988,7 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
   // ช่วง Extra Root Cause → Received Ship Close Acc ใส่ N/A ทั้งหมด · ตาราง AR ไม่แสดงแถวนี้
   const transLabel = EXTRA_MODULE_LABEL["07_Transportation"];
   for (const t of await rawList(MODULE_BY_ID["07_Transportation"])) {
-    if ((t.job_no || "").trim() !== jobNo) continue;
+    if (linkOf(t, LINK_CS) !== csId) continue;
     for (const n of [1, 2, 3]) {
       const fuel = (t[`supp${n}_fuel`] || "").toString().trim();
       if (!fuel) continue;
@@ -965,50 +1002,54 @@ async function reconcileAccounting(jobNo: string): Promise<void> {
         ap_fuel_rate: fuel,
       };
       for (const k of ACC_FUEL_NA_KEYS) data[k] = ACC_FUEL_NA;
-      wants.push({ module: transLabel, type: ACC_FUEL_LABEL, supplier: name, data });
+      wants.push({ key: accFuelKey(t.__id, n), data });
     }
   }
-  const wantKeys = new Set(wants.map((w) => keyOf(w.module, w.type, w.supplier)));
+  const wantKeys = new Set(wants.map((w) => w.key));
 
-  const existing = (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo);
-  const rowKey = (r: JobRecord) =>
-    keyOf(r.module || "", r.ap_extra_req_type || "", r.supplier || "");
+  const existing = (await rawList(ACC)).filter((r) => linkOf(r, LINK_CS) === csId);
   const byKey = new Map<string, JobRecord>();
-  for (const r of existing) byKey.set(rowKey(r), r);
+  for (const r of existing) byKey.set(linkOf(r, LINK_KEY), r);
 
   const toCreate: Partial<JobRecord>[] = [];
   const toUpdate: Partial<JobRecord>[] = [];
   for (const w of wants) {
-    const cur = byKey.get(keyOf(w.module, w.type, w.supplier));
+    const cur = byKey.get(w.key);
     if (cur) toUpdate.push({ __id: cur.__id, ...w.data }); // refresh ค่าที่ดึงจาก extra (คงค่าที่กรอกเอง)
-    else toCreate.push({ job_no: jobNo, ...w.data });
+    else toCreate.push({ job_no: jobNo, [LINK_CS]: csId, [LINK_KEY]: w.key, ...w.data });
   }
-  // ลบแถว Accounting ที่ไม่มี extra/base/fuel คู่แล้ว (batch)
-  await deleteRows(ACC, existing.filter((r) => !wantKeys.has(rowKey(r))).map((r) => r.__id!));
+  // ลบแถว Accounting ที่ไม่มี extra/base/fuel คู่แล้ว + แถวซ้ำ key เดียวกัน (batch)
+  await deleteRows(
+    ACC,
+    existing
+      .filter((r) => !wantKeys.has(linkOf(r, LINK_KEY)) || byKey.get(linkOf(r, LINK_KEY)) !== r)
+      .map((r) => r.__id!)
+  );
   if (toCreate.length) await createJobs(ACC, toCreate, true, false);
   if (toUpdate.length) await updateJobs(ACC, toUpdate, false);
 }
 
-// โมดูลปลายทางที่ผูกกับงาน CS ด้วยช่อง job_no (ต้องย้ายตามเมื่อ Job No. ที่ CS เปลี่ยน)
+// โมดูลปลายทางที่ผูกกับงาน CS ด้วย link_cs
 const LINKED_JOB_MODULE_IDS = [...MID_MODULE_IDS, EXTRA_ID, ACC_ID];
 
-// Job No. ที่ CS ถูกแก้ → ย้ายแถวปลายทางทั้งหมดมาใช้เลขใหม่ (แก้ของเดิม ไม่สร้างชุดใหม่)
-// ถ้าไม่ทำ: แถวเดิมยังค้างเลขเก่า = กำพร้า แล้ว reconcile จะสร้าง Shipping/Transport/Warehouse/
-// Extra/Accounting ชุดใหม่ให้เลขใหม่ทั้งหมด (ข้อมูลที่กรอกไว้หลุดหาย)
-async function relinkJobNo(oldJn: string, newJn: string): Promise<void> {
-  if (!oldJn || !newJn || oldJn === newJn) return;
+// Job No. ที่ CS ถูกแก้ → อัปเดตสำเนา Job No. ในแถวลูกให้ตรง (ตัวเชื่อมจริงคือรหัส ไม่ได้เปลี่ยน —
+// แค่ให้ค่าที่เก็บในชีทตรงกับหน้าเว็บ ซึ่งดึงสดจาก CS อยู่แล้ว)
+async function syncJobNoCopies(csId: string, jobNo: string): Promise<void> {
   for (const id of LINKED_JOB_MODULE_IDS) {
     const tm = MODULE_BY_ID[id];
-    const rows = (await rawList(tm)).filter((r) => (r.job_no || "").trim() === oldJn);
+    const rows = (await rawList(tm)).filter(
+      (r) => linkOf(r, LINK_CS) === csId && linkOf(r, "job_no") !== jobNo
+    );
     if (rows.length)
-      await updateJobs(tm, rows.map((r) => ({ __id: r.__id, job_no: newJn })), false);
+      await updateJobs(tm, rows.map((r) => ({ __id: r.__id, job_no: jobNo })), false);
   }
 }
 
 // ปรับ record ปลายทางให้ตรงกับ flag/req type บนต้นทาง (เรียกหลัง create/update)
-// - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/Job No.)
+// - CS Import/Export: shipping/transport/warehouse_flag → สร้าง/ลบ record ใน 06/07/08 (1 แถว/งาน)
 // - ทุกต้นทาง (04–08): extra_require + req type → สร้าง/ลบแถวใน 09 (ป้าย Module ตามต้นทาง)
-// prevById = ค่าเดิมของแต่ละแถวก่อนบันทึก (มีเฉพาะเส้น update) — ใช้ตามหาแถวปลายทางที่ผูกกับค่าเดิม
+// จับคู่ทุกอย่างด้วยรหัสเชื่อม — ยังไม่กรอก Job No. ก็สร้างแถวปลายทางได้เลย
+// prevById = ค่าเดิมของแต่ละแถวก่อนบันทึก (มีเฉพาะเส้น update) — ใช้ดูว่า Job No. เปลี่ยนไหม
 async function reconcileLinks(
   m: ModuleDef,
   saved: JobRecord[],
@@ -1021,7 +1062,7 @@ async function reconcileLinks(
 
   // Extra (09) ถูกแก้ (Cost/Sell ลงค่า, Input Status) → คิด Extra Status ใหม่ + refresh Accounting
   if (m.id === EXTRA_ID) {
-    const jobs = new Set(saved.map((r) => (r.job_no || "").trim()).filter(Boolean));
+    const jobs = new Set(saved.map((r) => linkOf(r, LINK_CS)).filter(Boolean));
     for (const j of jobs) {
       await syncExtraStatus(j);
       await reconcileAccounting(j);
@@ -1030,44 +1071,45 @@ async function reconcileLinks(
   }
   if (!isCS && !isMid) return;
 
-  // ----- 0a) Job No. ที่ CS เปลี่ยน → ย้ายแถวปลายทางเดิมมาใช้เลขใหม่ก่อนทำอย่างอื่น -----
+  // __id ของงาน CS แม่ของแต่ละแถวที่บันทึก
+  const csIdOf = (rec: JobRecord) => (isCS ? rec.__id : linkOf(rec, LINK_CS));
+  const jobNoOf = (rec: JobRecord) => linkOf(rec, isCS ? m.jobNoKey : "job_no");
+
+  // ----- 0a) Job No. ที่ CS เปลี่ยน → อัปเดตสำเนา Job No. ในแถวลูก -----
   if (isCS && prevById) {
     for (const rec of saved) {
       const prev = prevById.get(rec.__id || "");
-      if (!prev) continue;
-      await relinkJobNo((prev[m.jobNoKey] || "").trim(), (rec[m.jobNoKey] || "").trim());
+      if (prev && linkOf(prev, m.jobNoKey) !== jobNoOf(rec)) await syncJobNoCopies(rec.__id, jobNoOf(rec));
     }
   }
 
-  // เก็บ Job No. ที่แตะ เพื่อ refresh Accounting ทีเดียวตอนท้าย
+  // เก็บงาน CS ที่แตะ เพื่อ refresh Accounting ทีเดียวตอนท้าย
   const touched = new Set<string>();
   for (const rec of saved) {
-    const jn = (rec[m.jobNoKey] || "").trim();
-    if (jn) touched.add(jn);
+    const cs = csIdOf(rec);
+    if (cs) touched.add(cs);
   }
 
   // ----- 0) Re-Export (เฉพาะ CS Import): re_export=Yes → สร้าง Export -----
   if (m.id === "04_CS_Import") {
-    for (const rec of saved) await reconcileReExport(rec, prevById?.get(rec.__id || ""));
+    for (const rec of saved) await reconcileReExport(rec);
   }
 
   // ----- 1) CS: สร้าง/ลบ record เดี่ยวใน Shipping/Transport/Warehouse ตาม flag -----
   if (isCS) {
     for (const link of CS_FLAG_LINKS) {
       const targetM = MODULE_BY_ID[link.id];
-      const byJob = new Map<string, JobRecord[]>();
+      const byCs = new Map<string, JobRecord[]>();
       for (const r of await rawList(targetM)) {
-        const j = (r.job_no || "").trim();
-        if (j) pushMap(byJob, j, r);
+        const c = linkOf(r, LINK_CS);
+        if (c) pushMap(byCs, c, r);
       }
       const toCreate: Partial<JobRecord>[] = [];
       for (const rec of saved) {
-        const jobNo = (rec[m.jobNoKey] || "").trim();
-        if (!jobNo) continue;
-        const existing = byJob.get(jobNo) || [];
+        const existing = byCs.get(rec.__id) || [];
         if ((rec[link.flag] || "") === "Yes") {
           if (existing.length === 0)
-            toCreate.push({ job_no: jobNo, [targetM.fields[0].key]: "Open" });
+            toCreate.push({ job_no: jobNoOf(rec), [LINK_CS]: rec.__id, [targetM.fields[0].key]: "Open" });
         } else {
           // flag→No: ลบ record ปลายทาง + cascade ลบ Extra ของโมดูลนั้นด้วย
           for (const e of existing) await deleteJob(targetM, e.__id!);
@@ -1081,25 +1123,24 @@ async function reconcileLinks(
   const label = EXTRA_MODULE_LABEL[m.id];
   if (label) {
     const EXTRA = MODULE_BY_ID[EXTRA_ID];
-    const mineByJob = new Map<string, JobRecord[]>();
+    const bySrc = new Map<string, JobRecord[]>();
     for (const r of await rawList(EXTRA)) {
-      if ((r.module || "") !== label) continue;
-      const j = (r.job_no || "").trim();
-      if (j) pushMap(mineByJob, j, r);
+      const src = linkOf(r, LINK_SRC);
+      if (src) pushMap(bySrc, src, r);
     }
     const toCreate: Partial<JobRecord>[] = [];
     const toUpdate: Partial<JobRecord>[] = [];
     const toDelete: string[] = [];
     for (const rec of saved) {
-      const jobNo = (rec[m.jobNoKey] || "").trim();
-      if (!jobNo) continue;
+      const csId = csIdOf(rec);
+      if (!csId) continue; // แถวปลายทางที่ไม่มีงาน CS แม่ (กำพร้า) — ไม่สร้าง Extra ให้
       const meta = extraMetaFromSource(m, rec);
       const want =
         (rec.extra_require || "") === "Yes"
           ? new Set(splitTypes(rec.extra_req_type || ""))
           : new Set<string>();
       const have = new Set<string>();
-      for (const e of mineByJob.get(jobNo) || []) {
+      for (const e of bySrc.get(rec.__id) || []) {
         const t = e.extra_req_type || "";
         if (want.has(t) && !have.has(t)) {
           have.add(t); // เก็บอันที่ยังต้องการ (กันซ้ำ)
@@ -1110,7 +1151,8 @@ async function reconcileLinks(
       }
       for (const t of want) if (!have.has(t))
         toCreate.push({
-          job_no: jobNo, module: label, extra_req_type: t, extra_status: INPUT_STATUS_PENDING,
+          job_no: jobNoOf(rec), [LINK_CS]: csId, [LINK_SRC]: rec.__id,
+          module: label, extra_req_type: t, extra_status: INPUT_STATUS_PENDING,
           supplier: meta.supplier, cost_pic: meta.cost_pic,
         });
     }
@@ -1120,72 +1162,75 @@ async function reconcileLinks(
   }
 
   // ----- 3) Accounting: ทุก job ต้องมีแถว (real-time) -----
-  for (const jn of touched) await reconcileAccounting(jn);
+  for (const cs of touched) await reconcileAccounting(cs);
 }
 
-// cascade ลบปลายทางเมื่อลบงานต้นทาง (4 โมดูลนี้ผูกกับ CS ไม่มีชีวิตอิสระ)
+// cascade ลบปลายทางเมื่อลบงานต้นทาง (ผูกกับงาน CS ด้วยรหัสเชื่อม ไม่มีชีวิตอิสระ)
 async function cascadeDelete(m: ModuleDef, rec: JobRecord): Promise<void> {
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = MID_MODULE_IDS.includes(m.id);
   if (!isCS && !isMid) return;
-  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
-  if (!jobNo) return;
+  await ensureLinks(); // แถวเก่าต้องมีรหัสเชื่อมก่อน ไม่งั้นลบตามไม่ครบ
+  await primeWorkModules();
 
   const EXTRA = MODULE_BY_ID[EXTRA_ID];
-  const ACC = MODULE_BY_ID[ACC_ID];
 
   if (isCS) {
-    // ลบ record ใน 06/07/08 (จะ cascade ต่อไปลบ Extra ป้ายของแต่ละโมดูลเอง)
-    for (const id of MID_MODULE_IDS) {
+    // ลบ record ใน 06/07/08 + Extra + Accounting ทั้งหมดของงานนี้ (batch ต่อชีท)
+    for (const id of LINKED_JOB_MODULE_IDS) {
       const tm = MODULE_BY_ID[id];
-      for (const r of await rawList(tm))
-        if ((r.job_no || "").trim() === jobNo) await deleteJob(tm, r.__id!);
+      await deleteRows(
+        tm,
+        (await rawList(tm)).filter((r) => linkOf(r, LINK_CS) === rec.__id).map((r) => r.__id!)
+      );
     }
-    // ลบ Extra + Accounting ทั้งหมดของ job นี้ (batch ต่อชีท)
-    await deleteRows(
-      EXTRA,
-      (await rawList(EXTRA)).filter((r) => (r.job_no || "").trim() === jobNo).map((r) => r.__id!)
-    );
-    await deleteRows(
-      ACC,
-      (await rawList(ACC)).filter((r) => (r.job_no || "").trim() === jobNo).map((r) => r.__id!)
-    );
-    // ลบงาน Export ที่เกิดจาก Re-Export? ของ Import ใบนี้ (ตัวเชื่อม = Job No. ที่ฝังใน Data from Import)
-    // ใช้ deleteJob เพื่อให้ cascade ต่อไปถึงลูกของแถว Export นั้นด้วย (ถ้ามีการกรอก Job No. แล้ว)
+    // ลบงาน Export ที่เกิดจาก Re-Export? ของ Import ใบนี้
+    // ใช้ deleteJob เพื่อให้ cascade ต่อไปถึงลูกของแถว Export นั้นด้วย
     if (m.id === "04_CS_Import") {
       for (const r of await rawList(EXPORT_MODULE))
-        if ((r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo)
+        if ((r.re_export || "") === "Yes" && linkOf(r, LINK_IMP) === rec.__id)
           await deleteJob(EXPORT_MODULE, r.__id!);
     }
     return;
   }
 
-  // isMid: ลบ Extra ป้ายของโมดูลนี้ แล้ว refresh Accounting ให้ตรง (batch)
-  const label = EXTRA_MODULE_LABEL[m.id];
+  // isMid: ลบ Extra ที่แถวนี้สร้างไว้ แล้ว refresh Accounting ให้ตรง (batch)
   await deleteRows(
     EXTRA,
-    (await rawList(EXTRA))
-      .filter((r) => (r.job_no || "").trim() === jobNo && (r.module || "") === label)
-      .map((r) => r.__id!)
+    (await rawList(EXTRA)).filter((r) => linkOf(r, LINK_SRC) === rec.__id).map((r) => r.__id!)
   );
-  await reconcileAccounting(jobNo);
+  await reconcileAccounting(linkOf(rec, LINK_CS));
 }
 
-// เก็บกวาดแถว "กำพร้า" ในโมดูลต่อยอด (06/07/08/09/10) = แถวที่ Job No. ไม่ผูกกับงาน CS ไหนแล้ว
-// (เกิดได้จากลบงาน CS ตอนระบบยังไม่ cascade / แก้ Job No. สมัยก่อน / กรอกมือในชีทโดยตรง)
+// เก็บกวาดแถว "กำพร้า" ในโมดูลต่อยอด (06/07/08/09/10) = แถวที่งาน CS แม่ไม่มีอยู่แล้ว
+// (เกิดได้จากลบงาน CS ตอนระบบยังไม่ cascade / กรอกมือในชีทโดยตรง)
+// + แถว Extra ที่แถวต้นทาง (06/07/08) ถูกลบไปแล้ว
 // **ไม่แตะ 04_CS_Import / 05_CS_Export เด็ดขาด** — สองตัวนี้เป็นต้นทาง ไม่ใช่ของต่อยอด
 async function purgeOrphans(): Promise<{ total: number; detail: string[] }> {
   const src = await getSourceIndex();
   const detail: string[] = [];
   let total = 0;
   // กันเคสอ่านต้นทางแล้วไม่เจองานเลย (ชีท CS ว่าง/ยังไม่ได้ตั้งค่า) — ไม่ลบอะไรทั้งนั้น
-  if (src.imp.size === 0 && src.exp.size === 0) return { total: -1, detail };
+  if (src.byId.size === 0) return { total: -1, detail };
+  // Job No. ของงาน CS ที่มีอยู่ — แถวที่ยังไม่มีรหัสเชื่อมแต่ Job No. ยังมีอยู่ = ไม่ลบ (ให้คนตรวจ)
+  const csJobNos = new Set<string>();
+  for (const { side, rec } of Array.from(src.byId.values())) {
+    const j = linkOf(rec, csJobNoKey(side));
+    if (j) csJobNos.add(j);
+  }
+  // __id ที่เป็นต้นทางของ Extra ได้ (งาน CS + แถว 06/07/08)
+  const srcIds = new Set<string>(Array.from(src.byId.keys()));
+  for (const id of MID_MODULE_IDS) for (const r of await rawList(MODULE_BY_ID[id])) srcIds.add(r.__id);
+
   for (const id of LINKED_JOB_MODULE_IDS) {
     const tm = MODULE_BY_ID[id];
     const dead = (await rawList(tm))
       .filter((r) => {
-        const j = (r.job_no || "").trim();
-        return !j || (!src.imp.has(j) && !src.exp.has(j)); // ไม่มี Job No. หรือหางาน CS ไม่เจอ
+        const cs = linkOf(r, LINK_CS);
+        if (!cs) return !csJobNos.has(linkOf(r, "job_no")); // ไม่มีรหัสเชื่อม + หางาน CS ไม่เจอ
+        if (!src.byId.has(cs)) return true; // งาน CS แม่ถูกลบไปแล้ว
+        const s = linkOf(r, LINK_SRC);
+        return id === EXTRA_ID && !!s && !srcIds.has(s); // Extra ที่แถวต้นทางหายไปแล้ว
       })
       .map((r) => r.__id!);
     if (dead.length) {
@@ -1197,9 +1242,15 @@ async function purgeOrphans(): Promise<{ total: number; detail: string[] }> {
   return { total, detail };
 }
 
-// Sync / Backfill: reconcile ทุกงานต้นทางใหม่ + ลบแถวต่อยอดที่ไม่มีงาน CS ผูกอยู่
+// Sync / Backfill: เติมรหัสเชื่อมให้แถวเก่า + reconcile ทุกงานต้นทางใหม่ + ลบแถวต่อยอดที่ไม่มีงาน CS ผูกอยู่
 // ปกติ reconcile ทำ real-time ตอนบันทึกอยู่แล้ว — ปุ่มนี้ไว้ซ่อม/เติมย้อนหลังกรณีข้อมูลหลุด sync
 export async function syncAll(): Promise<{ message: string; reconciled: number; purged: number }> {
+  const legacy = await ensureLinks(true);
+  const dup = duplicateJobNoNotes(
+    await rawList(IMPORT_MODULE),
+    await rawList(EXPORT_MODULE)
+  );
+  const notes = [...dup, ...legacy];
   let n = 0;
   for (const id of ["04_CS_Import", "05_CS_Export", "06_Shipping", "07_Transportation", "08_Warehouse"]) {
     const m = MODULE_BY_ID[id];
@@ -1216,8 +1267,11 @@ export async function syncAll(): Promise<{ message: string; reconciled: number; 
       : purge.total
       ? ` · ลบรายการที่ไม่มี CS ผูกอยู่ ${purge.total} แถว (${purge.detail.join(", ")})`
       : " · ไม่พบรายการกำพร้า";
+  const notesMsg = notes.length
+    ? ` · ⚠️ ควรตรวจ ${notes.length} รายการ: ${notes.slice(0, 10).join(" / ")}${notes.length > 10 ? " / …" : ""}`
+    : "";
   return {
-    message: `Sync/Backfill เสร็จ — reconcile ${n} งานต้นทาง (Re-Export/Shipping/Transport/Warehouse/Extra/Accounting)${purgeMsg}`,
+    message: `Sync/Backfill เสร็จ — reconcile ${n} งานต้นทาง (Re-Export/Shipping/Transport/Warehouse/Extra/Accounting)${purgeMsg}${notesMsg}`,
     reconciled: n,
     purged: Math.max(0, purge.total),
   };

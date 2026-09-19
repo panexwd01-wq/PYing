@@ -6,7 +6,7 @@ export const SHIPPING_FIELDS: Field[] = [
   { key: "shipp_status", label: "SHIPP Status", group: "Job Info", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "แก้หลัง End ต้องติดต่อ Supervisor" },
   { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
   { key: "entry_pic", label: "Entry PIC", group: "Job Info", type: "dropdown", list: "entry_pic", mandatory: true, width: 120 },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "imp_job_no", exp: "exp_job_no" }, help: "ดึงจากงาน CS แม่ (แก้ที่ CS เท่านั้น)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "hbl", label: "HBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 140, pull: { imp: "imp_hbl", exp: "exp_hbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },

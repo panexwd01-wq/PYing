@@ -13,11 +13,11 @@ import { CenterLoading } from "@/components/Spinner";
 import { CollapseSettings } from "@/components/CollapseSettings";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
-import { MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
+import { LINK_CS, LINK_IMP, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
-import { checkReExport, impJobNoFromReadout } from "@/lib/reExport";
+import { checkReExport } from "@/lib/reExport";
 import { deleteImpact } from "@/lib/stats";
 import { CS_DRIVEN_KEYS } from "@/lib/xlsxSchema";
 import { XlsxIO } from "@/components/XlsxIO";
@@ -388,20 +388,16 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
   // Export ที่มาจาก Re-Export = ถูกคุมด้วย CS Import (ซ่อนปุ่มลบ)
   // ยกเว้นแถวกำพร้า — งาน Import ที่อ้างถึงไม่มีอยู่แล้ว (เช่นแถวซ้ำที่ค้างจากของเดิม) → ให้ลบเองได้
-  const impJobNos = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of data?.modules?.["cs-import"] || []) {
-      const j = (r.imp_job_no || "").trim();
-      if (j) s.add(j);
-    }
-    return s;
-  }, [data]);
+  const impIds = useMemo(
+    () => new Set((data?.modules?.["cs-import"] || []).map((r) => r.__id)),
+    [data]
+  );
   const hideDeleteFor = moduleKey === "cs-export"
     ? (r: JobRecord) => {
         if ((r.re_export || "") !== "Yes") return false;
-        if (!impJobNos.size) return true; // ยังไม่มีข้อมูล Import ในมือ = ไม่เดา
-        const jn = impJobNoFromReadout(r.data_from_import || "");
-        return !jn || impJobNos.has(jn);
+        if (!impIds.size) return true; // ยังไม่มีข้อมูล Import ในมือ = ไม่เดา
+        const imp = (r[LINK_IMP] || "").trim();
+        return !imp || impIds.has(imp);
       }
     : undefined;
 
@@ -507,6 +503,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         <div style={{ marginTop: 12 }}>
           {collapsed && grouped ? (
             <GroupedGrid
+              groupKey={LINK_CS}
               displayFields={groupedDisplayFields}
               rows={filtered}
               windowKey={windowKey}

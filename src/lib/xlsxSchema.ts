@@ -6,8 +6,9 @@ import { Field } from "./fields";
 
 // คอลัมน์ที่เขียนลงไฟล์ = ทุกช่องของโมดูล รวมช่อง auto (ไว้อ่านประกอบ) และช่อง hidden
 // (ช่อง hidden = ตาราง Sell/Job Cost ของ 09 ซึ่งเป็นตัวเงินจริง ต้องมีในไฟล์)
+// ยกเว้นรหัสเชื่อม (internal) — ของระบบล้วน ไม่ออกไฟล์
 export function exportFields(m: ModuleDef): Field[] {
-  return m.fields;
+  return m.fields.filter((f) => !f.internal);
 }
 
 // ชื่อหัวคอลัมน์ในไฟล์ — ต้องไม่ซ้ำกัน ไม่งั้นตอน import จะจับคู่ผิดช่อง

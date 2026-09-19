@@ -7,7 +7,7 @@ export const WAREHOUSE_FIELDS: Field[] = [
   { key: "job_type", label: "Job Type", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "job_type", exp: "job_type" } },
   { key: "wh_pic", label: "WH PIC", group: "Job Info", type: "dropdown", list: "wh_pic", mandatory: true, summary: true, width: 120 },
   { key: "cs_pic", label: "CS (IMP/EXP)", group: "Job Info", type: "auto", width: 110, pull: { imp: "im_cs", exp: "ex_cs" } },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Info", type: "auto", sticky: true, summary: true, width: 130, pull: { imp: "imp_job_no", exp: "exp_job_no" }, help: "ดึงจากงาน CS แม่ (แก้ที่ CS เท่านั้น)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "customer_ref", label: "Customer Ref / No. (IMP/EXP)", group: "Job Info", type: "auto", width: 150, pull: { imp: "imp_customer_ref", exp: "exp_customer_ref" } },

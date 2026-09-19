@@ -7,6 +7,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { RequireTab } from "@/components/RequireTab";
 import { JobRecord } from "@/lib/types";
+import { LINK_CS } from "@/lib/fields";
 
 const num = (v: unknown) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
@@ -40,15 +41,11 @@ function ShipDailyView() {
   const [jobType, setJobType] = useState("");
   const [place, setPlace] = useState(lists.place?.[0] || "LCB");
 
-  // ดึงข้อมูล CS (จำนวนตู้ 20GP/40HQ) ตาม Job No.
-  const csByJob = useMemo(() => {
+  // ดึงข้อมูล CS (จำนวนตู้ 20GP/40HQ) ตามรหัสเชื่อม (__id ของงาน CS)
+  const csById = useMemo(() => {
     const m = new Map<string, Record<string, string>>();
-    for (const key of ["cs-import", "cs-export"]) {
-      for (const r of data?.modules[key] || []) {
-        const j = (r.imp_job_no || r.exp_job_no || "").trim();
-        if (j) m.set(j, r);
-      }
-    }
+    for (const key of ["cs-import", "cs-export"])
+      for (const r of data?.modules[key] || []) m.set(r.__id, r);
     return m;
   }, [data]);
 
@@ -56,7 +53,7 @@ function ShipDailyView() {
   const transConts = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of data?.modules["transport"] || []) {
-      const j = (r.job_no || "").trim();
+      const j = (r[LINK_CS] || "").trim();
       if (!j) continue;
       m.set(j, [r.supp1, r.supp2, r.supp3].filter((x) => (x || "").trim()).length);
     }
@@ -72,8 +69,8 @@ function ShipDailyView() {
     });
   }, [data, date, jobType]);
 
-  const contQty = (job: string) => {
-    const cs = csByJob.get(job);
+  const contQty = (csId: string) => {
+    const cs = csById.get(csId);
     return cs ? num(cs.cnt_20gp) + num(cs.cnt_40hq) : 0;
   };
 
@@ -82,10 +79,10 @@ function ShipDailyView() {
       { key: "booking_mbl", label: "Booking / MBL", value: (r) => r.booking_mbl || "—" },
       { key: "customer", label: "Customer", value: (r) => r.customer || "—" },
       { key: "customer_ref", label: "Cust Ref", value: (r) => r.customer_ref || "—" },
-      { key: "conts", label: "20GP/40HC ตู้", center: true, value: (r) => String(contQty((r.job_no || "").trim()) || "") },
+      { key: "conts", label: "20GP/40HC ตู้", center: true, value: (r) => String(contQty((r[LINK_CS] || "").trim()) || "") },
       { key: "delivery_date", label: "Delivery Date", value: (r) => r.delivery_date || "—" },
       { key: "ship_pic", label: "Ship PIC", value: (r) => r.ship_pic || "—" },
-      { key: "trans_conts", label: "Trans Conts", center: true, value: (r) => String(transConts.get((r.job_no || "").trim()) ?? "") },
+      { key: "trans_conts", label: "Trans Conts", center: true, value: (r) => String(transConts.get((r[LINK_CS] || "").trim()) ?? "") },
       { key: "cs_note_ship", label: "Cs Note", wide: true, value: (r) => r.cs_note_ship || "" },
       { key: "entry_remark", label: "Entry Remark", wide: true, value: (r) => r.entry_remark || "" },
       { key: "extra_req_type", label: "Extra / Service Req", wide: true, value: (r) => r.extra_req_type || "" },
@@ -97,7 +94,7 @@ function ShipDailyView() {
       { key: "ot_lost", label: "OT Receipt Lost", chk: true, center: true, value: () => BOX },
       { key: "reason", label: "Reason / Pending Remark", wide: true, value: () => "" },
     ],
-    [csByJob, transConts] // eslint-disable-line react-hooks/exhaustive-deps
+    [csById, transConts] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;

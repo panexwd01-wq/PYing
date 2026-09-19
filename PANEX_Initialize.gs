@@ -18,6 +18,10 @@
  *    → มีข้อมูลอยู่แล้ว ให้รัน **PANEX_MIGRATE()** (ย้ายตามชื่อหัวคอลัมน์ + สำรองชีทเป็น BAK_)
  *      แทนการเคลียร์ชีท จากนั้นค่อยรัน PANEX_INITIALIZE() ตามปกติ
  *
+ * ⚠️ เวอร์ชันนี้เพิ่มคอลัมน์รหัสเชื่อม (link_cs / link_src / link_key / link_imp) ต่อท้ายชีท 05–10
+ *    ใช้เชื่อมแถวข้ามโมดูลแทน Job No. — ฝั่งเว็บขยายชีท + เติมหัวคอลัมน์ให้เองตอนบันทึกครั้งแรก
+ *    (รัน PANEX_MIGRATE() ก็ได้ผลเหมือนกัน) แล้วให้ admin กด Sync หนึ่งครั้งเพื่อเติมรหัสให้ข้อมูลเดิม
+ *
  * หมายเหตุ: ฝั่งเว็บไม่มีปุ่ม Initialize แล้ว — การตั้งค่าชีททั้งหมดทำที่ไฟล์นี้เท่านั้น
  */
 
@@ -229,7 +233,8 @@ var PANEX_HEADERS = {
     "ex_ops_status_date",
     "data_from_import",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_imp"
   ],
   "06_Shipping": [
     "__id",
@@ -275,7 +280,8 @@ var PANEX_HEADERS = {
     "ship_close_acc_date",
     "shipp_status_date",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_cs"
   ],
   "07_Transportation": [
     "__id",
@@ -332,7 +338,8 @@ var PANEX_HEADERS = {
     "actual_delivery_date",
     "trans_status_date",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_cs"
   ],
   "08_Warehouse": [
     "__id",
@@ -361,7 +368,8 @@ var PANEX_HEADERS = {
     "actual_finished_date",
     "wha_status_date",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_cs"
   ],
   "09_Extra_Service": [
     "__id",
@@ -406,7 +414,9 @@ var PANEX_HEADERS = {
     "ready_acc",
     "extra_status_date",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_cs",
+    "link_src"
   ],
   "10_Accounting": [
     "__id",
@@ -451,7 +461,9 @@ var PANEX_HEADERS = {
     "ap_status",
     "acc_job_status_date",
     "created_at",
-    "ended_at"
+    "ended_at",
+    "link_cs",
+    "link_key"
   ],
   "13_Cost_Rates": [
     "__id",

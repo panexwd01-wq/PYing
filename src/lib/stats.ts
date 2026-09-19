@@ -1,7 +1,6 @@
 // ฟังก์ชันสรุปผล (pure) ทำงานบน Snapshot ในหน่วยความจำฝั่ง client — ไม่ยิง server
 import { MODULES, MODULE_BY_KEY } from "./schema";
-import { EXTRA_MODULE_LABEL } from "./modules/extra";
-import { impJobNoFromReadout } from "./reExport";
+import { LINK_CS, LINK_IMP, LINK_SRC } from "./fields";
 import { Snapshot } from "./types";
 
 const num = (v: unknown) => {
@@ -665,19 +664,20 @@ export interface ActionRow {
   remark: string;
 }
 export function actionRows(snap: Snapshot): ActionRow[] {
-  const byJob = (key: string, jobKey: string) => {
+  // แถวปลายทางของแต่ละงาน CS (จับคู่ด้วยรหัสเชื่อม link_cs = __id ของงาน CS)
+  const byCs = (key: string) => {
     const m = new Map<string, Record<string, string>>();
     for (const r of rowsOf(snap, key)) {
-      const k = (r[jobKey] || "").trim();
+      const k = (r[LINK_CS] || "").trim();
       if (k) m.set(k, r);
     }
     return m;
   };
-  const ship = byJob("shipping", "job_no");
-  const trans = byJob("transport", "job_no");
-  const wh = byJob("warehouse", "job_no");
-  const extra = byJob("extra", "job_no");
-  const acc = byJob("accounting", "job_no");
+  const ship = byCs("shipping");
+  const trans = byCs("transport");
+  const wh = byCs("warehouse");
+  const extra = byCs("extra");
+  const acc = byCs("accounting");
   const down: Record<string, Map<string, Record<string, string>>> = {
     shipping: ship, transport: trans, warehouse: wh, extra, accounting: acc,
   };
@@ -696,7 +696,7 @@ export function actionRows(snap: Snapshot): ActionRow[] {
       let cPic = "";
       for (const step of SEQ) {
         if (step.flag && (r[step.flag] || "") !== "Yes") continue; // ไม่ใช้บริการนี้
-        const rec = down[step.key].get(jobNo);
+        const rec = down[step.key].get(r.__id);
         const st = rec ? rec[step.sk] || "" : "";
         if (st !== "End") {
           current = step.label;
@@ -748,28 +748,28 @@ export function deleteImpact(snap: Snapshot, moduleKey: string, rec: Record<stri
   if (!m) return [];
   const isCS = m.id === "04_CS_Import" || m.id === "05_CS_Export";
   const isMid = ["06_Shipping", "07_Transportation", "08_Warehouse"].includes(m.id);
-  const jobNo = ((isCS ? rec[m.jobNoKey] : rec.job_no) || "").trim();
-  if (!jobNo || (!isCS && !isMid)) return [];
+  const id = (rec.__id || "").trim();
+  if (!id || (!isCS && !isMid)) return [];
 
-  const byJob = (r: Record<string, string>) => (r.job_no || "").trim() === jobNo;
+  // ลูกของงานนี้ = แถวที่รหัสเชื่อมชี้มาที่ __id ของแถวที่กำลังจะลบ
+  const byCs = (r: Record<string, string>) => (r[LINK_CS] || "").trim() === id;
   const count = (key: string, fn: (r: Record<string, string>) => boolean) => rowsOf(snap, key).filter(fn).length;
   const out: string[] = [];
 
   if (isMid) {
-    const label = EXTRA_MODULE_LABEL[m.id];
-    const ex = count("extra", (r) => byJob(r) && (r.module || "") === label);
+    const ex = count("extra", (r) => (r[LINK_SRC] || "").trim() === id);
     if (ex) out.push(`Extra ของโมดูลนี้ ${ex} รายการ`);
     return out;
   }
 
   for (const [key, label] of [["shipping", "Shipping"], ["transport", "Transport"], ["warehouse", "Warehouse"], ["extra", "Extra"], ["accounting", "Accounting"]]) {
-    const n = count(key, byJob);
+    const n = count(key, byCs);
     if (n) out.push(`${label} ${n} รายการ`);
   }
   if (m.id === "04_CS_Import") {
     const n = count(
       "cs-export",
-      (r) => (r.re_export || "") === "Yes" && impJobNoFromReadout(r.data_from_import || "") === jobNo
+      (r) => (r.re_export || "") === "Yes" && (r[LINK_IMP] || "").trim() === id
     );
     if (n) out.push(`งาน Export ที่สร้างจาก Re-Export? ${n} รายการ`);
   }

@@ -361,3 +361,23 @@ export async function ensureSheet(title: string) {
   if (gMeta && !gMeta.list.some((s) => s.properties?.title === title))
     gMeta.list.push({ properties: { title } });
 }
+
+// ขยายจำนวนคอลัมน์ของ tab ให้มีอย่างน้อย n คอลัมน์ (ชีทจาก Apps Script มีคอลัมน์พอดีหัวตาราง
+// เพิ่มคอลัมน์ใหม่ต่อท้ายแล้วเขียนเกินขอบจะโดน Google ปฏิเสธ)
+export async function ensureColumns(title: string, n: number) {
+  gMeta = null; // อ่านขนาดล่าสุดเสมอ (เรียกแค่ครั้งแรกของ process)
+  const s = (await getMeta()).find((x) => x.properties?.title === title);
+  const sheetId = s?.properties?.sheetId;
+  const cur = s?.properties?.gridProperties?.columnCount ?? 0;
+  if (sheetId == null || cur >= n) return;
+  const sheets = getSheets();
+  await withRetry(() =>
+    sheets.spreadsheets.batchUpdate({
+      spreadsheetId: getSheetId(),
+      requestBody: {
+        requests: [{ appendDimension: { sheetId, dimension: "COLUMNS", length: n - cur } }],
+      },
+    })
+  );
+  gMeta = null;
+}

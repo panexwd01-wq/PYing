@@ -1,5 +1,5 @@
 // ทะเบียนโมดูลทั้งหมดของระบบ (PANEX Mini ERP) + master lists ที่ใช้ร่วมกัน
-import { Field, ID_KEY, JOB_KEY } from "./fields";
+import { Field, ID_KEY, JOB_KEY, LINK_CS, LINK_IMP, LINK_KEY, LINK_SRC } from "./fields";
 import { IMPORT_FIELDS } from "./modules/csImport";
 import { EXPORT_FIELDS } from "./modules/csExport";
 import { SHIPPING_FIELDS } from "./modules/shipping";
@@ -10,7 +10,7 @@ import { ACCOUNTING_FIELDS } from "./modules/accounting";
 import { COST_RATE_FIELDS, SELL_RATE_FIELDS } from "./modules/rates";
 
 export type { Field, FieldType, PullSpec } from "./fields";
-export { ID_KEY, JOB_KEY } from "./fields";
+export { ID_KEY, JOB_KEY, LINK_CS, LINK_IMP, LINK_KEY, LINK_SRC, LINK_KEYS } from "./fields";
 
 // ===== โมดูล =====
 export type ModuleKind = "import" | "export" | "downstream";
@@ -21,7 +21,7 @@ export interface ModuleDef {
   label: string; // ชื่อเต็ม
   short: string; // ชื่อย่อบนเมนู
   kind: ModuleKind;
-  jobNoKey: string; // คีย์ field ที่เป็นเลขงานของโมดูลนี้ (ใช้จับคู่ pull)
+  jobNoKey: string; // คีย์ field ที่เป็นเลขงานของโมดูลนี้ (ใช้แสดงผล — ตัวเชื่อมจริงคือ LINK_*)
   picKey: string; // คีย์ field ผู้รับผิดชอบ (PIC) — ช่องเหลืองแก้ได้เมื่อมี PIC
   rate?: boolean; // true = ตารางเรท (Rate Checker) ไม่ใช่ job — ไม่เข้า dashboard/sync
   fields: Field[];
@@ -32,17 +32,25 @@ const SYSTEM_FIELDS: Field[] = [
   { key: "created_at", label: "Job Create Date", group: "ระบบ", type: "auto", width: 150, help: "วันเปิดงาน (อัตโนมัติ)" },
   { key: "ended_at", label: "Job End Date", group: "ระบบ", type: "auto", width: 150, help: "วันปิดงาน/End (อัตโนมัติ)" },
 ];
-const withSystem = (fields: Field[]): Field[] => [...fields, ...SYSTEM_FIELDS.map((f) => ({ ...f }))];
+// รหัสเชื่อม (ซ่อน) ต่อท้ายสุดของชีท — อยู่ท้ายเพื่อให้คอลัมน์เดิมไม่เลื่อน
+const linkField = (key: string): Field => ({
+  key, label: key, group: "ระบบ", type: "auto", hidden: true, internal: true,
+});
+const withSystem = (fields: Field[], links: string[] = []): Field[] => [
+  ...fields,
+  ...SYSTEM_FIELDS.map((f) => ({ ...f })),
+  ...links.map(linkField),
+];
 
 // ----- โมดูลงาน (04–10) -----
 export const MODULES: ModuleDef[] = [
   { id: "04_CS_Import", key: "cs-import", label: "CS Import", short: "Import", kind: "import", jobNoKey: "imp_job_no", picKey: "im_cs", fields: withSystem(IMPORT_FIELDS) },
-  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", fields: withSystem(EXPORT_FIELDS) },
-  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", fields: withSystem(SHIPPING_FIELDS) },
-  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", fields: withSystem(TRANSPORT_FIELDS) },
-  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", fields: withSystem(WAREHOUSE_FIELDS) },
-  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", fields: withSystem(EXTRA_FIELDS) },
-  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", fields: withSystem(ACCOUNTING_FIELDS) },
+  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", fields: withSystem(EXPORT_FIELDS, [LINK_IMP]) },
+  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", fields: withSystem(SHIPPING_FIELDS, [LINK_CS]) },
+  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", fields: withSystem(TRANSPORT_FIELDS, [LINK_CS]) },
+  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", fields: withSystem(WAREHOUSE_FIELDS, [LINK_CS]) },
+  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", fields: withSystem(EXTRA_FIELDS, [LINK_CS, LINK_SRC]) },
+  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", fields: withSystem(ACCOUNTING_FIELDS, [LINK_CS, LINK_KEY]) },
 ];
 
 // ----- ตารางเรท (13) — ใช้ CRUD ร่วมกับโมดูลได้ แต่ไม่ใช่ job -----

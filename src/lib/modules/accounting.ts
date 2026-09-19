@@ -7,7 +7,7 @@ export const ACCOUNTING_FIELDS: Field[] = [
   { key: "acc_pic", label: "Acc PIC", group: "Job Header", type: "dropdown", list: "acc_pic", mandatory: true, sticky: true, summary: true, width: 120 },
   { key: "acc_approved_sts", label: "Acc Approved Sts", group: "Job Header", type: "dropdown", list: "approved_sts", mandatory: true, width: 130, help: "Approved ได้เมื่อ AP=Completed, AR=Paid, Cus Paid?=Done" },
   { key: "job_type", label: "Job Type", group: "Job Header", type: "auto", width: 120, pull: { imp: "job_type", exp: "job_type" } },
-  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Header", type: "auto", summary: true, width: 130, help: "ตัวเชื่อมกับ CS (สร้างอัตโนมัติ)" },
+  { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Header", type: "auto", summary: true, width: 130, pull: { imp: "imp_job_no", exp: "exp_job_no" }, help: "ดึงจากงาน CS แม่ (แก้ที่ CS เท่านั้น)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Header", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Header", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "module", label: "Module", group: "Job Header", type: "auto", width: 140, help: "โมดูลต้นทางที่สร้างรายการ" },

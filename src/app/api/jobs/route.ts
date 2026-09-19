@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createJobs, deleteJob, listJobs, listJobsRaw, updateJobs } from "@/lib/db";
 import { writeThenSnapshot } from "@/lib/apiWrite";
 import { withSheetCache } from "@/lib/sheets";
-import { MODULE_BY_KEY, ModuleDef } from "@/lib/schema";
+import { LINK_KEYS, MODULE_BY_KEY, ModuleDef } from "@/lib/schema";
 import { AuthError, assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
 import { MODULE_TAB_KEY } from "@/lib/perms";
 import type { AppUser } from "@/lib/users";
@@ -20,6 +20,16 @@ function resolve(req: NextRequest) {
 // ?snapshot=0 = ยังไม่ต้องสร้าง snapshot (คำขอเขียนหลายก้อนติดกัน เอาแค่ก้อนสุดท้ายพอ)
 const wantSnapshot = (req: NextRequest) =>
   new URL(req.url).searchParams.get("snapshot") !== "0";
+
+// รหัสเชื่อม (link_*) ระบบเป็นคนใส่เท่านั้น — ตัดทิ้งถ้าหน้าเว็บส่งมา (กันค่าเก่าในเครื่องไปทับ)
+function readRecords(body: { records?: unknown; record?: unknown }): Partial<JobRecord>[] {
+  const list = Array.isArray(body.records) ? body.records : body.record ? [body.record] : [];
+  return list.map((r: Record<string, string>) => {
+    const out = { ...r };
+    for (const k of LINK_KEYS) delete out[k];
+    return out as Partial<JobRecord>;
+  });
+}
 
 // เรทที่บันทึกแล้ว ห้ามแก้/ลบ — ยกเว้น admin (ต้องติดต่อฝ่ายบัญชี)
 function assertRateWritable(u: AppUser, tab: string) {
@@ -53,7 +63,7 @@ export async function POST(req: NextRequest) {
     const { m, tab } = resolve(req);
     assertCan(u, tab, "add");
     const body = await req.json();
-    const records = Array.isArray(body.records) ? body.records : body.record ? [body.record] : [];
+    const records = readRecords(body);
     assertEnd(u, tab, m, records);
     const { result, snapshot } = await writeThenSnapshot(() => createJobs(m, records), {
       snapshot: wantSnapshot(req),
@@ -72,7 +82,7 @@ export async function PUT(req: NextRequest) {
     assertCan(u, tab, "edit");
     assertRateWritable(u, tab);
     const body = await req.json();
-    const records = Array.isArray(body.records) ? body.records : body.record ? [body.record] : [];
+    const records = readRecords(body);
     assertEnd(u, tab, m, records);
     const { result, snapshot } = await writeThenSnapshot(() => updateJobs(m, records), {
       snapshot: wantSnapshot(req),
