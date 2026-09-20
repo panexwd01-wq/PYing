@@ -77,8 +77,32 @@ export function invalidateAllCache(): void {
 
 // ===== retry เมื่อชน quota (429) / server ไม่ว่าง (503) =====
 // quota Sheets = 60 read/60 write ต่อนาที/ต่อ user แชร์กันทั้งทีม → เจอ 429 บ่อย
-// exponential backoff + jitter ให้คำขอที่ชนรอแล้วลองใหม่แทนที่จะ error ทันที
+// ชั้นที่ 1: คุมจังหวะยิงเองไม่ให้เกินเพดาน (รอคิวแทนที่จะยิงแล้วโดนปฏิเสธ)
+// ชั้นที่ 2: ถ้ายังโดน 429 (instance อื่น/คนอื่นยิงพร้อมกัน) → รอให้พ้นรอบนาทีแล้วลองใหม่
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type CallKind = "read" | "write";
+const RATE_WINDOW_MS = 60_000;
+// เผื่อไว้ต่ำกว่า 60 เล็กน้อย — quota นับรวมทุก instance / สคริปต์อื่นที่ใช้บัญชีเดียวกัน
+const RATE_LIMIT: Record<CallKind, number> = {
+  read: num(process.env.SHEET_READS_PER_MIN, 50),
+  write: num(process.env.SHEET_WRITES_PER_MIN, 50),
+};
+const rateStamps: Record<CallKind, number[]> = { read: [], write: [] };
+
+// จองช่องยิง 1 ครั้ง — เต็มแล้วรอจนคำขอเก่าสุดพ้นหน้าต่าง 60 วิ
+async function takeSlot(kind: CallKind): Promise<void> {
+  const q = rateStamps[kind];
+  for (;;) {
+    const now = Date.now();
+    while (q.length && now - q[0] >= RATE_WINDOW_MS) q.shift();
+    if (q.length < RATE_LIMIT[kind]) {
+      q.push(now);
+      return;
+    }
+    await sleep(q[0] + RATE_WINDOW_MS - now + 50);
+  }
+}
 
 function errCode(e: unknown): number | undefined {
   const err = e as {
@@ -95,14 +119,27 @@ function isRetryable(e: unknown): boolean {
   return code === 429 || code === 503;
 }
 
-async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
+// 429 = เพดานรายนาที (มีคนอื่น/instance อื่นใช้ไปแล้ว) → รอเป็นช่วงยาว รวม ~90 วิ ให้พ้นรอบนาทีแน่ ๆ
+// + ถือว่ารอบนาทีนี้เต็ม ให้คำขออื่นใน process เดียวกันรอคิวด้วย (ไม่ยิงซ้ำให้โดนปฏิเสธเพิ่ม)
+// 503 = server ไม่ว่าง → backoff สั้นตามเดิม
+const QUOTA_WAITS = [10_000, 20_000, 30_000, 30_000];
+function markQuotaFull(kind: CallKind): void {
+  const q = rateStamps[kind];
+  const now = Date.now();
+  while (q.length < RATE_LIMIT[kind]) q.push(now);
+}
+async function withRetry<T>(fn: () => Promise<T>, kind: CallKind = "read", tries = 5): Promise<T> {
   let delay = 600;
   for (let attempt = 0; ; attempt++) {
+    await takeSlot(kind);
     try {
       return await fn();
     } catch (e) {
       if (attempt >= tries - 1 || !isRetryable(e)) throw e;
-      await sleep(delay + Math.floor(Math.random() * 300)); // jitter กันชนพร้อมกัน
+      const quota = errCode(e) === 429;
+      if (quota) markQuotaFull(kind);
+      const wait = quota ? QUOTA_WAITS[Math.min(attempt, QUOTA_WAITS.length - 1)] : delay;
+      await sleep(wait + Math.floor(Math.random() * 300)); // jitter กันชนพร้อมกัน
       delay = Math.min(delay * 2, 8000);
     }
   }
@@ -252,7 +289,8 @@ export async function batchClearRanges(ranges: string[]): Promise<void> {
     sheets.spreadsheets.values.batchClear({
       spreadsheetId: getSheetId(),
       requestBody: { ranges },
-    })
+    }),
+    "write"
   );
   for (const r of ranges) invalidateSheet(r);
 }
@@ -265,7 +303,8 @@ export async function writeRange(range: string, values: (string | number)[][]) {
       range,
       valueInputOption: "RAW",
       requestBody: { values },
-    })
+    }),
+    "write"
   );
   invalidateSheet(range);
 }
@@ -280,7 +319,8 @@ export async function batchWriteRanges(
     sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: getSheetId(),
       requestBody: { valueInputOption: "RAW", data },
-    })
+    }),
+    "write"
   );
   for (const d of data) invalidateSheet(d.range);
 }
@@ -294,7 +334,8 @@ export async function appendRows(range: string, values: (string | number)[][]) {
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values },
-    })
+    }),
+    "write"
   );
   invalidateSheet(range);
 }
@@ -305,7 +346,8 @@ export async function clearRange(range: string) {
     sheets.spreadsheets.values.clear({
       spreadsheetId: getSheetId(),
       range,
-    })
+    }),
+    "write"
   );
   invalidateSheet(range);
 }
@@ -351,7 +393,8 @@ export async function ensureSheet(title: string) {
         requestBody: {
           requests: [{ addSheet: { properties: { title } } }],
         },
-      })
+      }),
+      "write"
     );
   } catch (e) {
     // meta ที่ cache ไว้เก่า (มีคนสร้าง tab นี้ไปแล้วจากที่อื่น) → ถือว่ามีแล้ว
@@ -377,7 +420,8 @@ export async function ensureColumns(title: string, n: number) {
       requestBody: {
         requests: [{ appendDimension: { sheetId, dimension: "COLUMNS", length: n - cur } }],
       },
-    })
+    }),
+    "write"
   );
   gMeta = null;
 }
