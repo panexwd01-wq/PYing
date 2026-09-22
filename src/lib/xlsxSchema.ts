@@ -150,6 +150,7 @@ export interface ImportSkip {
   reason: string;
 }
 export interface ImportResult {
+  duplicates?: number; // แถวที่ข้ามเพราะซ้ำกับเรทเดิม (เฉพาะตารางเรท)
   created: number;
   updated: number;
   skipped: ImportSkip[];

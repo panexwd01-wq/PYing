@@ -1501,6 +1501,257 @@ tr.detail-row > td.detail-cell {
   outline: 1px solid #555;
 }
 
+/* ===== แถบแก้หลายแถวพร้อมกัน ===== */
+.sel-col {
+  width: 34px;
+  min-width: 34px;
+  text-align: center;
+}
+.bulk-bar {
+  position: sticky;
+  bottom: 56px;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fff8e1;
+  border: 1px solid #e6d79a;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.bulk-bar .field {
+  min-width: 180px;
+}
+.bulk-bar .bulk-value {
+  min-width: 220px;
+}
+
+/* ===== แผงโน้ตด้านข้าง (ส่วนกลาง ต่อหน้า) ===== */
+.note-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 70;
+  border: 1px solid #cfd6dd;
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
+.note-fab:hover {
+  background: #f2f6fa;
+}
+.note-fab.has {
+  background: #fff3b0;
+  border-color: #e0cf60;
+}
+.note-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(420px, 92vw);
+  z-index: 75;
+  background: #fff;
+  border-left: 1px solid #dde3ea;
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.note-head b {
+  flex: 1;
+}
+.note-hint {
+  margin: 0;
+  font-size: 12px;
+}
+.note-text {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: 1px solid #cfd6dd;
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.note-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ช่อง auto ที่เป็นโน้ตหลายบรรทัด (เช่น Extra Cost/Sale Note) */
+.detail-item .cellbox {
+  white-space: pre-line;
+  height: auto;
+  min-height: 28px;
+  line-height: 1.35;
+}
+
+/* ชุดสีกลาง (หน้าตั้งค่า) */
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+}
+.palette-row input[type="color"] {
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #cfd6dd;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  flex: none;
+}
+.palette-row input[type="text"],
+.palette-row input:not([type]) {
+  flex: 1;
+  min-width: 0;
+}
+
+/* รายการจัดลำดับคอลัมน์ (ป็อปอัปตั้งค่าคอลัมน์) */
+.col-order-list {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid #e3e8ee;
+  border-radius: 8px;
+}
+.col-order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid #f0f3f6;
+  font-size: 12px;
+  background: #fff;
+}
+.col-order-item:last-child {
+  border-bottom: 0;
+}
+.col-order-item.on {
+  background: #eef6ff;
+}
+.col-order-item.dragging {
+  opacity: 0.45;
+}
+.col-order-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.col-order-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.col-order-group {
+  color: #8a949e;
+  font-size: 11px;
+  flex: none;
+}
+.col-order-move {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+/* ที่จับลากปรับความกว้างคอลัมน์ (มุมขวาของหัวตาราง) */
+.grid thead th {
+  position: relative;
+}
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+.col-resize:hover,
+.col-resize:active {
+  background: #6aa9e0;
+}
+
+/* เมนูเลือกสีข้างช่อง (ชุดสีกลาง) */
+.color-pop-wrap {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+.color-pop {
+  position: absolute;
+  z-index: 60;
+  top: 22px;
+  right: 0;
+  min-width: 210px;
+  background: #fff;
+  border: 1px solid #cfd6dd;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  padding: 4px;
+}
+.color-pop-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #777;
+}
+.color-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+.color-pop-item:hover {
+  background: #eef3f8;
+}
+.color-pop-item.on {
+  font-weight: 700;
+}
+.color-pop-item .sw {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+  flex: none;
+}
+.color-pop-item .sw.none {
+  background: repeating-linear-gradient(45deg, #fff, #fff 3px, #ddd 3px, #ddd 6px);
+}
+
 /* ===== Phase C: color picker ต่อรายการ Co-Agent/Carrier (หน้า settings) ===== */
 .color-pick {
   display: inline-flex;

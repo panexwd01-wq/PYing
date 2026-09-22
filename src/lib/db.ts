@@ -16,6 +16,8 @@ import {
   ModuleDef,
   recordHeaders,
 } from "./schema";
+import { contLabel } from "./containers";
+import { AllUserPrefs, ColorTag, parseColorTags } from "./prefs";
 import { checkEnd, EndCtx } from "./endRules";
 import { checkReExport } from "./reExport";
 import {
@@ -119,18 +121,33 @@ export async function seedListsIfEmpty(): Promise<void> {
 
 // ===== _settings : เก็บค่าตั้งค่าส่วนกลาง (JSON) เช่น คอลัมน์ตอนย่อของแต่ละโมดูล =====
 const SETTINGS_SHEET = "_settings";
-// อ่านทั้งสองค่า (A1 = คอลัมน์ตอนย่อ, A2 = สี Carrier) ในช่วงเดียว → 1 API call แทน 2
-export const SETTINGS_RANGE = `${SETTINGS_SHEET}!A1:A2`;
+// ค่าตั้งค่าทั้งหมดอยู่คอลัมน์ A ของชีท _settings บรรทัดละเรื่อง (อ่านทีเดียว = 1 API call)
+//   A1 = คอลัมน์ตอนย่อ (ส่วนกลาง) · A2 = สีต่อรายการ dropdown · A3 = ชุดสีกลาง + ความหมาย
+//   A4 = โน้ตส่วนกลางต่อ tab · A5 = ตั้งค่าคอลัมน์ต่อบัญชี
+export const SETTINGS_RANGE = `${SETTINGS_SHEET}!A1:A5`;
+export const SETTINGS_CELL = {
+  collapse: 1,
+  carrierColors: 2,
+  palette: 3,
+  notes: 4,
+  prefs: 5,
+} as const;
 export type CollapseConfig = Record<string, string[]>; // moduleKey → รายชื่อ field key ที่โชว์ตอนย่อ
 
 // อ่านแบบกันพัง: ถ้าชีทยังไม่มี คืนช่องว่าง (ไม่ให้ snapshot ล้ม)
-async function readSettingsCells(): Promise<[string, string]> {
+async function readSettingsCells(): Promise<string[]> {
   try {
     const rows = await readRange(SETTINGS_RANGE);
-    return [rows?.[0]?.[0] || "", rows?.[1]?.[0] || ""];
+    return [1, 2, 3, 4, 5].map((n) => rows?.[n - 1]?.[0] || "");
   } catch {
-    return ["", ""];
+    return ["", "", "", "", ""];
   }
+}
+
+// เขียนค่าตั้งค่าทีละบรรทัด (ไม่แตะบรรทัดอื่น)
+async function writeSettingsCell(row: number, value: unknown): Promise<void> {
+  await ensureSheet(SETTINGS_SHEET);
+  await writeRange(`${SETTINGS_SHEET}!A${row}`, [[JSON.stringify(value)]]);
 }
 
 function parseJsonObject<T>(raw: string, fallback: T): T {
@@ -144,13 +161,12 @@ function parseJsonObject<T>(raw: string, fallback: T): T {
 }
 
 export async function readCollapseConfig(): Promise<CollapseConfig> {
-  const [collapseRaw] = await readSettingsCells();
-  return parseJsonObject<CollapseConfig>(collapseRaw, {});
+  const cells = await readSettingsCells();
+  return parseJsonObject<CollapseConfig>(cells[SETTINGS_CELL.collapse - 1], {});
 }
 
 export async function writeCollapseConfig(cfg: CollapseConfig): Promise<void> {
-  await ensureSheet(SETTINGS_SHEET);
-  await writeRange(`${SETTINGS_SHEET}!A1`, [[JSON.stringify(cfg)]]);
+  await writeSettingsCell(SETTINGS_CELL.collapse, cfg);
 }
 
 // สีของแต่ละค่าใน Co-Agent/Carrier (เก็บ JSON ที่ _settings!A2) → ระบายช่อง co_agent_carrier ทุก tab
@@ -159,13 +175,44 @@ export type CarrierColors = Record<string, string>; // ชื่อ carrier → 
 // ยังไม่เคยตั้งค่า (ชีท/ช่องว่าง) = ใช้สีตั้งต้นจาก schema; เคยบันทึกแล้วยึดค่าที่บันทึกล้วน ๆ
 // (ไม่ merge กับ default ไม่งั้นสีที่ผู้ใช้ตั้งใจล้างจะเด้งกลับมา)
 export async function readCarrierColors(): Promise<CarrierColors> {
-  const [, colorsRaw] = await readSettingsCells();
-  return parseJsonObject<CarrierColors>(colorsRaw, { ...CARRIER_COLOR_SEED });
+  const cells = await readSettingsCells();
+  return parseJsonObject<CarrierColors>(cells[SETTINGS_CELL.carrierColors - 1], { ...CARRIER_COLOR_SEED });
 }
 
 export async function writeCarrierColors(colors: CarrierColors): Promise<void> {
-  await ensureSheet(SETTINGS_SHEET);
-  await writeRange(`${SETTINGS_SHEET}!A2`, [[JSON.stringify(colors)]]);
+  await writeSettingsCell(SETTINGS_CELL.carrierColors, colors);
+}
+
+// ===== ชุดสีกลาง (A3) — สี + ความหมาย ใช้กับปุ่มเลือกสีข้างช่อง (Job No. / Booking / MBL) =====
+export async function readPalette(): Promise<ColorTag[]> {
+  const cells = await readSettingsCells();
+  return parseColorTags(cells[SETTINGS_CELL.palette - 1]);
+}
+
+export async function writePalette(palette: ColorTag[]): Promise<void> {
+  await writeSettingsCell(SETTINGS_CELL.palette, palette);
+}
+
+// ===== โน้ตส่วนกลางต่อ tab (A4) =====
+export type ModuleNotes = Record<string, string>;
+
+export async function readNotes(): Promise<ModuleNotes> {
+  const cells = await readSettingsCells();
+  return parseJsonObject<ModuleNotes>(cells[SETTINGS_CELL.notes - 1], {});
+}
+
+export async function writeNotes(notes: ModuleNotes): Promise<void> {
+  await writeSettingsCell(SETTINGS_CELL.notes, notes);
+}
+
+// ===== ตั้งค่าคอลัมน์ต่อบัญชี (A5) — userId → moduleKey → ลำดับ/ความกว้าง/คอลัมน์ตอนย่อ =====
+export async function readUserPrefs(): Promise<AllUserPrefs> {
+  const cells = await readSettingsCells();
+  return parseJsonObject<AllUserPrefs>(cells[SETTINGS_CELL.prefs - 1], {});
+}
+
+export async function writeUserPrefs(prefs: AllUserPrefs): Promise<void> {
+  await writeSettingsCell(SETTINGS_CELL.prefs, prefs);
 }
 
 // ===== record helpers =====
@@ -341,6 +388,42 @@ async function getDownstreamIndex(m: ModuleDef): Promise<DownIndex> {
   return out;
 }
 
+// ===== โน้ตสรุปค่าใช้จ่าย Extra ของงาน (ขาเข้า ข้อ 2) =====
+// รวมทุกบรรทัดใน tab Extra ที่ผูกกับงาน CS นี้ มาเรียงเป็นข้อความบรรทัดละรายการ
+// แสดงที่ช่อง extra_cost_note ของ CS Import/Export (อ่านอย่างเดียว)
+function extraRowsByCs(rows: JobRecord[]): Map<string, JobRecord[]> {
+  const map = new Map<string, JobRecord[]>();
+  for (const r of rows) {
+    const k = linkOf(r, LINK_CS);
+    if (!k) continue;
+    const cur = map.get(k);
+    if (cur) cur.push(r);
+    else map.set(k, [r]);
+  }
+  return map;
+}
+
+const money = (v: string | undefined) => {
+  const n = parseFloat((v || "").toString().replace(/,/g, ""));
+  return Number.isFinite(n) && n !== 0 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "";
+};
+
+export function composeExtraNote(rows: JobRecord[] | undefined): string {
+  if (!rows || !rows.length) return "";
+  const lines: string[] = [];
+  for (const r of rows) {
+    const type = (r.extra_req_type || "").trim() || "(ไม่ระบุ Type)";
+    const cost = money(r.cost_total_rate);
+    const sell = money(r.sell_total_rate);
+    if (!cost && !sell) continue;
+    const parts: string[] = [];
+    if (cost) parts.push(`cost ${cost}${(r.cost_total_cur || "").trim() ? " " + r.cost_total_cur.trim() : ""}`);
+    if (sell) parts.push(`sale ${sell}${(r.sell_total_cur || "").trim() ? " " + r.sell_total_cur.trim() : ""}`);
+    lines.push(`${type}: ${parts.join(" / ")}`);
+  }
+  return lines.join("\n"); // บรรทัดละรายการ — ในตารางเห็นบรรทัดแรก กางรายละเอียด/ชี้เมาส์ดูได้ครบ
+}
+
 function applyRPull(m: ModuleDef, rec: JobRecord, dIdx: DownIndex): JobRecord {
   const next = { ...rec };
   for (const f of m.fields) {
@@ -491,13 +574,16 @@ async function primeWorkModules(): Promise<void> {
 let linkColumnsReady = false;
 async function ensureLinkColumns(): Promise<void> {
   if (linkColumnsReady) return;
-  const targets = MODULES.filter((m) => m.fields.some((f) => f.internal));
+  // ตรวจ "ทุก" ชีทงาน ไม่ใช่เฉพาะชีทที่มีรหัสเชื่อม — เพราะเส้นเขียนลงคอลัมน์ตามลำดับ schema
+  // ถ้าหัวตารางในชีทไม่ตรง (เช่นยังไม่ได้ migrate ตอนคอลัมน์เปลี่ยน) ค่าจะลงผิดช่องเงียบ ๆ
+  const targets = MODULES;
   const heads = await readRanges(targets.map((m) => `${m.id}!A1:${lastCol(m)}1`));
   for (const m of targets) {
     const have = (heads[`${m.id}!A1:${lastCol(m)}1`]?.[0] || []).map((h) => String(h ?? "").trim());
     if (!have.length) continue; // ชีทว่าง/ยังไม่มี — เป็นหน้าที่ของ PANEX_INITIALIZE()
     const want = recordHeaders(m);
     if (want.every((h, i) => have[i] === h)) continue;
+    // เฉพาะกรณีที่ "ขาดแค่คอลัมน์รหัสเชื่อมท้ายชีท" เท่านั้นที่เติมให้เองได้ (คอลัมน์เดิมไม่เลื่อน)
     const base = want.filter((h) => !LINK_KEYS.includes(h));
     const onlyLinksMissing =
       base.every((h, i) => have[i] === h) &&
@@ -627,12 +713,16 @@ export async function getSnapshot(): Promise<Snapshot> {
   const srcIdx = buildSourceIndex(rawById["04_CS_Import"] || [], rawById["05_CS_Export"] || []);
   const downIdx: DownIndex = {};
   for (const id of ["06_Shipping", "07_Transportation", "08_Warehouse"]) downIdx[id] = indexByCs(rawById[id] || []);
+  const extraIdx = extraRowsByCs(rawById["09_Extra_Service"] || []);
 
   const modules: Record<string, JobRecord[]> = {};
   for (const m of ALL_MODULES) {
     let rows = rawById[m.id] || [];
     if (moduleHasPull(m)) rows = rows.map((r) => applyPull(m, r, srcIdx));
     else if (moduleHasRPull(m)) rows = rows.map((r) => applyRPull(m, r, downIdx));
+    // CS Import/Export: โน้ตสรุปค่าใช้จ่ายจาก tab Extra (คำนวณสดทุกครั้ง ไม่เก็บในชีท)
+    if (m.id === "04_CS_Import" || m.id === "05_CS_Export")
+      rows = rows.map((r) => ({ ...r, extra_cost_note: composeExtraNote(extraIdx.get(r.__id)) }));
     // Export: ช่อง Data from Import อัปเดตสด (live) จาก Import ที่อ้างถึง (link_imp)
     if (m.id === "05_CS_Export") {
       rows = rows.map((r) => {
@@ -648,11 +738,15 @@ export async function getSnapshot(): Promise<Snapshot> {
     modules[m.key] = rows;
   }
   const settings = all[SETTINGS_RANGE];
+  const cell = (n: number) => settings?.[n - 1]?.[0] || "";
   return {
     modules,
     lists,
-    collapse: parseJsonObject<CollapseConfig>(settings?.[0]?.[0] || "", {}),
-    carrierColors: parseJsonObject<CarrierColors>(settings?.[1]?.[0] || "", { ...CARRIER_COLOR_SEED }),
+    collapse: parseJsonObject<CollapseConfig>(cell(SETTINGS_CELL.collapse), {}),
+    carrierColors: parseJsonObject<CarrierColors>(cell(SETTINGS_CELL.carrierColors), { ...CARRIER_COLOR_SEED }),
+    palette: parseColorTags(cell(SETTINGS_CELL.palette)),
+    notes: parseJsonObject<ModuleNotes>(cell(SETTINGS_CELL.notes), {}),
+    prefs: parseJsonObject<AllUserPrefs>(cell(SETTINGS_CELL.prefs), {}),
   };
 }
 
@@ -864,10 +958,7 @@ function extraMetaFromSource(m: ModuleDef, rec: JobRecord): { supplier: string; 
 // Booking-MBL / HBL / จำนวนตู้ / Vessel / Term / CS Remark
 export function composeDataFromImport(r: Partial<JobRecord>): string {
   const g = (k: string) => (r[k] ?? "").toString().trim();
-  const conts = [
-    ["4W", g("cnt_4w")], ["6W", g("cnt_6w")], ["10W", g("cnt_10w")],
-    ["20GP", g("cnt_20gp")], ["40HQ", g("cnt_40hq")],
-  ].filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" / ");
+  const conts = contLabel(r as Record<string, string>);
   const lines: [string, string][] = [
     ["Job Type", g("job_type")],
     ["IM/CS", g("im_cs")],

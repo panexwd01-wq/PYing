@@ -7,6 +7,7 @@ const supplier = (n: number): Field[] => [
   { key: `supp${n}_vol`, label: `Supp ${n} Vol`, group: `Transport Supplier ${n}`, type: "auto", width: 110, pull: { imp: `trans_supp${n}_vol`, exp: `trans_supp${n}_vol` } },
   { key: `supp${n}_del_addr`, label: `Supp ${n} Del Address`, group: `Transport Supplier ${n}`, type: "auto", width: 160, pull: { imp: `trans_supp${n}_del_addr`, exp: `trans_supp${n}_del_addr` } },
   { key: `supp${n}_delivery`, label: `Supp ${n} Delivery / Loading Date`, group: `Transport Supplier ${n}`, type: "auto", width: 180, pull: { imp: `trans_supp${n}_delivery`, exp: `trans_supp${n}_delivery` } },
+  { key: `supp${n}_time`, label: `Supp ${n} Delivery Time / Note`, group: `Transport Supplier ${n}`, type: "auto", width: 160, pull: { imp: `trans_supp${n}_time`, exp: `trans_supp${n}_time` } },
   { key: `supp${n}_fuel`, label: `Supp ${n} Fuel Rate`, group: `Transport Supplier ${n}`, type: "text", mandatory: true, width: 120 },
   { key: `supp${n}_sts`, label: `Supp ${n} Sts`, group: `Transport Supplier ${n}`, type: "dropdown", list: "supplier_status", mandatory: true, width: 120 },
   { key: `supp${n}_end`, label: `Supp ${n} End Date`, group: `Transport Supplier ${n}`, type: "auto", width: 150, help: "Auto เมื่อ Supp Sts = End" },
@@ -25,16 +26,15 @@ export const TRANSPORT_FIELDS: Field[] = [
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Info", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Info", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
   { key: "import_port", label: "IMPORT PORT", group: "Job Info", type: "auto", width: 140, pull: { imp: "import_port" }, help: "ดึงจาก CS Import (ห้ามแก้)" },
-  { key: "cnt_4w", label: "4W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_4w", exp: "cnt_4w" } },
-  { key: "cnt_6w", label: "6W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_6w", exp: "cnt_6w" } },
-  { key: "cnt_10w", label: "10W", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_10w", exp: "cnt_10w" } },
-  { key: "cnt_20gp", label: "20GP", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_20gp", exp: "cnt_20gp" } },
-  { key: "cnt_40hq", label: "40HQ", group: "Job Info", type: "auto", width: 70, pull: { imp: "cnt_40hq", exp: "cnt_40hq" } },
+  { key: "cnt1_qty", label: "จำนวน 1", group: "Job Info", type: "auto", width: 80, pull: { imp: "cnt1_qty", exp: "cnt1_qty" } },
+  { key: "cnt1_unit", label: "หน่วย 1", group: "Job Info", type: "auto", width: 90, pull: { imp: "cnt1_unit", exp: "cnt1_unit" } },
+  { key: "cnt2_qty", label: "จำนวน 2", group: "Job Info", type: "auto", width: 80, pull: { imp: "cnt2_qty", exp: "cnt2_qty" } },
+  { key: "cnt2_unit", label: "หน่วย 2", group: "Job Info", type: "auto", width: 90, pull: { imp: "cnt2_unit", exp: "cnt2_unit" } },
   { key: "customer_ref", label: "Customer Ref / No. (IMP/EXP)", group: "Job Info", type: "auto", width: 150, pull: { imp: "imp_customer_ref", exp: "exp_customer_ref" } },
   { key: "cs_note_trans", label: "Cs Note for Trans Pic", group: "Job Info", type: "auto", width: 180, pull: { imp: "cs_note_trans", exp: "cs_note_trans" } },
 
   // ----- Operation Schedule -----
-  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" } },
+  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" }, dateOnly: true },
   { key: "delivery_date", label: "Delivery / Loading Date (รวม)", group: "Operation Schedule", type: "auto", summary: true, width: 180, pull: { imp: "delivery_date", exp: "delivery_date" } },
 
   // ----- Extra Service -----

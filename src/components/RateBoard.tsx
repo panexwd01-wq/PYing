@@ -8,6 +8,8 @@ import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { MODULE_BY_KEY, recordHeaders } from "@/lib/schema";
 import { RATE_FILTER_KEYS, RATE_SIGNER_KEY } from "@/lib/modules/rates";
+import { rateDupKeyOrNull } from "@/lib/rateDup";
+import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
 import { XlsxIO } from "@/components/XlsxIO";
 import { JobRecord } from "@/lib/types";
 
@@ -48,6 +50,29 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
   const [editing, setEditing] = useState<JobRecord | null>(null); // admin แก้แถวที่บันทึกแล้ว
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
+  const [localPrefs, setLocalPrefs] = useState<ModulePrefs | undefined>(undefined);
+
+  // ความกว้างคอลัมน์ที่ผู้ใช้ลากไว้ (จำเฉพาะบัญชีนี้ — หน้า Rate ก็ยืดหดได้เหมือน Excel)
+  const myPrefs = localPrefs ?? data?.prefs?.[user?.id || ""]?.[moduleKey];
+  const viewFields = useMemo(() => applyColumnPrefs(mod.fields, myPrefs), [mod, myPrefs]);
+
+  const saveWidth = useCallback(
+    (key: string, width: number) => {
+      const base = myPrefs || {};
+      const value: ModulePrefs = {
+        order: base.order || [],
+        widths: { ...(base.widths || {}), [key]: width },
+        collapse: base.collapse || [],
+      };
+      setLocalPrefs(value);
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefs: { module: moduleKey, value } }),
+      }).catch(() => undefined);
+    },
+    [myPrefs, moduleKey]
+  );
 
   const flash = useCallback((text: string, err = false) => {
     setToast({ text, err });
@@ -57,6 +82,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
   useEffect(() => {
     setRows(data?.modules[moduleKey] || []);
     setEditing(null);
+    setLocalPrefs(undefined);
   }, [data, moduleKey]);
 
   const setDraftValue = (key: string, value: string) => setDraft((p) => ({ ...p, [key]: value }));
@@ -68,6 +94,20 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
     const missing = inputFields.filter((f) => f.mandatory && !(draft[f.key] || "").trim());
     if (missing.length) return flash("กรอกช่องบังคับก่อน: " + missing.map((f) => f.label).join(", "), true);
     if (!user) return flash("ต้องเข้าสู่ระบบก่อน", true);
+
+    // เตือนถ้าซ้ำกับเรทที่มีอยู่ (ทุกช่องตรงกัน ยกเว้น Remarks) — ยืนยันแล้วบันทึกได้
+    const key = rateDupKeyOrNull(mod, draft);
+    if (key) {
+      const hit = rows.find((r) => rateDupKeyOrNull(mod, r) === key);
+      if (hit) {
+        const by = (hit[signerKey] || "").trim();
+        const when = (hit.updated_at || "").trim();
+        const who = by || when ? ` (ลงโดย ${by || "—"}${when ? " เมื่อ " + when : ""})` : "";
+        if (!confirm(`เรทนี้ซ้ำกับรายการที่มีอยู่แล้ว${who}
+
+ยืนยันบันทึกซ้ำหรือไม่?`)) return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -231,9 +271,10 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
           <thead>
             <tr className="field-row">
               <th className="rownum">#</th>
-              {mod.fields.map((f) => (
+              {viewFields.map((f) => (
                 <th key={f.key} style={{ minWidth: f.width, width: f.width }} title={f.help || f.label}>
                   {f.label}
+                  <RateResizeHandle fieldKey={f.key} width={f.width || 130} onDone={saveWidth} />
                 </th>
               ))}
               {isAdmin && <th>จัดการ</th>}
@@ -245,7 +286,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
               return (
                 <tr key={rec.__id} className={isEditing ? "dirty" : ""}>
                   <td className="rownum">{i + 1}</td>
-                  {mod.fields.map((f) => (
+                  {viewFields.map((f) => (
                     <td key={f.key} className={f.type === "auto" ? "tint-locked" : undefined}>
                       {isEditing && f.type !== "auto" ? (
                         <Cell
@@ -281,7 +322,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={mod.fields.length + (isAdmin ? 2 : 1)} style={{ padding: 24, textAlign: "center", color: "#777" }}>
+                <td colSpan={viewFields.length + (isAdmin ? 2 : 1)} style={{ padding: 24, textAlign: "center", color: "#777" }}>
                   {loading ? "กำลังโหลด…" : rows.length ? "ไม่พบเรทตามตัวกรอง" : "ยังไม่มีเรท — เพิ่มที่กล่อง “Add New List”"}
                 </td>
               </tr>
@@ -293,4 +334,40 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
       {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
     </section>
   );
+}
+
+// ที่จับลากขอบขวาของหัวคอลัมน์ (เหมือนในตารางงาน) — ปรับสดระหว่างลาก บันทึกตอนปล่อย
+function RateResizeHandle({
+  fieldKey,
+  width,
+  onDone,
+}: {
+  fieldKey: string;
+  width: number;
+  onDone: (key: string, width: number) => void;
+}) {
+  const start = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.currentTarget as HTMLElement).closest("th") as HTMLElement | null;
+    const x0 = e.clientX;
+    const w0 = th?.offsetWidth || width;
+    let next = w0;
+    const move = (ev: MouseEvent) => {
+      next = Math.min(600, Math.max(60, w0 + ev.clientX - x0));
+      if (th) {
+        th.style.width = next + "px";
+        th.style.minWidth = next + "px";
+      }
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      if (next !== w0) onDone(fieldKey, next);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  };
+
+  return <span className="col-resize" onMouseDown={start} title="ลากเพื่อปรับความกว้าง (จำไว้เฉพาะบัญชีนี้)" />;
 }

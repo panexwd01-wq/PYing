@@ -8,6 +8,7 @@ import { assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
 import { can, MODULE_TAB_KEY } from "@/lib/perms";
 import { RATE_SIGNER_KEY } from "@/lib/modules/rates";
 import { buildWorkbook, parseWorkbook } from "@/lib/xlsxIo";
+import { rateDupKeyOrNull } from "@/lib/rateDup";
 import {
   canCreateOnImport,
   fileName,
@@ -33,20 +34,29 @@ const stampNow = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 };
 
+// สร้างไฟล์ .xlsx ของโมดูล — ids = เอาเฉพาะแถวที่ระบุ (ใช้ตอน "Export เฉพาะที่กรองไว้")
+async function exportWorkbook(m: ModuleDef, ids?: string[]): Promise<NextResponse> {
+  let rows = await withSheetCache(() => listJobs(m));
+  if (ids && ids.length) {
+    const want = new Set(ids);
+    rows = rows.filter((r) => want.has(r.__id));
+  }
+  const buf = await buildWorkbook(m, rows);
+  return new NextResponse(new Uint8Array(buf), {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName(m, stampNow()))}`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const u = await requireUser();
     const { m, tab } = resolve(req);
     assertCan(u, tab, "view");
-    const rows = await withSheetCache(() => listJobs(m));
-    const buf = await buildWorkbook(m, rows);
-    return new NextResponse(new Uint8Array(buf), {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName(m, stampNow()))}`,
-        "Cache-Control": "no-store",
-      },
-    });
+    return await exportWorkbook(m);
   } catch (e) {
     const { message, status } = authErrorResponse(e);
     return NextResponse.json({ error: message }, { status });
@@ -84,6 +94,19 @@ async function applyRows(
 }
 
 export async function POST(req: NextRequest) {
+  if ((req.headers.get("content-type") || "").includes("application/json")) {
+    try {
+      const u = await requireUser();
+      const { m, tab } = resolve(req);
+      assertCan(u, tab, "view");
+      const body = await req.json();
+      return await exportWorkbook(m, Array.isArray(body?.ids) ? body.ids.map(String) : undefined);
+    } catch (e) {
+      const { message, status } = authErrorResponse(e);
+      return NextResponse.json({ error: message }, { status });
+    }
+  }
+
   try {
     const u = await requireUser();
     const { m, tab } = resolve(req);
@@ -91,6 +114,8 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const file = form.get("file");
+    // allowDup=1 = ผู้ใช้กดยืนยันแล้วว่าให้นำเข้าแถวที่ซ้ำด้วย (หน้า Rate)
+    const allowDup = new URL(req.url).searchParams.get("allowDup") === "1";
     if (!file || typeof file === "string") throw new Error("ไม่พบไฟล์ที่อัปโหลด");
     if (!/\.xlsx$/i.test((file as File).name || "")) throw new Error("รองรับเฉพาะไฟล์ .xlsx");
     const buf = Buffer.from(await (file as File).arrayBuffer());
@@ -128,12 +153,40 @@ export async function POST(req: NextRequest) {
           plan.updates.length = 0;
         }
       }
+      // ตารางเรท: กันลงข้อมูลซ้ำ (ทุกช่องตรงกัน ยกเว้น Remarks) — เตือนไว้ก่อน กดยืนยันแล้วค่อยลงซ้ำได้
+      let dupFound = 0;
+      if (m.rate && !allowDup) {
+        const seen = new Set<string>();
+        for (const r of existing as Record<string, string>[]) {
+          const k = rateDupKeyOrNull(m, r);
+          if (k) seen.add(k);
+        }
+        const keep: typeof plan.creates = [];
+        for (const it of plan.creates) {
+          const k = rateDupKeyOrNull(m, it.rec);
+          if (k && seen.has(k)) {
+            dupFound++;
+            skipped.push({
+              row: it.src.row,
+              ident: identityLabel(m, it.src.ident),
+              reason: "ซ้ำกับเรทที่มีอยู่แล้ว (ทุกช่องตรงกัน ยกเว้น Remarks)",
+            });
+            continue;
+          }
+          if (k) seen.add(k);
+          keep.push(it);
+        }
+        plan.creates.length = 0;
+        plan.creates.push(...keep);
+      }
+
       const updated = await applyRows(m, plan.updates, (recs) => updateJobs(m, recs), skipped);
       const created = await applyRows(m, plan.creates, (recs) => createJobs(m, recs), skipped);
       return {
         created,
         updated,
         skipped,
+        duplicates: dupFound, // > 0 = มีแถวที่ถูกข้ามเพราะซ้ำ (หน้าเว็บจะถามว่าจะลงซ้ำไหม)
         unknownColumns: parsed.unknownColumns,
         ignoredAuto: parsed.ignoredAuto,
       };

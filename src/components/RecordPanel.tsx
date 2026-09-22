@@ -3,6 +3,7 @@
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
 import { cellState } from "@/lib/cellState";
+import { ColorTag } from "@/lib/prefs";
 import { Cell } from "./Cell";
 
 // แผงรายละเอียดของ "1 ระเบียน" — จัดกลุ่มตาม section ของ schema
@@ -16,6 +17,7 @@ export function RecordPanel({
   fields,
   lists,
   carrierColors,
+  palette,
   statusKey,
   picKey,
   unlocked,
@@ -29,6 +31,7 @@ export function RecordPanel({
   fields: Field[];
   lists: Lists;
   carrierColors?: Record<string, string>;
+  palette?: ColorTag[];
   statusKey: string;
   picKey: string;
   unlocked: boolean;
@@ -72,6 +75,9 @@ export function RecordPanel({
                       locked={st.locked}
                       lockHint={st.hint}
                       bg={st.bg}
+                      palette={palette}
+                      pickedColor={rec[`${f.key}_color`] || ""}
+                      onColorPick={f.colorPick ? (c) => change(`${f.key}_color`, c) : undefined}
                     />
                   </div>
                 );

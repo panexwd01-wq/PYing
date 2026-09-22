@@ -18,16 +18,18 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "ex_ops_status", label: "EX/OPS Status", group: "OPS", type: "dropdown", list: "im_ops_status", mandatory: true, sticky: true, summary: true, width: 130, help: "Cancel = ล็อกทั้งแถว (แก้ได้แค่ Status) · กด End ต้องผ่านเงื่อนไข" },
   { key: "job_type", label: "Job Type", group: "OPS", type: "dropdown", list: "job_type", mandatory: true, sticky: true, summary: true, width: 140 },
   { key: "ex_cs", label: "EX/CS", group: "OPS", type: "dropdown", list: "ex_cs", mandatory: true, summary: true, width: 110 },
-  { key: "exp_job_no", label: "EXP/Job No.", group: "OPS", type: "text", sticky: true, summary: true, width: 130 },
-  { key: "exp_booking_mbl", label: "EXP/Booking / MBL No.", group: "OPS", type: "text", width: 170 },
+  { key: "exp_job_no", label: "EXP/Job No.", group: "OPS", type: "text", sticky: true, summary: true, width: 130, colorPick: true, help: "กดปุ่มสีข้างช่องเพื่อทำเครื่องหมาย (ความหมายของแต่ละสีตั้งได้ที่หน้าตั้งค่า)" },
+  { key: "exp_job_no_color", label: "Job No. Color", group: "OPS", type: "text", hidden: true },
+  { key: "exp_booking_mbl", label: "EXP/Booking / MBL No.", group: "OPS", type: "text", width: 170, colorPick: true, help: "เลขซ้ำกับงานอื่นจะขึ้นแดงอัตโนมัติ · กดปุ่มสีข้างช่องเพื่อทำเครื่องหมายเอง" },
+  { key: "exp_booking_mbl_color", label: "Booking Color", group: "OPS", type: "text", hidden: true },
   { key: "exp_hbl", label: "EXP/HBL No.", group: "OPS", type: "text", width: 140 },
   { key: "customer", label: "Customer", group: "OPS", type: "dropdown", list: "customer", summary: true, width: 150 },
-  { key: "etd_exp", label: "ETD (EXP)", group: "OPS", type: "datetime", summary: true, width: 160 },
+  { key: "etd_exp", label: "ETD (EXP)", group: "OPS", type: "datetime", summary: true, width: 160, dateOnly: true },
   // กลุ่ม 1
   { key: "re_export", label: "Re-Export?", group: "OPS", type: "auto", sticky: true, width: 100, help: "Auto = Yes ถ้าถูกสร้างจาก CS Import (Re-Export? = Yes)" },
   { key: "co_agent_carrier", label: "Co-Agent / Carrier", group: "OPS", type: "dropdown", list: "carrier", width: 150 },
   { key: "sales_bkg_by", label: "Sales / BKG by", group: "OPS", type: "dropdown", list: "sales", mandatory: true, width: 130 },
-  { key: "eta_imp", label: "ETA (IMP)", group: "OPS", type: "datetime", width: 160 },
+  { key: "eta_imp", label: "ETA (IMP)", group: "OPS", type: "datetime", width: 160, dateOnly: true },
   { key: "ex_cs_remark", label: "EXP/CS Remark", group: "OPS", type: "text", width: 200 },
   { key: "cargo_type", label: "Cargo Type", group: "OPS", type: "auto", width: 130, rpull: { from: "06_Shipping", field: "cargo_type" }, help: "ดึงจากรายการ Shipping (ถ้ามี)" },
   // กลุ่ม 2
@@ -39,11 +41,10 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "cy_date", label: "1st CY DATE", group: "OPS", type: "datetime", width: 150 },
   { key: "return_date", label: "1st Return DATE", group: "OPS", type: "datetime", width: 150 },
   // กลุ่ม 3
-  { key: "cnt_4w", label: "4W", group: "OPS", type: "number", width: 70 },
-  { key: "cnt_6w", label: "6W", group: "OPS", type: "number", width: 70 },
-  { key: "cnt_10w", label: "10W", group: "OPS", type: "number", width: 70 },
-  { key: "cnt_20gp", label: "20GP", group: "OPS", type: "number", width: 70 },
-  { key: "cnt_40hq", label: "40HQ", group: "OPS", type: "number", width: 70 },
+  { key: "cnt1_qty", label: "จำนวน 1", group: "OPS", type: "number", width: 80 },
+  { key: "cnt1_unit", label: "หน่วย 1", group: "OPS", type: "dropdown", list: "container_unit", width: 100 },
+  { key: "cnt2_qty", label: "จำนวน 2", group: "OPS", type: "number", width: 80 },
+  { key: "cnt2_unit", label: "หน่วย 2", group: "OPS", type: "dropdown", list: "container_unit", width: 100 },
   // กลุ่ม 4
   { key: "pv_no", label: "PV No.", group: "OPS", type: "text", width: 130 },
   { key: "pv_status", label: "PV Status", group: "OPS", type: "dropdown", list: "pv_status", width: 120, help: "รอจ่าย(ส้ม) / จ่ายแล้ว(เขียว) / จบแล้ว(เทา)" },
@@ -68,10 +69,12 @@ export const EXPORT_FIELDS: Field[] = [
   // ----- Extra / Service -----
   { key: "extra_require", label: "(EXP) Extra/Service Require", group: "Extra / Service", type: "toggle", mandatory: true, width: 150, help: "Yes แล้วต้องเลือก Type อย่างน้อย 1" },
   { key: "extra_req_type", label: "(EXP) Extra/Service Type", group: "Extra / Service", type: "multiselect", list: "extra_service_type", width: 200 },
+  { key: "extra_req_remark", label: "Extra/Service Remark", group: "Extra / Service", type: "text", width: 220, help: "โน้ตเพิ่มเติมของค่าใช้จ่าย Extra งานนี้" },
+  { key: "extra_cost_note", label: "Extra Cost/Sale Note", group: "Extra / Service", type: "auto", width: 260, help: "สรุปรายการค่าใช้จ่ายจาก tab Extra ของงานนี้ (ระบบเติมให้ — อ่านอย่างเดียว)" },
 
   // ----- Shipping -----
   { key: "shipping_flag", label: "Shipping?", group: "Shipping", type: "toggle", mandatory: true, width: 100, help: "Yes = สร้างรายการที่ tab Shipping" },
-  { key: "clearance_date", label: "Clearance Date", group: "Shipping", type: "datetime", width: 160 },
+  { key: "clearance_date", label: "Clearance Date", group: "Shipping", type: "datetime", width: 160, dateOnly: true },
   { key: "cs_note_ship", label: "Cs Note for Ship Pic", group: "Shipping", type: "text", mandatory: true, width: 180 },
   { key: "shipp_extra_type", label: "(SHIPP) Extra/Service Type", group: "Shipping", type: "auto", width: 170, rpull: { from: "06_Shipping", field: "extra_req_type" } },
   { key: "ship_outsourcing", label: "Ship Outsourcing", group: "Shipping", type: "auto", width: 150, rpull: { from: "06_Shipping", field: "ship_outsourcing" } },

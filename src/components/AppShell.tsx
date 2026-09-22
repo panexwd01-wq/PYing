@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { DataProvider } from "@/components/DataProvider";
 import { Nav } from "@/components/Nav";
+import { NotesPanel } from "@/components/NotesPanel";
 import { useAuth } from "@/components/AuthProvider";
 
 // หน้า login ไม่ต้องมี header/เมนู และไม่ต้องโหลด snapshot
@@ -32,7 +33,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
-      <DataProvider>{children}</DataProvider>
+      <DataProvider>
+        {children}
+        <NotesPanel />
+      </DataProvider>
     </>
   );
 }

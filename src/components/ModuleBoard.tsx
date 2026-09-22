@@ -8,13 +8,15 @@ import { AccountingLinesTable, ExtraLinesTable } from "@/components/LinesTable";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { SaveBar } from "@/components/SaveBar";
+import { BulkEditBar } from "@/components/BulkEditBar";
 import { Toast } from "@/components/Toast";
 import { CenterLoading } from "@/components/Spinner";
-import { CollapseSettings } from "@/components/CollapseSettings";
+import { ColumnSettings } from "@/components/ColumnSettings";
 import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { LINK_CS, LINK_IMP, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
+import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import { checkReExport } from "@/lib/reExport";
@@ -24,12 +26,6 @@ import { XlsxIO } from "@/components/XlsxIO";
 import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
-const SEARCH_KEYS = [
-  "imp_job_no", "exp_job_no", "job_no",
-  "imp_booking_mbl", "exp_booking_mbl", "booking_mbl",
-  "imp_hbl", "exp_hbl", "hbl",
-  "imp_customer_ref", "exp_customer_ref", "customer_ref", "customer",
-];
 
 // คีย์วันที่ที่ให้เลือกเรียง (ตามที่มีจริงในโมดูล)
 const SORT_DATE_KEYS = ["eta_imp", "etd_exp", "etd_imp", "clearance_date", "delivery_date", "billing_date", "created_at"];
@@ -41,7 +37,12 @@ function tempId() {
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
   const { data, loading: dataLoading, error: dataError, reload, applyOrReload } = useData();
-  const { can } = useAuth();
+  const { can, canLists, user } = useAuth();
+  const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
+  const flash = useCallback((text: string, err = false) => {
+    setToast({ text, err });
+    setTimeout(() => setToast(null), err ? 6000 : 2600); // error กลางจอ ให้เวลาอ่านนานขึ้น
+  }, []);
   const lists = data?.lists || {};
 
   // สิทธิ์ของ tab นี้
@@ -54,9 +55,14 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const statusKey = mod.fields[0].key;
   const statusList = mod.fields[0].list;
   const csField = useMemo(() => mod.fields.find((f) => CS_KEYS.includes(f.key)), [mod]);
-  const dateField = useMemo(() => mod.fields.find((f) => f.type === "datetime"), [mod]);
+  // ช่องวันที่หลัก — ยึด dateKey ของโมดูล (ขาเข้า ข้อ 14) ถ้าไม่ได้กำหนดค่อย fallback เป็นช่อง datetime ช่องแรก
+  const dateField = useMemo(
+    () => (mod.dateKey && mod.fields.find((f) => f.key === mod.dateKey)) || mod.fields.find((f) => f.type === "datetime"),
+    [mod]
+  );
+  // ค้นหาได้ทุกช่องที่มองเห็นบนหน้าจอ (ยกเว้นช่องระบบ/รหัสเชื่อม)
   const searchKeys = useMemo(
-    () => mod.fields.filter((f) => SEARCH_KEYS.includes(f.key)).map((f) => f.key),
+    () => mod.fields.filter((f) => !f.internal).map((f) => f.key),
     [mod]
   );
   const hasPull = useMemo(() => mod.fields.some((f) => f.pull || f.rpull), [mod]);
@@ -83,13 +89,45 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     () => normalizeCollapseKeys(moduleKey, data?.collapse?.[moduleKey], mod.fields.map((f) => f.key)),
     [data?.collapse, moduleKey, mod]
   );
-  const collapsedKeys = savedCollapse.length ? savedCollapse : defaultSummaryKeys;
+  // ตั้งค่าคอลัมน์ของบัญชีนี้ (ลำดับ/ความกว้าง/คอลัมน์ตอนย่อ) — ทับค่าส่วนกลางถ้ามี
+  const serverPrefs = data?.prefs?.[user?.id || ""]?.[moduleKey];
+  const [localPrefs, setLocalPrefs] = useState<ModulePrefs | undefined>(undefined);
+  useEffect(() => setLocalPrefs(undefined), [moduleKey, data]); // เปลี่ยน tab / โหลดใหม่ = ยึดของ server
+  const myPrefs = localPrefs ?? serverPrefs;
+
+  // ลำดับ + ความกว้างที่ผู้ใช้จัดไว้ (ใช้แทน mod.fields ทุกที่ที่วาดตาราง)
+  const viewFields = useMemo(() => applyColumnPrefs(mod.fields, myPrefs), [mod, myPrefs]);
+
+  const collapsedKeys = myPrefs?.collapse?.length
+    ? myPrefs.collapse
+    : savedCollapse.length
+    ? savedCollapse
+    : defaultSummaryKeys;
+
+  // ลากขอบหัวคอลัมน์ → จำความกว้างไว้ให้บัญชีนี้
+  const saveWidth = useCallback(
+    (key: string, width: number) => {
+      const base = myPrefs || {};
+      const value: ModulePrefs = {
+        order: base.order || [],
+        widths: { ...(base.widths || {}), [key]: width },
+        collapse: base.collapse || [],
+      };
+      setLocalPrefs(value);
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefs: { module: moduleKey, value } }),
+      }).catch(() => flash("จำความกว้างคอลัมน์ไม่สำเร็จ", true));
+    },
+    [myPrefs, moduleKey, flash]
+  );
 
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
   const grouped = moduleKey === "extra" || moduleKey === "accounting";
   const fbk = useMemo(() => fieldByKey(mod), [mod]);
   const groupedDisplayFields = useMemo(() => {
-    const visible = mod.fields.filter((f) => !f.hidden);
+    const visible = viewFields.filter((f) => !f.hidden);
     if (collapsedKeys && collapsedKeys.length) {
       const set = new Set(collapsedKeys);
       const chosen = visible.filter((f) => set.has(f.key));
@@ -97,7 +135,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     }
     const marked = visible.filter((f) => f.summary);
     return marked.length ? marked : visible.filter((f) => f.sticky);
-  }, [mod, collapsedKeys]);
+  }, [viewFields, collapsedKeys]);
 
   // ช่องในแผงตอนกาง — ผูกกับ Job No. ชุดเดียว (แก้ทีเดียวเขียนลงทุกแถวของ Job นั้น)
   // ยกเว้นช่องของตาราง Sell / Job Cost ที่ยังแยกราย Type (hidden อยู่แล้ว)
@@ -109,8 +147,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         : moduleKey === "extra"
         ? new Set<string>([...EXTRA_LINE_COLUMNS.sell, ...EXTRA_LINE_COLUMNS.cost])
         : null;
-    return lineKeys ? mod.fields.filter((f) => !lineKeys.has(f.key)) : mod.fields;
-  }, [mod, moduleKey]);
+    return lineKeys ? viewFields.filter((f) => !lineKeys.has(f.key)) : viewFields;
+  }, [viewFields, moduleKey]);
 
   // ค่าที่ต้องแสดงเป็น "ของทั้ง Job" ในแผงเดียว — ยอดรวม + ค่าที่ต่างกันราย Type ให้รวมข้อความ
   const groupTotals = useCallback(
@@ -151,6 +189,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       for (const h of recordHeaders(mod)) r[h] = "";
       r.__id = id;
       r[statusKey] = "Open";
+      for (const [k, v] of Object.entries(mod.newDefaults || {})) r[k] = v;
       return r as JobRecord;
     },
     [mod, statusKey]
@@ -162,12 +201,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [news, setNews] = useState<Set<string>>(new Set());
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   const [collapsed, setCollapsed] = useState(true); // เริ่มที่โหมดย่อ
   const [filters, setFilters] = useState<Filters>({ year: "", month: "", status: "", cs: "", q: "" });
-  const [sortKey, setSortKey] = useState("");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = useState(mod.dateKey || "");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(mod.dateKey ? "desc" : "asc");
   const [showCfg, setShowCfg] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set()); // แถวที่ติ๊กไว้ (แก้หลายแถวพร้อมกัน)
 
   // เปลี่ยนตัวกรอง/การเรียง/โมดูล = คนละชุดข้อมูล → ตารางเริ่มนับแถวที่วาดใหม่
   const windowKey = useMemo(
@@ -175,23 +214,25 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [moduleKey, filters, sortKey, sortDir]
   );
 
-  const flash = useCallback((text: string, err = false) => {
-    setToast({ text, err });
-    setTimeout(() => setToast(null), err ? 6000 : 2600); // error กลางจอ ให้เวลาอ่านนานขึ้น
-  }, []);
-
   // sync แถวจาก snapshot (โหลดครั้งแรก / หลัง reload) — ทิ้ง state แก้ไขที่ค้าง
   const resetFromData = useCallback(() => {
     setRows(data?.modules[moduleKey] || []);
     setDirty(new Set());
     setNews(new Set());
     setUnlocked(new Set());
+    setSelected(new Set());
   }, [data, moduleKey]);
 
   useEffect(() => {
     if (!data) return;
     resetFromData();
   }, [data, moduleKey, resetFromData]);
+
+  // เปลี่ยน tab = กลับไปใช้การเรียงตั้งต้นของ tab นั้น (ใหม่→เก่า ตามช่องวันที่หลัก)
+  useEffect(() => {
+    setSortKey(mod.dateKey || "");
+    setSortDir(mod.dateKey ? "desc" : "asc");
+  }, [mod]);
 
   useEffect(() => {
     if (dataError) flash("โหลดข้อมูลไม่สำเร็จ: " + dataError, true);
@@ -263,7 +304,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         setSaving(false);
       }
     },
-    [news, flash, moduleKey, applyOrReload, rows, data]
+    [news, flash, moduleKey, applyOrReload, rows, data, mod.manualDelete]
   );
 
   // ยกเลิกการแก้ไขทั้งหมด → กลับเป็นค่าจาก snapshot ล่าสุด
@@ -357,6 +398,13 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     return Array.from(s).sort().reverse();
   }, [rows, dateField]);
 
+  // รวมทุกช่องของแถวเป็นข้อความก้อนเดียวไว้ล่วงหน้า — พิมพ์ค้นหาแล้วไม่ต้องไล่ทีละช่องใหม่ทุกตัวอักษร
+  const haystacks = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rows) m.set(r.__id, searchKeys.map((k) => r[k] || "").join(" ").toLowerCase());
+    return m;
+  }, [rows, searchKeys]);
+
   const filtered = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     const out = rows.filter((r) => {
@@ -365,10 +413,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       if (dateField && filters.month && d.slice(5, 7) !== filters.month) return false;
       if (filters.status && r[statusKey] !== filters.status) return false;
       if (csField && filters.cs && r[csField.key] !== filters.cs) return false;
-      if (q) {
-        const hay = searchKeys.map((k) => r[k] || "").join(" ").toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (q && !(haystacks.get(r.__id) || "").includes(q)) return false;
       return true;
     });
     // ===== sort ตามวันที่ที่เลือก =====
@@ -384,7 +429,57 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       });
     }
     return out;
-  }, [rows, filters, dateField, statusKey, csField, searchKeys, sortKey, sortDir]);
+  }, [rows, filters, dateField, statusKey, csField, haystacks, sortKey, sortDir]);
+
+  // ค่าที่ซ้ำกันในช่องที่ห้ามซ้ำ (ขาออก ข้อ 1: เลข Booking ซ้ำ = ไฮไลต์แดง)
+  const dupValues = useMemo(() => {
+    if (!mod.dupKey) return undefined;
+    const seen = new Map<string, number>();
+    for (const r of rows) {
+      const v = (r[mod.dupKey] || "").trim().toUpperCase();
+      if (v) seen.set(v, (seen.get(v) || 0) + 1);
+    }
+    return new Set(Array.from(seen.entries()).filter(([, n]) => n > 1).map(([v]) => v));
+  }, [rows, mod.dupKey]);
+  const dupCount = useMemo(
+    () => (dupValues?.size ? rows.filter((r) => dupValues.has((r[mod.dupKey!] || "").trim().toUpperCase())).length : 0),
+    [rows, dupValues, mod.dupKey]
+  );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+
+  // แก้ค่าเดียวกันให้ทุกแถวที่เลือก (ยังไม่เขียนลงชีท — รอกดบันทึก)
+  const applyBulk = useCallback(
+    (key: string, value: string) => {
+      const ids = selected;
+      if (!ids.size) return;
+      setRows((prev) => prev.map((r) => (ids.has(r.__id) ? { ...r, [key]: value } : r)));
+      setDirty((prev) => {
+        const n = new Set(prev);
+        for (const id of ids) n.add(id);
+        return n;
+      });
+      flash(`ใส่ค่าให้ ${ids.size} แถวแล้ว — กดบันทึกเพื่อยืนยัน`);
+    },
+    [selected, flash]
+  );
+
+  // id ของแถวที่ตัวกรองเหลืออยู่ — ใช้ตอน Export เฉพาะที่กรองไว้ และตอนเลือกทั้งหมดเพื่อแก้ทีเดียว
+  const filteredIds = useMemo(() => filtered.map((r) => r.__id), [filtered]);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected((prev) => {
+      const allOn = filteredIds.length > 0 && filteredIds.every((id) => prev.has(id));
+      return allOn ? new Set() : new Set(filteredIds);
+    });
+  }, [filteredIds]);
 
   // Export ที่มาจาก Re-Export = ถูกคุมด้วย CS Import (ซ่อนปุ่มลบ)
   // ยกเว้นแถวกำพร้า — งาน Import ที่อ้างถึงไม่มีอยู่แล้ว (เช่นแถวซ้ำที่ค้างจากของเดิม) → ให้ลบเองได้
@@ -413,8 +508,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           <button className={"btn" + (!collapsed ? " primary" : "")} onClick={() => setCollapsed(false)} title="โชว์ทุกคอลัมน์ (เลื่อนซ้าย-ขวา)">
             ▦ เต็ม
           </button>
-          <button className="btn" onClick={() => setShowCfg(true)} title="ตั้งค่าว่าตอนย่อจะแสดงคอลัมน์ไหนบ้าง (ใช้ร่วมกันทุกคน)">
-            ⚙ ตั้งค่าย่อ
+          <button className="btn" onClick={() => setShowCfg(true)} title="เลือกคอลัมน์ตอนย่อ + จัดลำดับหน้า/หลัง (จำไว้เฉพาะบัญชีนี้)">
+            ⚙ ตั้งค่าคอลัมน์
           </button>
         </div>
 
@@ -460,6 +555,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             canImport={mayEdit}
             onDone={applyOrReload}
             flash={flash}
+            filteredIds={filteredIds}
+            totalCount={rows.length}
           />
         </div>
       </div>
@@ -480,6 +577,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           csLabel={csField?.label || "CS"}
           years={years}
           showDate={!!dateField}
+          dateLabel={dateField?.label}
         />
         <span className="count-pill">{filtered.length} / {rows.length} รายการ</span>
       </div>
@@ -488,6 +586,9 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         <span className="item"><span className="sw" style={{ background: "var(--c-mandatory)", borderColor: "var(--c-mandatory-bd)" }} /> ฟ้า = ต้องกรอก</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้ (ต้องมี PIC)</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-locked)", borderColor: "var(--c-locked-bd)" }} /> เทา = Auto / ดึงจาก Module อื่น</span>
+        {dupCount > 0 && (
+          <span className="item"><span className="sw" style={{ background: "#ff8f8f", borderColor: "#e06060" }} /> แดง = {fbk[mod.dupKey!]?.label || "เลข"} ซ้ำ ({dupCount} แถว)</span>
+        )}
         {collapsed && (
           <span className="item hint">
             {grouped
@@ -526,6 +627,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       unlockedIds={unlocked}
                       readOnly={!mayEdit}
                       onChange={onChange}
+                      onDelete={mayDelete ? removeRow : undefined}
                     />
                   )}
                   {moduleKey === "accounting" && (
@@ -538,6 +640,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       unlockedIds={unlocked}
                       readOnly={!mayEdit}
                       onChange={onChange}
+                      onDelete={mayDelete ? removeRow : undefined}
                     />
                   )}
                   <div className="group-rec">
@@ -554,6 +657,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       fields={panelFields}
                       lists={lists}
                       carrierColors={data?.carrierColors}
+                      palette={data?.palette}
                       statusKey={statusKey}
                       picKey={mod.picKey}
                       unlocked={unlocked.has(rs[0].__id)}
@@ -569,12 +673,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           ) : (
           <JobGrid
             moduleId={mod.id}
-            fields={mod.fields}
-            groups={groups}
+            fields={viewFields}
             rows={filtered}
             windowKey={windowKey}
             lists={lists}
             carrierColors={data?.carrierColors}
+            palette={data?.palette}
             dirtyIds={dirty}
             newIds={news}
             statusKey={statusKey}
@@ -582,30 +686,48 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             unlockedIds={unlocked}
             collapsed={collapsed}
             collapsedKeys={collapsedKeys}
+            dupKey={mod.dupKey}
+            dupValues={dupValues}
+            onResizeColumn={saveWidth}
+            selectedIds={selected}
+            onToggleSelect={mayEdit ? toggleSelect : undefined}
+            onToggleSelectAll={toggleSelectAll}
             hideDeleteFor={hideDeleteFor}
             readOnly={!mayEdit}
             canUnlock={mayEnd}
             onChange={onChange}
-            onDelete={csDriven || !mayDelete ? undefined : removeRow}
+            onDelete={(csDriven && !mod.manualDelete) || !mayDelete ? undefined : removeRow}
             onUnlock={onUnlock}
           />
           )}
         </div>
       )}
 
+      {mayEdit && selected.size > 0 && (
+        <BulkEditBar
+          fields={viewFields}
+          lists={lists}
+          count={selected.size}
+          onApply={applyBulk}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
       {mayEdit && <SaveBar count={dirty.size} onSave={saveAll} onCancel={cancelAll} saving={saving} label="งาน" />}
       {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
 
       {showCfg && (
-        <CollapseSettings
+        <ColumnSettings
           moduleLabel={mod.label}
-          fields={mod.fields}
-          defaultKeys={defaultSummaryKeys}
-          currentKeys={savedCollapse}
-          fullConfig={data?.collapse || {}}
           moduleKey={moduleKey}
+          fields={viewFields}
+          defaultKeys={defaultSummaryKeys}
+          sharedKeys={savedCollapse}
+          fullConfig={data?.collapse || {}}
+          prefs={myPrefs}
+          canSetShared={canLists()}
           onClose={() => setShowCfg(false)}
-          onSaved={applyOrReload}
+          onSavedPrefs={setLocalPrefs}
+          onSavedShared={applyOrReload}
         />
       )}
     </main>

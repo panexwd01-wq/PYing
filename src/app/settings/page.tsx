@@ -8,6 +8,7 @@ import { useData } from "@/components/DataProvider";
 import { RequireTab } from "@/components/RequireTab";
 import { useAuth } from "@/components/AuthProvider";
 import { ALL_LISTS, LIST_LABEL, COLOR_LISTS } from "@/lib/schema";
+import { ColorTag, PALETTE_SEED } from "@/lib/prefs";
 import { Lists } from "@/lib/types";
 
 const COLOR_KEYS = new Set(COLOR_LISTS); // list ที่มี color picker ต่อรายการ (carrier, sc)
@@ -26,6 +27,8 @@ function SettingsView() {
   const editable = canLists(); // ไม่มีสิทธิ์ = ดูได้อย่างเดียว
   const [lists, setLists] = useState<Lists>({});
   const [colors, setColors] = useState<Record<string, string>>({});
+  const [palette, setPalette] = useState<ColorTag[]>([]);
+  const [savingPalette, setSavingPalette] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
@@ -51,6 +54,7 @@ function SettingsView() {
     for (const k of ALL_LISTS) base[k] = data.lists[k] ? [...data.lists[k]] : [];
     setLists(base);
     setColors({ ...(data.carrierColors || {}) });
+    setPalette((data.palette && data.palette.length ? data.palette : PALETTE_SEED).map((t) => ({ ...t })));
     setDirty(false);
   }, [data]);
 
@@ -66,6 +70,31 @@ function SettingsView() {
       delete n[value];
       return n;
     });
+  };
+
+  // ----- ชุดสีกลาง (ใช้กับปุ่มเลือกสีข้างช่อง Job No. / Booking / MBL) -----
+  const setTag = (idx: number, patch: Partial<ColorTag>) =>
+    setPalette((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  const addTag = () => setPalette((prev) => [...prev, { color: "#cccccc", label: "" }]);
+  const removeTag = (idx: number) => setPalette((prev) => prev.filter((_, i) => i !== idx));
+
+  const savePalette = async () => {
+    setSavingPalette(true);
+    try {
+      const clean = palette.filter((t) => t.color).map((t) => ({ color: t.color, label: t.label.trim() }));
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ palette: clean }),
+      }).then((x) => x.json());
+      if (r.error) throw new Error(r.error);
+      await applyOrReload(r.snapshot);
+      flash("บันทึกชุดสีเรียบร้อย");
+    } catch (e: any) {
+      flash("บันทึกชุดสีไม่สำเร็จ: " + e.message, true);
+    } finally {
+      setSavingPalette(false);
+    }
   };
 
   const setItem = (key: string, idx: number, value: string) => {
@@ -144,11 +173,56 @@ function SettingsView() {
         </div>
         <p className="muted">
           {editable ? (
-            <>แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · <b>Co-Agent / Carrier</b> และ <b>S/C (EXP)</b> เลือกสีต่อรายการได้ (ระบายช่องในตาราง)</>
+            <>แก้ไขค่าตัวเลือกของแต่ละช่อง · ลากที่ <b>≡</b> เพื่อจัดลำดับ · รายการที่มีช่องสี (Carrier / S/C / <b>Customer</b> / <b>ชื่อ PIC</b>) เลือกสีได้ต่อรายการ — ตั้งครั้งเดียวมีผลทุกแถวที่ใช้ชื่อนั้น</>
           ) : (
             <>บัญชีนี้<b>ดูได้อย่างเดียว</b> — สิทธิ์แก้ไข Dropdown ตั้งค่าได้ที่หน้า “ผู้ใช้” โดย admin</>
           )}
         </p>
+      </div>
+
+      <div className="panel">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h2 style={{ flex: 1 }}>ชุดสีกลาง (สี = แปลว่าอะไร)</h2>
+          {editable && (
+            <button className="btn primary" onClick={savePalette} disabled={savingPalette}>
+              {savingPalette ? "กำลังบันทึก…" : "บันทึกชุดสี"}
+            </button>
+          )}
+        </div>
+        <p className="muted">
+          สีชุดนี้คือตัวเลือกที่ขึ้นตอนกดปุ่มสีข้างช่อง <b>Job No.</b> และ <b>Booking / MBL No.</b> ในหน้า Import/Export ·
+          แก้ความหมายที่นี่ครั้งเดียว ทุกคนเห็นตรงกัน
+        </p>
+        <div className="palette-list">
+          {palette.map((t, i) => (
+            <div className="palette-row" key={i}>
+              <input
+                type="color"
+                value={t.color}
+                disabled={!editable}
+                onChange={(e) => setTag(i, { color: e.target.value })}
+                aria-label="สี"
+              />
+              <input
+                value={t.label}
+                readOnly={!editable}
+                placeholder="ความหมายของสีนี้ เช่น รอลูกค้าจ่ายภาษี"
+                onChange={(e) => setTag(i, { label: e.target.value })}
+              />
+              {editable && (
+                <button className="btn sm danger" onClick={() => removeTag(i)}>
+                  ลบ
+                </button>
+              )}
+            </div>
+          ))}
+          {palette.length === 0 && <p className="muted">ยังไม่มีสีในชุด</p>}
+        </div>
+        {editable && (
+          <button className="btn sm" onClick={addTag}>
+            ＋ เพิ่มสี
+          </button>
+        )}
       </div>
 
       {loading && !data ? (

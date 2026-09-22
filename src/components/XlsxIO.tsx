@@ -12,6 +12,8 @@ interface Props {
   canImport: boolean;
   onDone: (snapshot?: unknown) => void | Promise<void>; // รับ snapshot ที่ API แนบมาหลัง import
   flash: (msg: string, err?: boolean) => void;
+  filteredIds?: string[]; // แถวที่ตัวกรองบนหน้าเหลืออยู่ — ใช้ปุ่ม "Export เฉพาะที่กรองไว้"
+  totalCount?: number; // จำนวนแถวทั้งหมดของ tab (ไว้ดูว่ากำลังกรองอยู่จริงไหม)
   dropzone?: boolean; // รับไฟล์ที่ลากมาวางทั้งหน้า — เปิดได้ตัวเดียวต่อหน้า (หน้าที่มีหลายตารางให้ใช้ปุ่มแทน)
 }
 
@@ -19,12 +21,13 @@ interface Props {
 // ไม่งั้นไฟล์เดียวจะถูกอัปโหลดซ้ำไปคนละโมดูล
 let dropOwner: string | null = null;
 
-export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropzone = true }: Props) {
+export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, filteredIds, totalCount, dropzone = true }: Props) {
   const [busy, setBusy] = useState("");
   const [dragging, setDragging] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
+  const lastFile = useRef<File | null>(null); // เก็บไฟล์ล่าสุดไว้ เผื่อผู้ใช้กดยืนยัน "ลงซ้ำ"
 
   const exportFile = () => {
     setBusy("กำลังสร้างไฟล์ .xlsx…");
@@ -38,9 +41,43 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropz
     window.setTimeout(() => setBusy(""), 1200);
   };
 
+  // Export เฉพาะแถวที่ตัวกรองบนหน้าเหลืออยู่ (ขาออก ข้อ 6)
+  // ส่งรายการ id ทาง POST เพราะถ้าใส่ใน URL จะยาวเกินตอนกรองได้หลายร้อยแถว
+  const exportFiltered = async () => {
+    if (!filteredIds || !filteredIds.length) return;
+    setBusy(`กำลังสร้างไฟล์ .xlsx (${filteredIds.length} แถว)…`);
+    try {
+      const r = await fetch(`/api/xlsx?module=${encodeURIComponent(moduleKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: filteredIds }),
+      });
+      if (!r.ok) throw new Error(((await r.json()) as { error?: string }).error || "สร้างไฟล์ไม่สำเร็จ");
+      const blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition") || "";
+      const hit = /filename\*=UTF-8''([^;]+)/.exec(cd);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = hit ? decodeURIComponent(hit[1]) : `${moduleLabel}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      flash("Export ไม่สำเร็จ: " + (e as Error).message, true);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  // กำลังกรองอยู่จริง = จำนวนที่เห็นน้อยกว่าทั้งหมด
+  const filtering = !!filteredIds && totalCount != null && filteredIds.length < totalCount;
+
   const upload = useCallback(
-    async (file: File) => {
+    async (file: File, allowDup = false) => {
       if (!canImport) return;
+      lastFile.current = file;
       if (!/\.xlsx$/i.test(file.name)) {
         flash("รองรับเฉพาะไฟล์ .xlsx (ไฟล์ที่กด Export ออกไป)", true);
         return;
@@ -49,7 +86,10 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropz
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const r = await fetch(`/api/xlsx?module=${encodeURIComponent(moduleKey)}`, { method: "POST", body: fd });
+        const r = await fetch(
+          `/api/xlsx?module=${encodeURIComponent(moduleKey)}${allowDup ? "&allowDup=1" : ""}`,
+          { method: "POST", body: fd }
+        );
         const j = await r.json();
         if (j.error) throw new Error(j.error);
         setResult(j as ImportResult);
@@ -104,8 +144,21 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropz
 
   return (
     <>
-      <button className="btn" onClick={exportFile} title={`ดาวน์โหลดข้อมูล ${moduleLabel} เป็นไฟล์ Excel`}>
-        ⬇ Export .xlsx
+      {filtering && (
+        <button
+          className="btn"
+          onClick={exportFiltered}
+          title={`ดาวน์โหลดเฉพาะ ${filteredIds!.length} แถวที่ตัวกรองเหลืออยู่`}
+        >
+          ⬇ Export ที่กรอง ({filteredIds!.length})
+        </button>
+      )}
+      <button
+        className="btn"
+        onClick={exportFile}
+        title={`ดาวน์โหลดข้อมูล ${moduleLabel} ทั้งหมดเป็นไฟล์ Excel`}
+      >
+        ⬇ Export {filtering ? "ทั้งหมด" : ".xlsx"}
       </button>
       {canImport && (
         <>
@@ -174,7 +227,24 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, dropz
                 </div>
               )}
               {!result.skipped.length && <p className="muted">นำเข้าครบทุกแถวในไฟล์</p>}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+                {!!result.duplicates && (
+                  <>
+                    <span className="muted" style={{ flex: 1, fontSize: 12 }}>
+                      ข้าม {result.duplicates} แถวเพราะซ้ำกับเรทที่มีอยู่ — ถ้าตั้งใจลงซ้ำ กดปุ่มขวามือ
+                    </span>
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        const f = lastFile.current;
+                        setResult(null);
+                        if (f) void upload(f, true);
+                      }}
+                    >
+                      ยืนยันลงซ้ำทั้งหมด
+                    </button>
+                  </>
+                )}
                 <button className="btn primary" onClick={() => setResult(null)}>ปิด</button>
               </div>
             </div>

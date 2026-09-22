@@ -33,11 +33,11 @@ export const SHIPPING_FIELDS: Field[] = [
   { key: "shipping_remark", label: "Shipping Remark", group: "Extra Service", type: "text", width: 180 },
 
   // ----- Operation Schedule -----
-  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" } },
+  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" }, dateOnly: true },
   { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
-  { key: "eta_imp", label: "ETA (IMP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "eta_imp" } },
+  { key: "eta_imp", label: "ETA (IMP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "eta_imp" }, dateOnly: true },
   { key: "imp_pod", label: "IMP/POD", group: "Operation Schedule", type: "auto", width: 110, pull: { imp: "pod" } },
-  { key: "etd_exp", label: "ETD (EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { exp: "etd_exp" } },
+  { key: "etd_exp", label: "ETD (EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { exp: "etd_exp" }, dateOnly: true },
   { key: "exp_pol", label: "EXP/POL", group: "Operation Schedule", type: "auto", width: 110, pull: { exp: "pol" } },
 
   // ----- Shipping Execution -----

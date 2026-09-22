@@ -1,4 +1,5 @@
 // ฟังก์ชันสรุปผล (pure) ทำงานบน Snapshot ในหน่วยความจำฝั่ง client — ไม่ยิง server
+import { contBySize, contLabel, contTotal } from "./containers";
 import { MODULES, MODULE_BY_KEY } from "./schema";
 import { LINK_CS, LINK_IMP, LINK_SRC } from "./fields";
 import { Snapshot } from "./types";
@@ -29,6 +30,24 @@ function topCount(vals: string[], n = 6): { name: string; count: number }[] {
 }
 
 const rowsOf = (snap: Snapshot, key: string) => snap.modules[key] || [];
+
+// วันที่หลักของแต่ละ tab — ใช้เป็นฐานของฟิลเตอร์ปี/เดือนในหน้า Supervisor / Mgmt / Sale
+// (ตรงกับ dateKey ใน schema — Import=ETA, Export=ETD, Shipping=Clearance, Trans/WH=Delivery)
+export const DASH_DATE_KEY: Record<string, string> = {
+  "cs-import": "eta_imp",
+  "cs-export": "etd_exp",
+  shipping: "clearance_date",
+  transport: "delivery_date",
+  warehouse: "delivery_date",
+};
+
+// วันที่ที่ใช้กรอง: ยึดวันที่หลักของ tab · ถ้าแถวนั้นยังไม่กรอก ค่อยถอยไปใช้วันที่สร้างงาน
+export const dashDate = (key: string, r: Record<string, string>): string =>
+  (DASH_DATE_KEY[key] ? (r[DASH_DATE_KEY[key]] || "").trim() : "") || (r.created_at || "").trim();
+
+// ตรงกับ Job Type ที่เลือกไหม (ว่าง = ไม่กรอง)
+const matchJobType = (r: Record<string, string>, jobType: string) =>
+  !jobType || (r.job_type || "").trim() === jobType;
 
 // ===== Dashboard =====
 export interface DashStatusCount {
@@ -132,15 +151,36 @@ export interface SalesStats {
   t40: number;
   customers: { name: string; jobs: number; c20: number; c40: number }[];
 }
-export function salesStats(snap: Snapshot): SalesStats {
-  const all = [...rowsOf(snap, "cs-import"), ...rowsOf(snap, "cs-export")];
+export interface SalesFilter {
+  year?: string;
+  month?: string;
+  day?: string; // วันที่ (01–31) — ใช้ร่วมกับปี/เดือน
+  jobType?: string;
+  customer?: string;
+  sales?: string; // Sales / BKG by
+}
+
+export function salesStats(snap: Snapshot, f: SalesFilter = {}): SalesStats {
+  const keep = (key: string) =>
+    rowsOf(snap, key).filter((r) => {
+      if (!matchJobType(r, f.jobType || "")) return false;
+      if (f.customer && (r.customer || "").trim() !== f.customer) return false;
+      if (f.sales && (r.sales_bkg_by || "").trim() !== f.sales) return false;
+      if (f.year || f.month || f.day) {
+        const d = dashDate(key, r);
+        if (!d) return false;
+        if (!inMonth(d, f.year || "", f.month || "")) return false;
+        if (f.day && d.slice(8, 10) !== f.day) return false;
+      }
+      return true;
+    });
+  const all = [...keep("cs-import"), ...keep("cs-export")];
   const byCust = new Map<string, { jobs: number; c20: number; c40: number }>();
   let t20 = 0,
     t40 = 0;
   for (const r of all) {
     const cust = (r.customer || "").trim() || "(ไม่ระบุ)";
-    const c20 = num(r.cnt_20gp);
-    const c40 = num(r.cnt_40hq);
+    const { c20, c40 } = contBySize(r);
     t20 += c20;
     t40 += c40;
     const cur = byCust.get(cust) || { jobs: 0, c20: 0, c40: 0 };
@@ -209,8 +249,7 @@ const daysSince = (d: string): number | null => {
   if (!m) return null;
   return Math.floor((Date.now() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000);
 };
-const contQty = (r: Record<string, string>) =>
-  num(r.cnt_4w) + num(r.cnt_6w) + num(r.cnt_10w) + num(r.cnt_20gp) + num(r.cnt_40hq);
+const contQty = (r: Record<string, string>) => contTotal(r);
 // "ความผิดพลาดภายในองค์กร" = root_cause ที่เป็น Error ทุกแบบ
 // (Internal / CS / Transportation / Warehouse / Shipping / Documentation Error)
 // ไม่นับ Customer Request เพราะไม่ใช่ความผิดของเรา
@@ -303,9 +342,9 @@ function supplierBreakdown(
     delay: [...list].sort((a, b) => b.delay - a.delay || b.delayPct - a.delayPct).slice(0, 5),
   };
 }
-export function managementDash(snap: Snapshot, year: string, month: string): MgmtDash {
-  const imp = rowsOf(snap, "cs-import");
-  const exp = rowsOf(snap, "cs-export");
+export function managementDash(snap: Snapshot, year: string, month: string, jobType = ""): MgmtDash {
+  const imp = rowsOf(snap, "cs-import").filter((r) => matchJobType(r, jobType));
+  const exp = rowsOf(snap, "cs-export").filter((r) => matchJobType(r, jobType));
   const cs = [...imp, ...exp];
   const impFin = imp.filter((r) => r.im_ops_status === "End" && inMonth(r.ended_at, year, month));
   const expFin = exp.filter((r) => r.ex_ops_status === "End" && inMonth(r.ended_at, year, month));
@@ -457,32 +496,33 @@ export interface SupervisorDash {
   exceptions: { label: string; count: number; hint: string }[];
   team: { team: string; total: number; active: number; endToday: number; endMonth: number }[];
   errorHealth: { team: string; noChargeCases: number; riskPic: string; extraType: string; lost: number; errorRate: number }[];
-  staff: { pic: string; team: string; total: number; active: number; end: number; delay: number; error: number }[];
+  staff: { pic: string; team: string; total: number; active: number; end: number; error: number }[];
   noChargeList: { jobNo: string; date: string; team: string; pic: string; type: string; lost: number; reason: string; remark: string }[];
   undated: number; // แถวที่ไม่มี created_at → แสดงทุกเดือน (ข้อมูลเก่าที่ย้ายมาจากชีท)
 }
-export function supervisorDash(snap: Snapshot, year: string, month: string): SupervisorDash {
-  // ---- กรองตามปี/เดือนที่เลือก: ยึด created_at (วันที่งานถูกสร้าง) ----
-  // แถวที่ไม่มี created_at (ข้อมูลเก่าที่ย้ายมาจากชีท) ให้แสดงทุกเดือน ไม่งั้นจะหายไปเฉย ๆ
-  const noDate = (r: Record<string, string>) => !(r.created_at || "").trim();
-  const inSel = (r: Record<string, string>) => noDate(r) || inMonth(r.created_at, year, month);
-  const rowsIn = (key: string) => rowsOf(snap, key).filter(inSel);
+export function supervisorDash(
+  snap: Snapshot,
+  year: string,
+  month: string,
+  jobType = ""
+): SupervisorDash {
+  // ---- กรองตามปี/เดือนที่เลือก: ยึดวันที่หลักของแต่ละ tab (ETA/ETD/Clearance/Delivery) ----
+  // แถวที่ยังไม่มีวันที่เลย ให้แสดงทุกเดือน ไม่งั้นจะหายไปเฉย ๆ
+  const inSel = (key: string, r: Record<string, string>) => {
+    if (!matchJobType(r, jobType)) return false;
+    const d = dashDate(key, r);
+    return !d || inMonth(d, year, month);
+  };
+  const rowsIn = (key: string) => rowsOf(snap, key).filter((r) => inSel(key, r));
 
   // Exception Dashboard = งานค้างแบบเรียลไทม์ → ใช้ข้อมูลทุกช่วงเวลา ไม่กรองตามเดือนที่เลือก
-  const imp = rowsOf(snap, "cs-import");
-  const exp = rowsOf(snap, "cs-export");
-  const acc = rowsOf(snap, "accounting");
+  // (แต่ยังเคารพตัวกรอง Job Type)
+  const imp = rowsOf(snap, "cs-import").filter((r) => matchJobType(r, jobType));
+  const exp = rowsOf(snap, "cs-export").filter((r) => matchJobType(r, jobType));
+  const acc = rowsOf(snap, "accounting").filter((r) => matchJobType(r, jobType));
   const cs = [...imp, ...exp];
   const stat = (r: Record<string, string>) => r.im_ops_status || r.ex_ops_status || "";
 
-  const etaPassed = imp.filter((r) => {
-    const d = daysSince(r.eta_imp);
-    return d != null && d > 0 && r.im_ops_status !== "End";
-  }).length;
-  const etdPassed = exp.filter((r) => {
-    const d = daysSince(r.etd_exp);
-    return d != null && d > 0 && r.ex_ops_status !== "End";
-  }).length;
   const openOver = (n: number) =>
     cs.filter((r) => {
       const d = daysSince(r.created_at);
@@ -495,11 +535,9 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   }).length;
 
   const exceptions = [
-    { label: "ETA Passed", count: etaPassed, hint: "Today > ETA และ IM/OPS ≠ End" },
-    { label: "ETD Passed", count: etdPassed, hint: "Today > ETD และ EX/OPS ≠ End" },
-    { label: "Job Open > 7 วัน", count: openOver(7), hint: "ยังไม่ End เกิน 7 วัน" },
     { label: "Job Open > 15 วัน", count: openOver(15), hint: "ยังไม่ End เกิน 15 วัน" },
     { label: "Job Open > 30 วัน", count: openOver(30), hint: "ยังไม่ End เกิน 30 วัน" },
+    { label: "Job Open > 45 วัน", count: openOver(45), hint: "ยังไม่ End เกิน 45 วัน" },
     { label: "Cancel Job", count: cancel, hint: "Status = Cancel" },
     { label: "Pending Invoice > 15 วัน", count: pendInv15, hint: "Accounting ค้างเก็บเงินเกิน 15 วัน" },
   ];
@@ -537,10 +575,10 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
   });
 
   // Staff KPI รวมทุกโมดูล ตาม PIC ของโมดูลนั้น ๆ (ไม่ใช่ CS PIC ที่ pull มา)
-  type SV = { team: string; total: number; active: number; end: number; delay: number; error: number };
+  type SV = { team: string; total: number; active: number; end: number; error: number };
   const staffMap = new Map<string, SV>();
   const ensure = (pic: string, team: string): SV => {
-    const cur = staffMap.get(pic) || { team, total: 0, active: 0, end: 0, delay: 0, error: 0 };
+    const cur = staffMap.get(pic) || { team, total: 0, active: 0, end: 0, error: 0 };
     if (!cur.team) cur.team = team;
     staffMap.set(pic, cur);
     return cur;
@@ -555,7 +593,6 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
       if (s === "End") cur.end++;
       else if (s !== "Cancel") cur.active++;
       const d = daysSince(r.created_at);
-      if (d != null && d > 7 && s !== "End") cur.delay++;
     }
   }
   for (const r of rowsIn("extra")) {
@@ -617,10 +654,11 @@ export function supervisorDash(snap: Snapshot, year: string, month: string): Sup
     mostPendingCount: topPend?.count || 0,
   };
 
-  // แถวที่ไม่มี created_at → ถูกนับรวมในทุกเดือน (แจ้งเตือนบนหน้าจอ)
+  // แถวที่ยังไม่มีวันที่หลัก (และไม่มีวันที่สร้าง) → ถูกนับรวมในทุกเดือน (แจ้งเตือนบนหน้าจอ)
+  const noDate = (key: string) => (r: Record<string, string>) => !dashDate(key, r);
   const undated =
-    teamDefs.reduce((a, [key]) => a + rowsOf(snap, key).filter(noDate).length, 0) +
-    rowsOf(snap, "extra").filter(noDate).length;
+    teamDefs.reduce((a, [key]) => a + rowsOf(snap, key).filter(noDate(key)).length, 0) +
+    rowsOf(snap, "extra").filter(noDate("extra")).length;
 
   return { risk, exceptions, team, errorHealth, staff, noChargeList, undated };
 }
@@ -650,11 +688,7 @@ export interface ActionRow {
   csPic: string;
   currentModule: string;
   conts: number;
-  c4w: number;
-  c6w: number;
-  c10w: number;
-  c20gp: number;
-  c40hq: number;
+  contLabel: string; // "20GP 2 / 40HQ 1"
   currentStatus: string;
   currentPic: string;
   actionRequired: string;
@@ -721,11 +755,7 @@ export function actionRows(snap: Snapshot): ActionRow[] {
         csPic: modulePic(csKey, r),
         currentModule: current,
         conts: contQty(r),
-        c4w: num(r.cnt_4w),
-        c6w: num(r.cnt_6w),
-        c10w: num(r.cnt_10w),
-        c20gp: num(r.cnt_20gp),
-        c40hq: num(r.cnt_40hq),
+        contLabel: contLabel(r),
         currentStatus: cStatus,
         currentPic: cPic,
         actionRequired: cStatus,

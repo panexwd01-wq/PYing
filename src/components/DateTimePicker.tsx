@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import flatpickr from "flatpickr";
 import { Thai } from "flatpickr/dist/l10n/th.js";
 import "flatpickr/dist/flatpickr.css";
+import { RANGE_SEP, formatDate } from "@/lib/dateFormat";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
 
-// เก็บค่าเป็น "YYYY-MM-DD HH:mm" หรือ "YYYY-MM-DD" (dateOnly) — แสดงผลเป็นวันที่ไทย (พ.ศ.)
+// เก็บค่าเป็น "YYYY-MM-DD HH:mm" หรือ "YYYY-MM-DD" (dateOnly) — แสดงผลเป็น DD/MM/YYYY (ค.ศ.)
 function toStore(d: Date, dateOnly: boolean): string {
   const base = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
   return dateOnly ? base : `${base} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
@@ -19,10 +20,6 @@ function parseStore(s: string): Date | null {
   if (!m) return null;
   return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
 }
-
-const TH_MONTHS = Thai.months.shorthand as string[];
-
-const RANGE_SEP = " ~ ";
 
 // range: เก็บ "YYYY-MM-DD ~ YYYY-MM-DD" (dateOnly เสมอ)
 function parseRange(s: string): Date[] {
@@ -66,10 +63,7 @@ export function DateTimePicker({
       dateFormat: dOnly ? "Y-m-d" : "Y-m-d H:i",
       allowInput: false,
       defaultDate: range ? parseRange(value) : parseStore(value) || undefined,
-      formatDate: (date) => {
-        const d = `${date.getDate()} ${TH_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`;
-        return dOnly ? d : `${d} ${p2(date.getHours())}:${p2(date.getMinutes())} น.`;
-      },
+      formatDate: (date) => formatDate(date, !dOnly),
       onChange: (dates) => {
         if (range) {
           // เก็บเมื่อเลือกครบช่วง (2 วัน); เลือกวันเดียว = ยังไม่บันทึก (รอวันปิดช่วง)

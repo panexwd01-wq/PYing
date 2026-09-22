@@ -24,6 +24,10 @@ export interface ModuleDef {
   jobNoKey: string; // คีย์ field ที่เป็นเลขงานของโมดูลนี้ (ใช้แสดงผล — ตัวเชื่อมจริงคือ LINK_*)
   picKey: string; // คีย์ field ผู้รับผิดชอบ (PIC) — ช่องเหลืองแก้ได้เมื่อมี PIC
   rate?: boolean; // true = ตารางเรท (Rate Checker) ไม่ใช่ job — ไม่เข้า dashboard/sync
+  dateKey?: string; // ช่องวันที่หลักของโมดูล — ใช้ทั้งฟิลเตอร์ปี/เดือน และการเรียงตั้งต้น (ใหม่→เก่า)
+  dupKey?: string; // ช่องที่ห้ามซ้ำ — ค่าซ้ำกันข้ามแถวจะถูกไฮไลต์แดงเตือน
+  manualDelete?: boolean; // ลบแถวเองได้ แม้ระบบจะเป็นคนสร้างแถวให้ (Extra / Accounting)
+  newDefaults?: Record<string, string>; // ค่าตั้งต้นตอนกด "เพิ่มงาน"
   fields: Field[];
 }
 
@@ -44,13 +48,13 @@ const withSystem = (fields: Field[], links: string[] = []): Field[] => [
 
 // ----- โมดูลงาน (04–10) -----
 export const MODULES: ModuleDef[] = [
-  { id: "04_CS_Import", key: "cs-import", label: "CS Import", short: "Import", kind: "import", jobNoKey: "imp_job_no", picKey: "im_cs", fields: withSystem(IMPORT_FIELDS) },
-  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", fields: withSystem(EXPORT_FIELDS, [LINK_IMP]) },
-  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", fields: withSystem(SHIPPING_FIELDS, [LINK_CS]) },
-  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", fields: withSystem(TRANSPORT_FIELDS, [LINK_CS]) },
-  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", fields: withSystem(WAREHOUSE_FIELDS, [LINK_CS]) },
-  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", fields: withSystem(EXTRA_FIELDS, [LINK_CS, LINK_SRC]) },
-  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", fields: withSystem(ACCOUNTING_FIELDS, [LINK_CS, LINK_KEY]) },
+  { id: "04_CS_Import", key: "cs-import", label: "CS Import", short: "Import", kind: "import", jobNoKey: "imp_job_no", picKey: "im_cs", dateKey: "eta_imp", fields: withSystem(IMPORT_FIELDS) },
+  { id: "05_CS_Export", key: "cs-export", label: "CS Export", short: "Export", kind: "export", jobNoKey: "exp_job_no", picKey: "ex_cs", dateKey: "etd_exp", dupKey: "exp_booking_mbl", newDefaults: { job_type: "Export/FCL" }, fields: withSystem(EXPORT_FIELDS, [LINK_IMP]) },
+  { id: "06_Shipping", key: "shipping", label: "Shipping", short: "Shipping", kind: "downstream", jobNoKey: JOB_KEY, picKey: "ship_pic", dateKey: "clearance_date", fields: withSystem(SHIPPING_FIELDS, [LINK_CS]) },
+  { id: "07_Transportation", key: "transport", label: "Transportation", short: "Transport", kind: "downstream", jobNoKey: JOB_KEY, picKey: "trans_pic", dateKey: "delivery_date", fields: withSystem(TRANSPORT_FIELDS, [LINK_CS]) },
+  { id: "08_Warehouse", key: "warehouse", label: "Warehouse", short: "Warehouse", kind: "downstream", jobNoKey: JOB_KEY, picKey: "wh_pic", dateKey: "delivery_date", fields: withSystem(WAREHOUSE_FIELDS, [LINK_CS]) },
+  { id: "09_Extra_Service", key: "extra", label: "Extra / Service", short: "Extra", kind: "downstream", jobNoKey: JOB_KEY, picKey: "cost_pic", manualDelete: true, fields: withSystem(EXTRA_FIELDS, [LINK_CS, LINK_SRC]) },
+  { id: "10_Accounting", key: "accounting", label: "Accounting", short: "Accounting", kind: "downstream", jobNoKey: JOB_KEY, picKey: "acc_pic", manualDelete: true, fields: withSystem(ACCOUNTING_FIELDS, [LINK_CS, LINK_KEY]) },
 ];
 
 // ----- ตารางเรท (13) — ใช้ CRUD ร่วมกับโมดูลได้ แต่ไม่ใช่ job -----
@@ -134,6 +138,8 @@ export const LIST_LABEL: Record<string, string> = {
   yes_no: "Yes / No",
   cost_module: "Cost Module",
   unit_list: "Unit",
+  container_unit: "หน่วยตู้/รถ (4W/20GP/40HQ …)",
+  pkg_unit: "หน่วยสินค้า (PKG/CARTON/PALLET …)",
   root_cause: "Root Cause",
   currency: "Currency",
   profit_sts: "Profit Sts",
@@ -277,6 +283,8 @@ export const LIST_SEED: Record<string, string[]> = {
   yes_no: ["Yes", "No"],
   cost_module: ["Import", "Export", "Shipping", "Transportation", "Warehouse", "CS Operation", "Re-Export"],
   unit_list: ["Trip", "Container", "Shipment", "Set", "Day", "Hour", "Document", "Entry", "Lot", "Person"],
+  container_unit: ["4W", "6W", "10W", "20GP", "40GP", "40HQ", "40HC", "20FR", "40FR", "20OT", "40OT", "45HQ"],
+  pkg_unit: ["PKG", "CARTON", "PALLET", "ROLL", "BAG", "CASE", "CRATE", "DRUM", "SET", "PCS", "KG", "CBM"],
   root_cause: ["Customer Request", "Internal Error", "Transportation Error", "Warehouse Error", "CS Error", "Documentation Error", "Shipping Error"],
   currency: ["THB", "USD", "RMB", "EUR", "JPY", "Others"],
   profit_sts: ["With GP", "At Cost", "No Charge", "As Quotation"],
@@ -296,7 +304,7 @@ export const LIST_SEED: Record<string, string[]> = {
 export const ALL_LISTS = Object.keys(LIST_SEED);
 
 // list ที่เลือกสีต่อรายการได้ในหน้าตั้งค่า (สีเก็บรวมกันที่ _settings!A2 → ใช้ระบายช่องที่ผูกกับ list นั้น)
-export const COLOR_LISTS = ["carrier", "sc"];
+export const COLOR_LISTS = ["carrier", "sc", "customer", "im_cs", "ex_cs", "ship_pic", "trans_pic", "wh_pic", "entry_pic", "acc_pic"];
 
 // สีตั้งต้น (ใช้เมื่อยังไม่เคยตั้งค่าใน _settings!A2) — แก้/เพิ่มได้ที่หน้าตั้งค่า Dropdown
 export const CARRIER_COLOR_SEED: Record<string, string> = {

@@ -6,6 +6,7 @@ import { Perms, PermAction, can as canPerm, canLists } from "@/lib/perms";
 import type { Role } from "@/lib/session";
 
 export interface CurrentUser {
+  id: string; // ใช้เป็นคีย์ของ "ตั้งค่าคอลัมน์ต่อบัญชี"
   username: string;
   displayName: string;
   role: Role;

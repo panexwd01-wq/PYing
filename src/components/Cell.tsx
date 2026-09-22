@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Field } from "@/lib/schema";
+import { formatIfDate } from "@/lib/dateFormat";
+import { ColorTag, colorLabel } from "@/lib/prefs";
 import { Toggle } from "./Toggle";
 import { DateTimePicker } from "./DateTimePicker";
 
@@ -13,7 +15,9 @@ export function Cell({
   locked,
   lockHint,
   bg,
-  onColorCycle,
+  palette,
+  pickedColor,
+  onColorPick,
 }: {
   field: Field;
   value: string;
@@ -22,7 +26,9 @@ export function Cell({
   locked?: boolean;
   lockHint?: string;
   bg?: string; // สีพื้น (จาก cellRules)
-  onColorCycle?: () => void; // ปุ่มสลับสี (MBL)
+  palette?: ColorTag[]; // ชุดสีกลาง (ปุ่มเลือกสีข้างช่อง)
+  pickedColor?: string; // สีที่แถวนี้เลือกไว้
+  onColorPick?: (color: string) => void;
 }) {
   const bgStyle = bg ? { background: bg } : undefined;
 
@@ -30,7 +36,7 @@ export function Cell({
   if (locked && field.type !== "auto") {
     return (
       <div className="cellbox locked-ext" style={bgStyle} title={lockHint || "ล็อกอยู่"}>
-        {field.type === "toggle" ? value || "No" : value || "—"}
+        {field.type === "toggle" ? value || "No" : formatIfDate(value, field.dateOnly) || "—"}
       </div>
     );
   }
@@ -40,7 +46,7 @@ export function Cell({
       // ดึงจาก Module อื่น -> read-only (เทา) — แต่ยังระบายสี cue ได้ (เช่น Entry Status แดง)
       return (
         <div className="cellbox" style={bgStyle} title={value}>
-          {value || "—"}
+          {formatIfDate(value, field.dateOnly) || "—"}
         </div>
       );
 
@@ -54,7 +60,7 @@ export function Cell({
     case "datetime":
       return (
         <div className="cellbox" style={bgStyle}>
-          <DateTimePicker value={value} onChange={onChange} range={field.range} bg={bg} />
+          <DateTimePicker value={value} onChange={onChange} range={field.range} dateOnly={field.dateOnly} bg={bg} />
         </div>
       );
 
@@ -88,19 +94,12 @@ export function Cell({
       );
 
     default:
-      // text — ถ้ามีปุ่มสลับสี (MBL) แสดงปุ่มสีข้างช่อง
-      if (field.colorToggle && onColorCycle) {
+      // text — ถ้าช่องนี้เลือกสีได้ แสดงปุ่มสีข้างช่อง (เลือกจากชุดสีกลาง)
+      if (field.colorPick && onColorPick) {
         return (
           <div className="cell-color-wrap">
             <input className="cell" style={bgStyle} title={value} value={value} onChange={(e) => onChange(e.target.value)} />
-            <button
-              type="button"
-              className="color-btn"
-              style={bg ? { background: bg } : undefined}
-              onClick={onColorCycle}
-              title="สลับสี: ชมพู=รอลูกค้าจ่ายภาษี / เขียว=รอเงินมัดจำกับสายเรือ"
-              aria-label="สลับสี"
-            />
+            <ColorPickButton palette={palette} value={pickedColor || ""} onPick={onColorPick} />
           </div>
         );
       }
@@ -161,6 +160,76 @@ function MultiSelectCell({
             + เพิ่ม
           </button>
         )
+      )}
+    </div>
+  );
+}
+
+// ปุ่มเลือกสีข้างช่อง — เลือกจาก "ชุดสีกลาง" ที่ตั้งความหมายไว้ในหน้าตั้งค่า
+function ColorPickButton({
+  palette,
+  value,
+  onPick,
+}: {
+  palette?: ColorTag[];
+  value: string;
+  onPick: (color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const tags = palette && palette.length ? palette : [];
+
+  // คลิกที่อื่น = ปิดเมนู
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [open]);
+
+  const label = colorLabel(palette, value);
+
+  return (
+    <div className="color-pop-wrap" ref={boxRef}>
+      <button
+        type="button"
+        className="color-btn"
+        style={value ? { background: value } : undefined}
+        onClick={() => setOpen((v) => !v)}
+        title={label ? `สี: ${label}` : "เลือกสีเพื่อทำเครื่องหมาย"}
+        aria-label="เลือกสี"
+      />
+      {open && (
+        <div className="color-pop">
+          {tags.length === 0 && <div className="color-pop-empty">ยังไม่ได้ตั้งชุดสี — ตั้งได้ที่หน้า “ตั้งค่า”</div>}
+          {tags.map((t) => (
+            <button
+              type="button"
+              key={t.color}
+              className={"color-pop-item" + (t.color.toLowerCase() === value.toLowerCase() ? " on" : "")}
+              onClick={() => {
+                onPick(t.color);
+                setOpen(false);
+              }}
+            >
+              <span className="sw" style={{ background: t.color }} />
+              <span>{t.label || t.color}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="color-pop-item clear"
+            onClick={() => {
+              onPick("");
+              setOpen(false);
+            }}
+          >
+            <span className="sw none" />
+            <span>เอาสีออก</span>
+          </button>
+        </div>
       )}
     </div>
   );

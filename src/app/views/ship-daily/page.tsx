@@ -7,6 +7,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { RequireTab } from "@/components/RequireTab";
 import { JobRecord } from "@/lib/types";
+import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
 
 const num = (v: unknown) => {
@@ -71,7 +72,9 @@ function ShipDailyView() {
 
   const contQty = (csId: string) => {
     const cs = csById.get(csId);
-    return cs ? num(cs.cnt_20gp) + num(cs.cnt_40hq) : 0;
+    if (!cs) return 0;
+    const { c20, c40 } = contBySize(cs);
+    return c20 + c40;
   };
 
   const cols: Col[] = useMemo(

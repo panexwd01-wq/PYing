@@ -44,9 +44,14 @@ function ManagementView() {
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [jobType, setJobType] = useState("");
 
   const years = useMemo(() => (data ? yearsInData(data) : [year]), [data, year]);
-  const s = useMemo(() => (data ? managementDash(data, year, month) : null), [data, year, month]);
+  const jobTypes = useMemo(() => data?.lists?.job_type || [], [data]);
+  const s = useMemo(
+    () => (data ? managementDash(data, year, month, jobType) : null),
+    [data, year, month, jobType]
+  );
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -63,6 +68,12 @@ function ManagementView() {
           <div className="field"><label>เดือน</label>
             <select value={month} onChange={(e) => setMonth(e.target.value)}>
               {MONTHS_TH.map((m, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
+            </select>
+          </div>
+          <div className="field"><label>Job Type</label>
+            <select value={jobType} onChange={(e) => setJobType(e.target.value)}>
+              <option value="">ทั้งหมด</option>
+              {jobTypes.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
         </div>

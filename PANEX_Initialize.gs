@@ -18,6 +18,15 @@
  *    → มีข้อมูลอยู่แล้ว ให้รัน **PANEX_MIGRATE()** (ย้ายตามชื่อหัวคอลัมน์ + สำรองชีทเป็น BAK_)
  *      แทนการเคลียร์ชีท จากนั้นค่อยรัน PANEX_INITIALIZE() ตามปกติ
  *
+ * ⚠️ เวอร์ชันนี้เปลี่ยนคอลัมน์จำนวนตู้ของ 04/05/07 จาก 4W/6W/10W/20GP/40HQ (5 ช่องตายตัว)
+ *    เป็น "จำนวน + หน่วย" 2 คู่ (cnt1_qty/cnt1_unit/cnt2_qty/cnt2_unit) + เพิ่มคอลัมน์ใหม่อีกหลายช่อง
+ *    (DEM Start / หน่วยสินค้า / โน้ตเวลาจัดส่งต่อ Supplier / ช่องเก็บสีที่ผู้ใช้เลือกเอง / Extra Remark)
+ *    → รัน **PANEX_MIGRATE()** หนึ่งครั้ง · ตัวเลขตู้เดิมย้ายเข้าคู่ใหม่ให้อัตโนมัติ
+ *      แถวที่เดิมกรอกเกิน 2 หน่วย จะยัดที่เหลือเป็นข้อความขึ้นต้นด้วย ⚠ ในช่องหน่วยที่ 2 ให้ไปแก้เอง
+ *
+ * 🛠 บล็อก PANEX_HEADERS ด้านล่าง generate จาก schema ด้วย `node scripts/gen-sheet-headers.mjs`
+ *    เพิ่ม/ลบ/สลับคอลัมน์ที่ src/lib/modules/*.ts แล้วรันสคริปต์ ไม่ต้องไล่แก้ไฟล์นี้ด้วยมือ
+ *
  * ⚠️ เวอร์ชันนี้เพิ่มคอลัมน์รหัสเชื่อม (link_cs / link_src / link_key / link_imp) ต่อท้ายชีท 05–10
  *    ใช้เชื่อมแถวข้ามโมดูลแทน Job No. — ฝั่งเว็บขยายชีท + เติมหัวคอลัมน์ให้เองตอนบันทึกครั้งแรก
  *    (รัน PANEX_MIGRATE() ก็ได้ผลเหมือนกัน) แล้วให้ admin กด Sync หนึ่งครั้งเพื่อเติมรหัสให้ข้อมูลเดิม
@@ -49,6 +58,7 @@ var PANEX_HEADERS = {
     "job_type",
     "im_cs",
     "imp_job_no",
+    "imp_job_no_color",
     "customer",
     "eta_imp",
     "re_export",
@@ -64,13 +74,13 @@ var PANEX_HEADERS = {
     "pod",
     "vessel",
     "freetime",
+    "dem_start",
     "term",
     "cargo_type",
-    "cnt_4w",
-    "cnt_6w",
-    "cnt_10w",
-    "cnt_20gp",
-    "cnt_40hq",
+    "cnt1_qty",
+    "cnt1_unit",
+    "cnt2_qty",
+    "cnt2_unit",
     "pv_no",
     "pv_status",
     "im_doc",
@@ -80,10 +90,13 @@ var PANEX_HEADERS = {
     "check_deposit_done_date",
     "scan_file",
     "total_pkg",
+    "total_pkg_unit",
     "imp_customer_ref",
     "im_doc_remark",
     "extra_require",
     "extra_req_type",
+    "extra_req_remark",
+    "extra_cost_note",
     "shipping_flag",
     "clearance_date",
     "cs_note_ship",
@@ -101,6 +114,7 @@ var PANEX_HEADERS = {
     "trans_supp1_vol",
     "trans_supp1_del_addr",
     "trans_supp1_delivery",
+    "trans_supp1_time",
     "trans_supp1_sts",
     "trans_supp1_pending",
     "trans_supp1_end",
@@ -109,6 +123,7 @@ var PANEX_HEADERS = {
     "trans_supp2_vol",
     "trans_supp2_del_addr",
     "trans_supp2_delivery",
+    "trans_supp2_time",
     "trans_supp2_sts",
     "trans_supp2_pending",
     "trans_supp2_end",
@@ -117,6 +132,7 @@ var PANEX_HEADERS = {
     "trans_supp3_vol",
     "trans_supp3_del_addr",
     "trans_supp3_delivery",
+    "trans_supp3_time",
     "trans_supp3_sts",
     "trans_supp3_pending",
     "trans_supp3_end",
@@ -142,7 +158,9 @@ var PANEX_HEADERS = {
     "job_type",
     "ex_cs",
     "exp_job_no",
+    "exp_job_no_color",
     "exp_booking_mbl",
+    "exp_booking_mbl_color",
     "exp_hbl",
     "customer",
     "etd_exp",
@@ -159,11 +177,10 @@ var PANEX_HEADERS = {
     "term",
     "cy_date",
     "return_date",
-    "cnt_4w",
-    "cnt_6w",
-    "cnt_10w",
-    "cnt_20gp",
-    "cnt_40hq",
+    "cnt1_qty",
+    "cnt1_unit",
+    "cnt2_qty",
+    "cnt2_unit",
     "pv_no",
     "pv_status",
     "agent",
@@ -182,6 +199,8 @@ var PANEX_HEADERS = {
     "ex_doc_remark",
     "extra_require",
     "extra_req_type",
+    "extra_req_remark",
+    "extra_cost_note",
     "shipping_flag",
     "clearance_date",
     "cs_note_ship",
@@ -293,11 +312,10 @@ var PANEX_HEADERS = {
     "booking_mbl",
     "customer",
     "import_port",
-    "cnt_4w",
-    "cnt_6w",
-    "cnt_10w",
-    "cnt_20gp",
-    "cnt_40hq",
+    "cnt1_qty",
+    "cnt1_unit",
+    "cnt2_qty",
+    "cnt2_unit",
     "customer_ref",
     "cs_note_trans",
     "clearance_date",
@@ -309,6 +327,7 @@ var PANEX_HEADERS = {
     "supp1_vol",
     "supp1_del_addr",
     "supp1_delivery",
+    "supp1_time",
     "supp1_fuel",
     "supp1_sts",
     "supp1_end",
@@ -319,6 +338,7 @@ var PANEX_HEADERS = {
     "supp2_vol",
     "supp2_del_addr",
     "supp2_delivery",
+    "supp2_time",
     "supp2_fuel",
     "supp2_sts",
     "supp2_end",
@@ -329,6 +349,7 @@ var PANEX_HEADERS = {
     "supp3_vol",
     "supp3_del_addr",
     "supp3_delivery",
+    "supp3_time",
     "supp3_fuel",
     "supp3_sts",
     "supp3_end",
@@ -613,6 +634,16 @@ function PANEX_INITIALIZE() {
 // คอลัมน์ที่ "เปลี่ยนชื่อ/แตกเป็นหลายช่อง" — นอกเหนือจากนี้ใช้ชื่อเดิมตรง ๆ
 // [] = ทิ้งไปเลย (ไม่มีคอลัมน์นี้แล้ว)
 var PANEX_MIGRATE_MAP = {
+  // คอลัมน์ตู้แบบตายตัว → ย้ายด้วย PANEX_MIGRATE_FIX ข้างล่าง (ต้องเลือกว่าค่าไหนเข้าคู่ไหน)
+  "04_CS_Import": {
+    "cnt_4w": [], "cnt_6w": [], "cnt_10w": [], "cnt_20gp": [], "cnt_40hq": []
+  },
+  "05_CS_Export": {
+    "cnt_4w": [], "cnt_6w": [], "cnt_10w": [], "cnt_20gp": [], "cnt_40hq": []
+  },
+  "07_Transportation": {
+    "cnt_4w": [], "cnt_6w": [], "cnt_10w": [], "cnt_20gp": [], "cnt_40hq": []
+  },
   "09_Extra_Service": {
     "sell_baht": ["sell_total_rate"],   // ยอดเดิม → Total Rate (ของใหม่คิดจาก Qty. × Rate)
     "cost_baht": ["cost_total_rate"],
@@ -633,6 +664,56 @@ var PANEX_MIGRATE_DEFAULT = {
     "sell_input_status": "Pending",
     "cost_input_status": "Pending"
   }
+};
+
+// ===== ย้ายแบบมีเงื่อนไข (ทำหลังย้ายตามชื่อคอลัมน์) =====
+// คืนค่าใส่ nr โดยตรง · old = อ็อบเจกต์ { ชื่อคอลัมน์เดิม: ค่า }
+// จำนวนตู้: เดิม 5 ช่องตายตัว → ใหม่เป็น "จำนวน + หน่วย" 2 คู่
+//   มีข้อมูล 1-2 หน่วย = ย้ายตรง ๆ · เกิน 2 หน่วย = ยัดที่เหลือเป็นข้อความในช่องหน่วยที่ 2 (ขึ้นต้นด้วย ⚠ ให้ไปแก้เอง)
+var PANEX_OLD_CONT_UNITS = [
+  ["cnt_4w", "4W"], ["cnt_6w", "6W"], ["cnt_10w", "10W"], ["cnt_20gp", "20GP"], ["cnt_40hq", "40HQ"]
+];
+
+// สีปุ่มข้าง MBL: เดิมสลับได้แค่ชมพู/เขียว — "รอเงินมัดจำ" เปลี่ยนจากเขียวเป็นเหลืองตามที่ขอ
+function migrateMblColor_(old, nr, newIdx) {
+  var j = newIdx["imp_booking_mbl_color"];
+  if (j == null) return;
+  if (String(nr[j]).trim().toLowerCase() === "#bfe9c8") nr[j] = "#ffe08a";
+}
+
+function migrateImport_(old, nr, newIdx) {
+  migrateContainers_(old, nr, newIdx);
+  migrateMblColor_(old, nr, newIdx);
+}
+
+function migrateContainers_(old, nr, newIdx) {
+  var pairs = [];
+  PANEX_OLD_CONT_UNITS.forEach(function (u) {
+    var v = String(old[u[0]] == null ? "" : old[u[0]]).trim();
+    if (v !== "" && v !== "0") pairs.push({ qty: v, unit: u[1] });
+  });
+  if (!pairs.length) return;
+  var put = function (key, val) {
+    var j = newIdx[key];
+    if (j != null) nr[j] = val;
+  };
+  put("cnt1_qty", pairs[0].qty);
+  put("cnt1_unit", pairs[0].unit);
+  if (pairs.length === 1) return;
+  if (pairs.length === 2) {
+    put("cnt2_qty", pairs[1].qty);
+    put("cnt2_unit", pairs[1].unit);
+    return;
+  }
+  var rest = pairs.slice(1).map(function (p) { return p.unit + " " + p.qty; }).join(" / ");
+  put("cnt2_qty", "");
+  put("cnt2_unit", "⚠ " + rest);
+}
+
+var PANEX_MIGRATE_FIX = {
+  "04_CS_Import": migrateImport_,
+  "05_CS_Export": migrateContainers_,
+  "07_Transportation": migrateContainers_
 };
 
 function PANEX_MIGRATE() {
@@ -702,6 +783,12 @@ function migrateSheet_(ss, name) {
       var j = newIdx[k];
       if (j != null && String(nr[j]).trim() === "") nr[j] = defs[k];
     });
+    var fix = PANEX_MIGRATE_FIX[name];
+    if (fix) {
+      var old = {};
+      for (var oc = 0; oc < oldHeaders.length; oc++) if (oldHeaders[oc]) old[oldHeaders[oc]] = row[oc];
+      fix(old, nr, newIdx);
+    }
     out.push(nr);
   }
 

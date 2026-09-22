@@ -47,7 +47,11 @@ function weekdayColor(v: string): string | undefined {
 }
 
 // ช่องที่ระบายสีตามค่าที่ตั้งไว้ในหน้าตั้งค่า (คีย์ช่อง = ค่าที่เอาไปหาสี) — คู่กับ COLOR_LISTS ใน schema
-const COLORED_FIELDS = new Set(["co_agent_carrier", "sc"]);
+// ชื่อลูกค้า (ขาเข้า ข้อ 11) และชื่อ PIC ทุกฝ่าย (ขาเข้า ข้อ 13) ใช้กลไกเดียวกัน — ตั้งสีต่อ "ชื่อ" ครั้งเดียว มีผลทุกแถว
+const COLORED_FIELDS = new Set([
+  "co_agent_carrier", "sc", "customer",
+  "im_cs", "ex_cs", "cs_pic", "ship_pic", "trans_pic", "wh_pic", "entry_pic", "acc_pic", "ar_pic", "cost_pic", "sell_pic",
+]);
 
 // ช่องใน section Clearance Monitoring ของ tab Shipping (ช่อง End Date เป็น auto อยู่แล้ว)
 const SHIP_CLEARANCE_KEYS = new Set(["clearance_status", "clearance_pending_reason"]);
@@ -95,6 +99,13 @@ export function cellCue(
       return { locked: true, hint: `ต้องเลือก ${missing.join(" และ ")} ก่อนจึงจะแก้ช่องนี้ได้` };
   }
 
+  // ----- สีที่ผู้ใช้กดเลือกเองต่อแถว (ชุดสีกลาง) — มาก่อนกฎสีอัตโนมัติอื่น -----
+  // ช่องที่มีปุ่มเลือกสี (colorPick) จะเก็บค่าไว้ที่ <key>_color ของแถวนั้น
+  {
+    const picked = (rec[`${fieldKey}_color`] || "").trim();
+    if (picked) return { bg: picked };
+  }
+
   // ----- Job Type = Re-Export/* → แดงทุก tab (สัญลักษณ์ว่างานนี้เป็น Re-Export) -----
   // โมดูลปลายทาง (Shipping/Transport/Warehouse/Extra/Accounting) ดึง Job Type มาจาก CS อยู่แล้ว
   if (fieldKey === "job_type" && isReExportType(rec.job_type)) {
@@ -129,12 +140,6 @@ export function cellCue(
   // ----- Co-Agent / Carrier + S/C → สีตามที่ตั้งค่าไว้ต่อรายการ (settings) -----
   if (COLORED_FIELDS.has(fieldKey) && carrierColors) {
     const c = carrierColors[(rec[fieldKey] || "").trim()];
-    if (c) return { bg: c };
-  }
-
-  // ----- ปุ่มสี MBL (Import) → พื้นตามสีที่กดไว้ -----
-  if (fieldKey === "imp_booking_mbl") {
-    const c = (rec.imp_booking_mbl_color || "").trim();
     if (c) return { bg: c };
   }
 

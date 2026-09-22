@@ -19,6 +19,7 @@ function SupervisorView() {
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [jobType, setJobType] = useState("");
   const [team, setTeam] = useState("");
   const [pic, setPic] = useState("");
   const [openTeams, setOpenTeams] = useState<Set<string>>(new Set()); // ทีมที่กางดูรายชื่อพนักงาน
@@ -32,7 +33,8 @@ function SupervisorView() {
     });
 
   const years = useMemo(() => (data ? yearsInData(data) : [year]), [data, year]);
-  const s = useMemo(() => (data ? supervisorDash(data, year, month) : null), [data, year, month]);
+  const jobTypes = useMemo(() => data?.lists?.job_type || [], [data]);
+  const s = useMemo(() => (data ? supervisorDash(data, year, month, jobType) : null), [data, year, month, jobType]);
 
   const teams = useMemo(() => (s ? Array.from(new Set(s.staff.map((t) => t.team).filter(Boolean))) : []), [s]);
   const pics = useMemo(() => (s ? s.staff.map((t) => t.pic) : []), [s]);
@@ -62,6 +64,12 @@ function SupervisorView() {
               {MONTHS_TH.map((m, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
             </select>
           </div>
+          <div className="field"><label>Job Type</label>
+            <select value={jobType} onChange={(e) => setJobType(e.target.value)}>
+              <option value="">ทั้งหมด</option>
+              {jobTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
           <div className="field"><label>Module / Team</label>
             <select value={team} onChange={(e) => setTeam(e.target.value)}>
               <option value="">ทั้งหมด</option>
@@ -76,10 +84,11 @@ function SupervisorView() {
           </div>
         </div>
         <p className="muted" style={{ margin: "8px 4px 0", fontSize: 12 }}>
-          ปี/เดือนที่เลือกกรองจาก <b>วันที่สร้างงาน (Job 1st Assigned)</b> ทุกตารางในหน้านี้ ยกเว้น <b>Exception Dashboard</b> (งานค้างเรียลไทม์ นับจากวันนี้เสมอ)
-          และ <b>End เดือนนี้</b> (ยึดวันที่ปิดงาน)
+          ปี/เดือนที่เลือกกรองจาก<b>วันที่หลักของแต่ละ tab</b> (Import = ETA · Export = ETD · Shipping = Clearance Date ·
+          Transport/Warehouse = Delivery Date · ที่เหลือใช้วันที่สร้างงาน) ทุกตารางในหน้านี้
+          ยกเว้น <b>Exception Dashboard</b> (งานค้างเรียลไทม์ นับจากวันนี้เสมอ) และ <b>End เดือนนี้</b> (ยึดวันที่ปิดงาน)
           {s && s.undated > 0 && (
-            <> · <b>{s.undated}</b> แถวไม่มีวันที่สร้าง (ข้อมูลเก่าที่ย้ายมาจากชีท) จะแสดงในทุกเดือน</>
+            <> · <b>{s.undated}</b> แถวยังไม่มีวันที่ จะแสดงในทุกเดือน</>
           )}
         </p>
         {error && <p className="muted">โหลดข้อมูลไม่สำเร็จ: {error} <button className="btn sm" onClick={() => reload(true)}>ลองใหม่</button></p>}
@@ -176,7 +185,7 @@ function SupervisorView() {
                               <table className="view-table">
                                 <thead>
                                   <tr className="field-row">
-                                    <th>อันดับ</th><th>พนักงาน (PIC)</th><th>Total</th><th>Active</th><th>End</th><th>Delay (&gt;7 วัน)</th><th>Internal Error</th>
+                                    <th>อันดับ</th><th>พนักงาน (PIC)</th><th>Total</th><th>Active</th><th>End</th><th>Internal Error</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -191,12 +200,12 @@ function SupervisorView() {
                                           {hot && <span className="wl-tag hot">งานมากสุด</span>}
                                           {cold && !hot && <span className="wl-tag cold">งานน้อยสุด</span>}
                                         </td>
-                                        <td>{mbr.total}</td><td>{mbr.active}</td><td>{mbr.end}</td><td>{mbr.delay}</td><td>{mbr.error}</td>
+                                        <td>{mbr.total}</td><td>{mbr.active}</td><td>{mbr.end}</td><td>{mbr.error}</td>
                                       </tr>
                                     );
                                   })}
                                   {members.length === 0 && (
-                                    <tr><td colSpan={7} style={{ padding: 14, textAlign: "center", color: "#777" }}>ยังไม่มีพนักงานที่มีงานในทีมนี้เดือนนี้</td></tr>
+                                    <tr><td colSpan={6} style={{ padding: 14, textAlign: "center", color: "#777" }}>ยังไม่มีพนักงานที่มีงานในทีมนี้เดือนนี้</td></tr>
                                   )}
                                 </tbody>
                               </table>
@@ -224,14 +233,13 @@ function SupervisorView() {
                 <th title="จำนวนแถวงานที่คนนี้เป็น PIC (รวมทุก tab) ที่สร้างในเดือนที่เลือก">Total</th>
                 <th title="ยังไม่ End และไม่ใช่ Cancel">Active</th>
                 <th title="Status = End">End</th>
-                <th title="สร้างมาเกิน 7 วันแล้วยังไม่ End">Delay (&gt;7 วัน)</th>
                 <th title="แถว Extra ที่คนนี้เป็น Extra Cost PIC และ Root Cause เป็น Error (ทุกแบบ ยกเว้น Customer Request)">Internal Error</th>
               </tr></thead>
               <tbody>
                 {staff.map((t, i) => (
-                  <tr key={i}><td>{t.pic}</td><td>{t.team || "—"}</td><td>{t.total}</td><td>{t.active}</td><td>{t.end}</td><td>{t.delay}</td><td>{t.error}</td></tr>
+                  <tr key={i}><td>{t.pic}</td><td>{t.team || "—"}</td><td>{t.total}</td><td>{t.active}</td><td>{t.end}</td><td>{t.error}</td></tr>
                 ))}
-                {staff.length === 0 && <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#777" }}>ยังไม่มีข้อมูล PIC</td></tr>}
+                {staff.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#777" }}>ยังไม่มีข้อมูล PIC</td></tr>}
               </tbody>
             </table>
           </div>

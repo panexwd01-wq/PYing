@@ -109,7 +109,7 @@ function ActionView() {
               <tr className="field-row">
                 <th>Job No.</th><th>Booking / MBL</th><th>Job Type</th><th>Customer</th><th>CS / PIC</th>
                 <th>Current Module</th>
-                <th>4W</th><th>6W</th><th>10W</th><th>20GP</th><th>40HQ</th>
+                <th>จำนวน/หน่วย</th>
                 <th>Current Status</th><th>Current PIC</th>
                 <th>Action Required</th><th>1st Assigned</th><th>Blocking Party</th><th>Aging</th><th>Remark</th>
               </tr>
@@ -120,8 +120,7 @@ function ActionView() {
                   <td>{r.jobNo}</td><td>{r.booking || "—"}</td><td>{r.jobType || "—"}</td>
                   <td>{r.customer || "—"}</td><td>{r.csPic || "—"}</td>
                   <td><b>{r.currentModule}</b></td>
-                  <td>{r.c4w || ""}</td><td>{r.c6w || ""}</td><td>{r.c10w || ""}</td>
-                  <td>{r.c20gp || ""}</td><td>{r.c40hq || ""}</td>
+                  <td>{r.contLabel || ""}</td>
                   <td><span className="pill open">{r.currentStatus}</span></td>
                   <td>{r.currentPic || "—"}</td><td>{r.actionRequired}</td>
                   <td>{r.firstAssigned || "—"}</td><td>{r.blocking}</td>

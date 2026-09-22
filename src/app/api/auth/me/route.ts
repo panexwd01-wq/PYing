@@ -10,7 +10,7 @@ export async function GET() {
     const u = await withSheetCache(() => currentUser());
     if (!u) return NextResponse.json({ user: null });
     return NextResponse.json({
-      user: { username: u.username, displayName: u.displayName, role: u.role, perms: u.perms },
+      user: { id: u.id, username: u.username, displayName: u.displayName, role: u.role, perms: u.perms },
     });
   } catch (e: any) {
     return NextResponse.json({ user: null, error: e.message }, { status: 200 });

@@ -60,6 +60,7 @@ interface Props {
   readOnly?: boolean;
   sides: LineSide[];
   onChange: (id: string, key: string, value: string) => void;
+  onDelete?: (id: string) => void; // ลบบรรทัดนี้ทิ้ง (โชว์เฉพาะตารางแรก — 1 บรรทัด = 1 ระเบียน)
 }
 
 export function LinesTable({
@@ -73,13 +74,15 @@ export function LinesTable({
   readOnly,
   sides,
   onChange,
+  onDelete,
 }: Props) {
   const origin = originLabel(rows);
 
   return (
     <div className="extra-lines-wrap">
       <div className="extra-origin">{origin}</div>
-      {sides.map((side) => {
+      {sides.map((side, sideIdx) => {
+        const canDel = !!onDelete && !readOnly && sideIdx === 0;
         const keys = side.columns;
         const sideRows = side.rowFilter ? rows.filter(side.rowFilter) : rows;
         const firstSum = keys.findIndex((k) => side.sumKeys.includes(k));
@@ -96,6 +99,7 @@ export function LinesTable({
                       {fieldByKey[k]?.label || k}
                     </th>
                   ))}
+                  {canDel && <th className="act">จัดการ</th>}
                 </tr>
               </thead>
               <tbody>
@@ -126,6 +130,13 @@ export function LinesTable({
                           </td>
                         );
                       })}
+                      {canDel && (
+                        <td className="act">
+                          <button className="btn sm danger" onClick={() => onDelete!(r.__id)} title="ลบบรรทัดนี้ทิ้ง">
+                            ลบ
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -148,6 +159,7 @@ export function LinesTable({
                         <td key={k} />
                       )
                     )}
+                    {canDel && <td />}
                   </tr>
                 </tfoot>
               )}

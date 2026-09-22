@@ -21,6 +21,7 @@ export function FilterBar({
   csLabel,
   years,
   showDate,
+  dateLabel,
 }: {
   filters: Filters;
   setFilters: (f: Filters) => void;
@@ -29,6 +30,7 @@ export function FilterBar({
   csLabel: string;
   years: string[];
   showDate: boolean;
+  dateLabel?: string; // ชื่อช่องวันที่ที่ฟิลเตอร์ปี/เดือนยึด (เช่น ETA (IMP))
 }) {
   const set = (k: keyof Filters, v: string) => setFilters({ ...filters, [k]: v });
 
@@ -37,7 +39,7 @@ export function FilterBar({
       {showDate && (
         <>
           <div className="field">
-            <label>ปี (ค.ศ.)</label>
+            <label>ปี{dateLabel ? ` — ${dateLabel}` : " (ค.ศ.)"}</label>
             <select value={filters.year} onChange={(e) => set("year", e.target.value)}>
               <option value="">ทั้งหมด</option>
               {years.map((y) => (
@@ -85,10 +87,10 @@ export function FilterBar({
         </div>
       )}
       <div className="field grow">
-        <label>ค้นหา (Job / BKG / HBL / Cust Ref)</label>
+        <label>ค้นหา (ทุกช่อง)</label>
         <input
           value={filters.q}
-          placeholder="พิมพ์เพื่อค้นหา…"
+          placeholder="พิมพ์เพื่อค้นหาจากทุกคอลัมน์…"
           onChange={(e) => set("q", e.target.value)}
         />
       </div>

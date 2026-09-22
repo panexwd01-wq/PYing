@@ -14,7 +14,7 @@ export const WAREHOUSE_FIELDS: Field[] = [
   { key: "cs_note_wh", label: "Cs Note for WH Pic", group: "Job Info", type: "auto", width: 180, pull: { imp: "cs_note_wh", exp: "cs_note_wh" } },
 
   // ----- Operation Schedule -----
-  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" } },
+  { key: "clearance_date", label: "Clearance Date (IMP/EXP)", group: "Operation Schedule", type: "auto", width: 160, pull: { imp: "clearance_date", exp: "clearance_date" }, dateOnly: true },
   { key: "delivery_date", label: "Delivery / Loading Date", group: "Operation Schedule", type: "auto", summary: true, width: 170, pull: { imp: "delivery_date", exp: "delivery_date" } },
   { key: "wh_address", label: "WH Address", group: "Operation Schedule", type: "auto", width: 140, pull: { imp: "wh_address", exp: "wh_address" } },
 
