@@ -23,7 +23,7 @@ function tempId() {
 //   3) ตารางผลลัพธ์ — บันทึกแล้ว "แก้ไขไม่ได้" (เฉพาะ admin แก้/ลบได้)
 export function RateBoard({ moduleKey, title }: { moduleKey: string; title: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading, applyOrReload } = useData();
+  const { data, loading, apply, applyOrReload } = useData();
   const { user, isAdmin, can } = useAuth();
   const lists = data?.lists || {};
 
@@ -65,13 +65,14 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
         collapse: base.collapse || [],
       };
       setLocalPrefs(value);
+      apply(null); // จำว่าเพิ่งเขียน → รีโหลดหน้าในช่วงนี้จะอ่านสด ไม่เจอค่าเก่าจาก cache
       fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefs: { module: moduleKey, value } }),
       }).catch(() => undefined);
     },
-    [myPrefs, moduleKey]
+    [myPrefs, moduleKey, apply]
   );
 
   const flash = useCallback((text: string, err = false) => {

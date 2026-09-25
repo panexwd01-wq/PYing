@@ -32,6 +32,10 @@ function normalize(r: any): Snapshot {
     lists: r.lists || {},
     collapse: r.collapse || {},
     carrierColors: r.carrierColors || {},
+    // ต้องส่งต่อให้ครบทุกช่องของ Snapshot — ถ้าตกช่องไหน หน้าเว็บจะมองไม่เห็นค่าที่บันทึกไว้
+    palette: r.palette || [],
+    notes: r.notes || {},
+    prefs: r.prefs || {},
   };
 }
 

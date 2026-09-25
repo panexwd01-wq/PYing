@@ -36,7 +36,7 @@ function tempId() {
 
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading: dataLoading, error: dataError, reload, applyOrReload } = useData();
+  const { data, loading: dataLoading, error: dataError, reload, apply, applyOrReload } = useData();
   const { can, canLists, user } = useAuth();
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   const flash = useCallback((text: string, err = false) => {
@@ -114,13 +114,14 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         collapse: base.collapse || [],
       };
       setLocalPrefs(value);
+      apply(null); // จำว่าเพิ่งเขียน → รีโหลดหน้าในช่วงนี้จะอ่านสด ไม่เจอค่าเก่าจาก cache
       fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefs: { module: moduleKey, value } }),
       }).catch(() => flash("จำความกว้างคอลัมน์ไม่สำเร็จ", true));
     },
-    [myPrefs, moduleKey, flash]
+    [myPrefs, moduleKey, flash, apply]
   );
 
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
@@ -726,7 +727,10 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           prefs={myPrefs}
           canSetShared={canLists()}
           onClose={() => setShowCfg(false)}
-          onSavedPrefs={setLocalPrefs}
+          onSavedPrefs={(v) => {
+            setLocalPrefs(v);
+            apply(null); // จำว่าเพิ่งเขียน (API นี้ไม่แนบ snapshot กลับมา)
+          }}
           onSavedShared={applyOrReload}
         />
       )}
