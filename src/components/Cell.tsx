@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Field } from "@/lib/schema";
 import { formatIfDate } from "@/lib/dateFormat";
 import { ColorTag, colorLabel } from "@/lib/prefs";
@@ -166,6 +167,9 @@ function MultiSelectCell({
 }
 
 // ปุ่มเลือกสีข้างช่อง — เลือกจาก "ชุดสีกลาง" ที่ตั้งความหมายไว้ในหน้าตั้งค่า
+// เมนูต้องลอยออกนอกตาราง (portal + position: fixed) — ถ้าวางไว้ใน <td> จะโดน
+//   1) ช่อง sticky (Job No.) ของแถวล่างทับ เพราะ td sticky มี z-index ของตัวเอง
+//   2) กรอบตาราง (overflow: auto) ตัดทิ้ง ตอนอยู่ขอบซ้าย/แถวล่าง ๆ
 function ColorPickButton({
   palette,
   value,
@@ -176,18 +180,50 @@ function ColorPickButton({
   onPick: (color: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const tags = palette && palette.length ? palette : [];
 
-  // คลิกที่อื่น = ปิดเมนู
+  // คลิกที่อื่น = ปิดเมนู · เลื่อนตาราง/ย่อขยายหน้าจอ = ปิด (ตำแหน่งจะไม่ตรงปุ่มแล้ว)
   useEffect(() => {
     if (!open) return;
     const off = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (boxRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const close = (e: Event) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", off);
-    return () => document.removeEventListener("mousedown", off);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", off);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, [open]);
+
+  // วางเมนูใต้ปุ่ม — ถ้าล้นขอบล่างให้พลิกขึ้น · ล้นซ้าย/ขวาให้เลื่อนเข้ามาในจอ
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const btn = boxRef.current?.getBoundingClientRect();
+    const pop = popRef.current;
+    if (!btn || !pop) return;
+    const w = pop.offsetWidth;
+    const h = pop.offsetHeight;
+    const gap = 4;
+    let top = btn.bottom + gap;
+    if (top + h > window.innerHeight - 8 && btn.top - gap - h >= 8) top = btn.top - gap - h;
+    const left = Math.max(8, Math.min(btn.left, window.innerWidth - w - 8));
+    setPos({ top, left });
+  }, [open, tags.length]);
 
   const label = colorLabel(palette, value);
 
@@ -201,36 +237,39 @@ function ColorPickButton({
         title={label ? `สี: ${label}` : "เลือกสีเพื่อทำเครื่องหมาย"}
         aria-label="เลือกสี"
       />
-      {open && (
-        <div className="color-pop">
-          {tags.length === 0 && <div className="color-pop-empty">ยังไม่ได้ตั้งชุดสี — ตั้งได้ที่หน้า “ตั้งค่า”</div>}
-          {tags.map((t) => (
+      {open &&
+        createPortal(
+          // ยังไม่รู้ตำแหน่ง (รอบแรกที่วัดขนาด) → วางไว้นอกจอก่อน ไม่ให้กระพริบที่มุมซ้ายบน
+          <div className="color-pop" ref={popRef} style={pos || { top: -9999, left: -9999 }}>
+            {tags.length === 0 && <div className="color-pop-empty">ยังไม่ได้ตั้งชุดสี — ตั้งได้ที่หน้า “ตั้งค่า”</div>}
+            {tags.map((t) => (
+              <button
+                type="button"
+                key={t.color}
+                className={"color-pop-item" + (t.color.toLowerCase() === value.toLowerCase() ? " on" : "")}
+                onClick={() => {
+                  onPick(t.color);
+                  setOpen(false);
+                }}
+              >
+                <span className="sw" style={{ background: t.color }} />
+                <span>{t.label || t.color}</span>
+              </button>
+            ))}
             <button
               type="button"
-              key={t.color}
-              className={"color-pop-item" + (t.color.toLowerCase() === value.toLowerCase() ? " on" : "")}
+              className="color-pop-item clear"
               onClick={() => {
-                onPick(t.color);
+                onPick("");
                 setOpen(false);
               }}
             >
-              <span className="sw" style={{ background: t.color }} />
-              <span>{t.label || t.color}</span>
+              <span className="sw none" />
+              <span>เอาสีออก</span>
             </button>
-          ))}
-          <button
-            type="button"
-            className="color-pop-item clear"
-            onClick={() => {
-              onPick("");
-              setOpen(false);
-            }}
-          >
-            <span className="sw none" />
-            <span>เอาสีออก</span>
-          </button>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

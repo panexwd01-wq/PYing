@@ -1706,10 +1706,8 @@ tr.detail-row > td.detail-cell {
   display: inline-flex;
 }
 .color-pop {
-  position: absolute;
-  z-index: 60;
-  top: 22px;
-  right: 0;
+  position: fixed; /* วางด้วย JS ตามตำแหน่งปุ่ม (ดู ColorPickButton) */
+  z-index: 1000;
   min-width: 210px;
   background: #fff;
   border: 1px solid #cfd6dd;
