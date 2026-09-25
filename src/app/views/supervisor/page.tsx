@@ -4,7 +4,14 @@ import React, { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
-import { supervisorDash, MONTHS_TH, yearsInData } from "@/lib/stats";
+import { SortMark, useTableSort } from "@/components/SortTh";
+import { supervisorDash, MONTHS_TH, yearsInData, SupervisorDash } from "@/lib/stats";
+
+// คอลัมน์ตาราง No Charge Detail: [ฟิลด์, หัวคอลัมน์]
+const NC_COLS: [keyof SupervisorDash["noChargeList"][number], string][] = [
+  ["jobNo", "Job No"], ["date", "Date"], ["team", "Team"], ["pic", "PIC"], ["type", "Extra Type"],
+  ["lost", "Lost Amount"], ["reason", "No Charge Reason"], ["remark", "Remark"],
+];
 
 export default function SupervisorPage() {
   return (
@@ -46,6 +53,14 @@ function SupervisorView() {
     if (!s) return [];
     return s.noChargeList.filter((n) => (!pic || n.pic === pic));
   }, [s, pic]);
+
+  // คลิกหัวคอลัมน์เพื่อเรียง (hook ต้องอยู่ก่อน return ด้านล่าง)
+  const errorHealth = useMemo(() => s?.errorHealth || [], [s]);
+  const teamRows = useMemo(() => s?.team || [], [s]);
+  const ehSort = useTableSort(errorHealth);
+  const teamSort = useTableSort(teamRows);
+  const staffSort = useTableSort(staff);
+  const ncSort = useTableSort(noCharge);
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -127,15 +142,15 @@ function SupervisorView() {
           <div className="grid-wrap">
             <table className="view-table">
               <thead><tr className="field-row">
-                <th>Team / Module</th>
-                <th title="แถว Extra ของทีมนี้ที่ Profit Status = No Charge">No Charge Cases</th>
-                <th title="Extra Cost PIC ที่มีเคส Error มากสุดของทีมนี้ (นับจาก Extra Root Cause ที่เป็น Error ทุกแบบ — Internal / CS / Transportation / Warehouse / Shipping / Documentation; ไม่นับ Customer Request)">Most Risk PIC</th>
-                <th title="Extra Req Type ที่พบบ่อยสุดของทีมนี้">Most Extra Service Type</th>
-                <th title="ผลรวม Cost Total ของเคส No Charge">Total Lost Amount</th>
-                <th title="เคส Error ÷ งานที่ End ของทีมนี้ (ในเดือนที่เลือก)">Error Rate %</th>
+                <th {...ehSort.th("team")}>Team / Module <SortMark dir={ehSort.dirOf("team")} /></th>
+                <th {...ehSort.th("noChargeCases")} title="แถว Extra ของทีมนี้ที่ Profit Status = No Charge">No Charge Cases <SortMark dir={ehSort.dirOf("noChargeCases")} /></th>
+                <th {...ehSort.th("riskPic")} title="Extra Cost PIC ที่มีเคส Error มากสุดของทีมนี้ (นับจาก Extra Root Cause ที่เป็น Error ทุกแบบ — Internal / CS / Transportation / Warehouse / Shipping / Documentation; ไม่นับ Customer Request)">Most Risk PIC <SortMark dir={ehSort.dirOf("riskPic")} /></th>
+                <th {...ehSort.th("extraType")} title="Extra Req Type ที่พบบ่อยสุดของทีมนี้">Most Extra Service Type <SortMark dir={ehSort.dirOf("extraType")} /></th>
+                <th {...ehSort.th("lost")} title="ผลรวม Cost Total ของเคส No Charge">Total Lost Amount <SortMark dir={ehSort.dirOf("lost")} /></th>
+                <th {...ehSort.th("errorRate")} title="เคส Error ÷ งานที่ End ของทีมนี้ (ในเดือนที่เลือก)">Error Rate % <SortMark dir={ehSort.dirOf("errorRate")} /></th>
               </tr></thead>
               <tbody>
-                {s.errorHealth.map((h, i) => (
+                {ehSort.sorted.map((h, i) => (
                   <tr key={i}><td>{h.team}</td><td>{h.noChargeCases}</td><td>{h.riskPic}</td><td>{h.extraType}</td><td>{h.lost.toLocaleString()}</td><td>{h.errorRate}%</td></tr>
                 ))}
               </tbody>
@@ -149,21 +164,19 @@ function SupervisorView() {
           <div className="grid-wrap">
             <table className="view-table team-workload">
               <thead><tr className="field-row">
-                <th style={{ width: 40 }} /><th>Team</th>
-                <th title="งานที่ถูกสร้างในเดือนที่เลือก">งานเดือนนี้</th>
-                <th title="งานที่สร้างในเดือนที่เลือกและยังไม่ End/Cancel">Active</th>
-                <th title="งานที่ End วันนี้ (ยึด ended_at = วันนี้จริง)">End วันนี้</th>
-                <th title="งานที่ End ในเดือนที่เลือก (ยึด ended_at ไม่ว่างานจะสร้างเดือนไหน)">End เดือนนี้</th>
+                <th style={{ width: 40 }} /><th {...teamSort.th("team")}>Team <SortMark dir={teamSort.dirOf("team")} /></th>
+                <th {...teamSort.th("total")} title="งานที่ถูกสร้างในเดือนที่เลือก">งานเดือนนี้ <SortMark dir={teamSort.dirOf("total")} /></th>
+                <th {...teamSort.th("active")} title="งานที่สร้างในเดือนที่เลือกและยังไม่ End/Cancel">Active <SortMark dir={teamSort.dirOf("active")} /></th>
+                <th {...teamSort.th("endToday")} title="งานที่ End วันนี้ (ยึด ended_at = วันนี้จริง)">End วันนี้ <SortMark dir={teamSort.dirOf("endToday")} /></th>
+                <th {...teamSort.th("endMonth")} title="งานที่ End ในเดือนที่เลือก (ยึด ended_at ไม่ว่างานจะสร้างเดือนไหน)">End เดือนนี้ <SortMark dir={teamSort.dirOf("endMonth")} /></th>
               </tr></thead>
               <tbody>
-                {s.team.map((t, i) => {
+                {teamSort.sorted.map((t) => {
                   const open = openTeams.has(t.team);
                   // พนักงานในทีมนี้ เรียงจากงานมาก → น้อย
                   const members = s.staff.filter((x) => x.team === t.team).sort((a, b) => b.total - a.total);
-                  const max = members.length ? members[0].total : 0;
-                  const min = members.length ? members[members.length - 1].total : 0;
                   return (
-                    <React.Fragment key={i}>
+                    <React.Fragment key={t.team}>
                       <tr className={open ? "row-expanded" : undefined}>
                         <td style={{ textAlign: "center" }}>
                           <button
@@ -181,35 +194,7 @@ function SupervisorView() {
                       {open && (
                         <tr className="detail-row">
                           <td className="detail-cell" colSpan={6}>
-                            <div className="team-members">
-                              <table className="view-table">
-                                <thead>
-                                  <tr className="field-row">
-                                    <th>อันดับ</th><th>พนักงาน (PIC)</th><th>Total</th><th>Active</th><th>End</th><th>Internal Error</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {members.map((mbr, j) => {
-                                    const hot = members.length > 1 && mbr.total === max && max > 0;
-                                    const cold = members.length > 1 && mbr.total === min;
-                                    return (
-                                      <tr key={mbr.pic} className={hot ? "wl-max" : cold ? "wl-min" : undefined}>
-                                        <td>{j + 1}</td>
-                                        <td>
-                                          {mbr.pic}
-                                          {hot && <span className="wl-tag hot">งานมากสุด</span>}
-                                          {cold && !hot && <span className="wl-tag cold">งานน้อยสุด</span>}
-                                        </td>
-                                        <td>{mbr.total}</td><td>{mbr.active}</td><td>{mbr.end}</td><td>{mbr.error}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                  {members.length === 0 && (
-                                    <tr><td colSpan={6} style={{ padding: 14, textAlign: "center", color: "#777" }}>ยังไม่มีพนักงานที่มีงานในทีมนี้เดือนนี้</td></tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
+                            <TeamMembers members={members} />
                           </td>
                         </tr>
                       )}
@@ -229,14 +214,15 @@ function SupervisorView() {
           <div className="grid-wrap">
             <table className="view-table">
               <thead><tr className="field-row">
-                <th>PIC</th><th>Team</th>
-                <th title="จำนวนแถวงานที่คนนี้เป็น PIC (รวมทุก tab) ที่สร้างในเดือนที่เลือก">Total</th>
-                <th title="ยังไม่ End และไม่ใช่ Cancel">Active</th>
-                <th title="Status = End">End</th>
-                <th title="แถว Extra ที่คนนี้เป็น Extra Cost PIC และ Root Cause เป็น Error (ทุกแบบ ยกเว้น Customer Request)">Internal Error</th>
+                <th {...staffSort.th("pic")}>PIC <SortMark dir={staffSort.dirOf("pic")} /></th>
+                <th {...staffSort.th("team")}>Team <SortMark dir={staffSort.dirOf("team")} /></th>
+                <th {...staffSort.th("total")} title="จำนวนแถวงานที่คนนี้เป็น PIC (รวมทุก tab) ที่สร้างในเดือนที่เลือก">Total <SortMark dir={staffSort.dirOf("total")} /></th>
+                <th {...staffSort.th("active")} title="ยังไม่ End และไม่ใช่ Cancel">Active <SortMark dir={staffSort.dirOf("active")} /></th>
+                <th {...staffSort.th("end")} title="Status = End">End <SortMark dir={staffSort.dirOf("end")} /></th>
+                <th {...staffSort.th("error")} title="แถว Extra ที่คนนี้เป็น Extra Cost PIC และ Root Cause เป็น Error (ทุกแบบ ยกเว้น Customer Request)">Internal Error <SortMark dir={staffSort.dirOf("error")} /></th>
               </tr></thead>
               <tbody>
-                {staff.map((t, i) => (
+                {staffSort.sorted.map((t, i) => (
                   <tr key={i}><td>{t.pic}</td><td>{t.team || "—"}</td><td>{t.total}</td><td>{t.active}</td><td>{t.end}</td><td>{t.error}</td></tr>
                 ))}
                 {staff.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#777" }}>ยังไม่มีข้อมูล PIC</td></tr>}
@@ -247,9 +233,13 @@ function SupervisorView() {
           <h3 style={{ margin: "14px 4px 6px" }}>No Charge / Internal Error Detail</h3>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>Job No</th><th>Date</th><th>Team</th><th>PIC</th><th>Extra Type</th><th>Lost Amount</th><th>No Charge Reason</th><th>Remark</th></tr></thead>
+              <thead><tr className="field-row">
+                {NC_COLS.map(([k, label]) => (
+                  <th key={k} {...ncSort.th(k)}>{label} <SortMark dir={ncSort.dirOf(k)} /></th>
+                ))}
+              </tr></thead>
               <tbody>
-                {noCharge.map((n, i) => (
+                {ncSort.sorted.map((n, i) => (
                   <tr key={i}><td>{n.jobNo || "—"}</td><td>{n.date || "—"}</td><td>{n.team}</td><td>{n.pic}</td><td>{n.type}</td><td>{n.lost.toLocaleString()}</td><td>{n.reason}</td><td>{n.remark}</td></tr>
                 ))}
                 {noCharge.length === 0 && <tr><td colSpan={8} style={{ padding: 20, textAlign: "center", color: "#777" }}>ไม่มีรายการ No Charge</td></tr>}
@@ -259,5 +249,48 @@ function SupervisorView() {
         </>
       )}
     </main>
+  );
+}
+
+// รายชื่อพนักงานในทีม (กางจากแถวทีม) — อันดับ/ป้ายมากสุด-น้อยสุด ยึดจำนวนงานเสมอ ไม่เปลี่ยนตามการคลิกเรียง
+function TeamMembers({ members }: { members: SupervisorDash["staff"] }) {
+  const { sorted, th, dirOf } = useTableSort(members);
+  const max = members.length ? members[0].total : 0;
+  const min = members.length ? members[members.length - 1].total : 0;
+  return (
+    <div className="team-members">
+      <table className="view-table">
+        <thead>
+          <tr className="field-row">
+            <th>อันดับ</th>
+            <th {...th("pic")}>พนักงาน (PIC) <SortMark dir={dirOf("pic")} /></th>
+            <th {...th("total")}>Total <SortMark dir={dirOf("total")} /></th>
+            <th {...th("active")}>Active <SortMark dir={dirOf("active")} /></th>
+            <th {...th("end")}>End <SortMark dir={dirOf("end")} /></th>
+            <th {...th("error")}>Internal Error <SortMark dir={dirOf("error")} /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((mbr) => {
+            const hot = members.length > 1 && mbr.total === max && max > 0;
+            const cold = members.length > 1 && mbr.total === min;
+            return (
+              <tr key={mbr.pic} className={hot ? "wl-max" : cold ? "wl-min" : undefined}>
+                <td>{members.indexOf(mbr) + 1}</td>
+                <td>
+                  {mbr.pic}
+                  {hot && <span className="wl-tag hot">งานมากสุด</span>}
+                  {cold && !hot && <span className="wl-tag cold">งานน้อยสุด</span>}
+                </td>
+                <td>{mbr.total}</td><td>{mbr.active}</td><td>{mbr.end}</td><td>{mbr.error}</td>
+              </tr>
+            );
+          })}
+          {members.length === 0 && (
+            <tr><td colSpan={6} style={{ padding: 14, textAlign: "center", color: "#777" }}>ยังไม่มีพนักงานที่มีงานในทีมนี้เดือนนี้</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }

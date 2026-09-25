@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { PrintButton } from "@/components/PrintButton";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { RequireTab } from "@/components/RequireTab";
+import { SortMark, useTableSort } from "@/components/SortTh";
 import { JobRecord } from "@/lib/types";
 import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
@@ -100,6 +101,18 @@ function ShipDailyView() {
     [csById, transConts] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // คลิกหัวคอลัมน์เพื่อเรียง — ใช้ค่าเดียวกับที่แสดง ("—" = ว่าง ไปท้ายเสมอ) · ตอนพิมพ์ก็ออกตามลำดับนี้
+  const sortVal = useCallback(
+    (r: JobRecord, key: string) => {
+      const v = cols.find((c) => c.key === key)?.value(r) ?? "";
+      return v === "—" ? "" : v;
+    },
+    [cols]
+  );
+  const { sorted, th, dirOf } = useTableSort(rows, sortVal);
+  // ช่องติ๊กมือ + ช่องเหตุผลเปล่า ไม่มีอะไรให้เรียง
+  const sortable = (c: Col) => !c.chk && c.key !== "reason";
+
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
   const header = (
@@ -147,11 +160,17 @@ function ShipDailyView() {
               <thead>
                 <tr className="field-row">
                   <th>No.</th>
-                  {cols.map((c) => <th key={c.key}>{c.label}</th>)}
+                  {cols.map((c) =>
+                    sortable(c) ? (
+                      <th key={c.key} {...th(c.key)}>{c.label} <SortMark dir={dirOf(c.key)} /></th>
+                    ) : (
+                      <th key={c.key}>{c.label}</th>
+                    )
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {sorted.map((r, i) => (
                   <tr key={r.__id}>
                     <td>{i + 1}</td>
                     {cols.map((c) => (
@@ -174,7 +193,7 @@ function ShipDailyView() {
               <b>Ship Daily Print Check — ใบตรวจปล่อยประจำวัน</b>
               <span>{header}</span>
             </div>
-            {rows.map((r, i) => (
+            {sorted.map((r, i) => (
               <div className="pd-rec" key={r.__id}>
                 <div className="pd-no">{i + 1}</div>
                 <div className="pd-fields">

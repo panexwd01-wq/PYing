@@ -5,6 +5,8 @@ import { Field } from "@/lib/fields";
 import { JobRecord } from "@/lib/types";
 import { cellCue } from "@/lib/cellRules";
 import { useRowWindow } from "./useRowWindow";
+import { SortState } from "@/lib/sort";
+import { SortMark, sortThProps } from "./SortTh";
 
 // ตารางที่ "รวบหลายแถวของ Job No. เดียวกันเป็น 1 บรรทัด"
 // - ค่าที่ต่างกันในกลุ่ม จะถูกรวมแสดงคั่นด้วย " · " (เช่น Extra/Service Req Type)
@@ -50,6 +52,8 @@ export function GroupedGrid({
   unlockedIds,
   canUnlock = true,
   windowKey = "",
+  sort = null,
+  onSort,
   renderDetail,
   onUnlockGroup,
 }: {
@@ -63,6 +67,8 @@ export function GroupedGrid({
   unlockedIds: Set<string>;
   canUnlock?: boolean;
   windowKey?: string; // เปลี่ยนค่านี้ = เริ่มนับจำนวนกลุ่มที่วาดใหม่ (ตัวกรอง/การเรียงเปลี่ยน)
+  sort?: SortState | null; // การเรียงปัจจุบัน (แถวที่ส่งมาเรียงแล้ว — กลุ่มเรียงตามแถวแรกของกลุ่ม)
+  onSort?: (key: string) => void; // คลิกหัวคอลัมน์
   renderDetail: (rows: JobRecord[]) => React.ReactNode;
   onUnlockGroup: (ids: string[]) => void;
 }) {
@@ -88,8 +94,14 @@ export function GroupedGrid({
             <th className="rownum">#</th>
             <th className="expand-col" />
             {displayFields.map((f) => (
-              <th key={f.key} style={{ width: f.width, minWidth: f.width }} title={f.help || f.label}>
+              <th
+                key={f.key}
+                style={{ width: f.width, minWidth: f.width }}
+                title={f.help || f.label}
+                {...(onSort ? sortThProps(sort, f.key, onSort) : {})}
+              >
                 {f.label}
+                {onSort && <SortMark dir={sort?.key === f.key ? sort.dir : undefined} />}
               </th>
             ))}
             <th>รายการย่อย</th>

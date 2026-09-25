@@ -177,6 +177,25 @@ a {
   background: #fff;
   min-width: 120px;
 }
+/* แถบอธิบายปุ่ม Export / Import ใต้แถบเครื่องมือ */
+.io-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  background: var(--petrol-tint);
+  border: 1px solid #c4dfe1;
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  margin: -4px 0 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.io-hint b {
+  color: var(--petrol-dark);
+  font-weight: 600;
+}
 .toolbar .grow {
   flex: 1;
 }
@@ -1535,20 +1554,32 @@ tr.detail-row > td.detail-cell {
   right: 16px;
   bottom: 16px;
   z-index: 70;
-  border: 1px solid #cfd6dd;
-  background: #fff;
+  border: 1px solid var(--petrol-dark);
+  background: var(--petrol);
+  color: #fff;
   border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 11px 20px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 6px 18px rgba(14, 90, 99, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 .note-fab:hover {
-  background: #f2f6fa;
+  background: var(--petrol-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(14, 90, 99, 0.42);
 }
+/* หน้านี้มีโน้ตอยู่ → สีเหลืองเด่น ให้รู้ว่ามีอะไรต้องอ่าน */
 .note-fab.has {
-  background: #fff3b0;
-  border-color: #e0cf60;
+  background: #ffd84d;
+  border-color: #d9b21f;
+  color: #3d3100;
+  box-shadow: 0 6px 18px rgba(201, 138, 20, 0.4);
+}
+.note-fab.has:hover {
+  background: #ffcf26;
 }
 .note-panel {
   position: fixed;
@@ -1607,29 +1638,77 @@ tr.detail-row > td.detail-cell {
 .palette-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 8px 0;
+  gap: 8px;
+  margin: 8px 0 12px;
+  max-width: 620px;
 }
 .palette-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 560px;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #fafbfc;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
+.palette-row:hover,
+.palette-row:focus-within {
+  background: #fff;
+  border-color: var(--line);
+}
+/* ช่องเลือกสี = ก้อนสีกลม ๆ (ซ่อนกรอบของเบราว์เซอร์) */
 .palette-row input[type="color"] {
-  width: 44px;
-  height: 30px;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid #cfd6dd;
-  border-radius: 6px;
+  border: 2px solid #fff;
+  border-radius: 50%;
   background: none;
+  box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(0, 0, 0, 0.12);
   cursor: pointer;
   flex: none;
+}
+.palette-row input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.palette-row input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.palette-row input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.palette-row input[type="color"]:disabled {
+  cursor: default;
 }
 .palette-row input[type="text"],
 .palette-row input:not([type]) {
   flex: 1;
   min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.palette-row input:not([type])::placeholder {
+  color: #9aa4b0;
+}
+.palette-row input:not([type]):focus {
+  outline: none;
+  border-color: var(--petrol);
+  box-shadow: 0 0 0 3px var(--petrol-tint);
+}
+.palette-row input:not([type])[readonly] {
+  background: transparent;
+  border-color: transparent;
 }
 
 /* รายการจัดลำดับคอลัมน์ (ป็อปอัปตั้งค่าคอลัมน์) */
@@ -2372,4 +2451,32 @@ tr.wl-min td {
 .imp-pill.warn {
   background: #fdf1d8;
   border-color: #e6c98a;
+}
+
+/* ===== คลิกหัวคอลัมน์เพื่อเรียง (ทุกตาราง — ดู SortTh.tsx) ===== */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  background-color: #e4ecf1;
+}
+th.sortable.sorted {
+  color: var(--petrol-dark);
+}
+.sort-mark {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 9px;
+  vertical-align: 1px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+th.sortable:hover .sort-mark {
+  opacity: 0.35;
+}
+.sort-mark.on,
+th.sortable:hover .sort-mark.on {
+  opacity: 1;
+  color: var(--petrol);
 }

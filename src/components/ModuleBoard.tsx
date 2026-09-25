@@ -17,6 +17,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { LINK_CS, LINK_IMP, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
 import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
+import { nextSort, sortRows, SortState } from "@/lib/sort";
 import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import { checkReExport } from "@/lib/reExport";
@@ -28,7 +29,6 @@ import { JobRecord } from "@/lib/types";
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
 
 // คีย์วันที่ที่ให้เลือกเรียง (ตามที่มีจริงในโมดูล)
-const SORT_DATE_KEYS = ["eta_imp", "etd_exp", "etd_imp", "clearance_date", "delivery_date", "billing_date", "created_at"];
 
 function tempId() {
   return "J" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
@@ -68,12 +68,6 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const hasPull = useMemo(() => mod.fields.some((f) => f.pull || f.rpull), [mod]);
   // 4 โมดูลนี้ผูกกับ CS: สร้าง/ลบอัตโนมัติเมื่อบันทึก CS Import/Export — ห้ามเพิ่ม/ลบเอง
   const csDriven = CS_DRIVEN_KEYS.includes(moduleKey);
-
-  // ตัวเลือกวันที่สำหรับเรียง (เฉพาะที่มีในโมดูลนี้)
-  const sortFields = useMemo(
-    () => SORT_DATE_KEYS.map((k) => mod.fields.find((f) => f.key === k)).filter(Boolean) as { key: string; label: string }[],
-    [mod]
-  );
 
   // ค่าตั้งค่าคอลัมน์ตอนย่อ (ส่วนกลาง) + default จาก schema
   // default = ชุดที่กำหนดไว้ใน collapseDefaults.ts (ถ้าโมดูลนั้นไม่ได้กำหนด → field ที่ mark summary)
@@ -204,15 +198,17 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState(true); // เริ่มที่โหมดย่อ
   const [filters, setFilters] = useState<Filters>({ year: "", month: "", status: "", cs: "", q: "" });
-  const [sortKey, setSortKey] = useState(mod.dateKey || "");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(mod.dateKey ? "desc" : "asc");
+  // เรียงด้วยการคลิกหัวคอลัมน์ — ตั้งต้น = ใหม่→เก่า ตามช่องวันที่หลักของ tab
+  const defaultSort = useMemo<SortState | null>(() => (mod.dateKey ? { key: mod.dateKey, dir: "desc" } : null), [mod]);
+  const [sort, setSort] = useState<SortState | null>(defaultSort);
+  const onSort = useCallback((key: string) => setSort((cur) => nextSort(cur, key)), []);
   const [showCfg, setShowCfg] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set()); // แถวที่ติ๊กไว้ (แก้หลายแถวพร้อมกัน)
 
   // เปลี่ยนตัวกรอง/การเรียง/โมดูล = คนละชุดข้อมูล → ตารางเริ่มนับแถวที่วาดใหม่
   const windowKey = useMemo(
-    () => [moduleKey, filters.year, filters.month, filters.status, filters.cs, filters.q, sortKey, sortDir].join("|"),
-    [moduleKey, filters, sortKey, sortDir]
+    () => [moduleKey, filters.year, filters.month, filters.status, filters.cs, filters.q, sort?.key, sort?.dir].join("|"),
+    [moduleKey, filters, sort]
   );
 
   // sync แถวจาก snapshot (โหลดครั้งแรก / หลัง reload) — ทิ้ง state แก้ไขที่ค้าง
@@ -230,10 +226,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   }, [data, moduleKey, resetFromData]);
 
   // เปลี่ยน tab = กลับไปใช้การเรียงตั้งต้นของ tab นั้น (ใหม่→เก่า ตามช่องวันที่หลัก)
-  useEffect(() => {
-    setSortKey(mod.dateKey || "");
-    setSortDir(mod.dateKey ? "desc" : "asc");
-  }, [mod]);
+  useEffect(() => setSort(defaultSort), [defaultSort]);
 
   useEffect(() => {
     if (dataError) flash("โหลดข้อมูลไม่สำเร็จ: " + dataError, true);
@@ -406,6 +399,11 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     return m;
   }, [rows, searchKeys]);
 
+  const savedById = useMemo(
+    () => new Map((data?.modules[moduleKey] || []).map((r) => [r.__id, r])),
+    [data, moduleKey]
+  );
+
   const filtered = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     const out = rows.filter((r) => {
@@ -417,20 +415,10 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       if (q && !(haystacks.get(r.__id) || "").includes(q)) return false;
       return true;
     });
-    // ===== sort ตามวันที่ที่เลือก =====
-    if (sortKey) {
-      const dir = sortDir === "asc" ? 1 : -1;
-      out.sort((a, b) => {
-        const av = (a[sortKey] || "").trim();
-        const bv = (b[sortKey] || "").trim();
-        if (!av && !bv) return 0;
-        if (!av) return 1; // ค่าว่างไปอยู่ท้ายเสมอ
-        if (!bv) return -1;
-        return av < bv ? -dir : av > bv ? dir : 0;
-      });
-    }
-    return out;
-  }, [rows, filters, dateField, statusKey, csField, haystacks, sortKey, sortDir]);
+    // เรียงด้วยค่าที่บันทึกแล้ว (ไม่ใช่ค่าที่กำลังพิมพ์) — ไม่งั้นแถวจะกระโดดหนีทุกตัวอักษรที่พิมพ์
+    // ในคอลัมน์ที่เรียงอยู่ · กดบันทึกแล้วค่อยย้ายไปอยู่ตำแหน่งใหม่
+    return sortRows(out, sort, (r, k) => (savedById.get(r.__id) || r)[k]);
+  }, [rows, filters, dateField, statusKey, csField, haystacks, sort, savedById]);
 
   // ค่าที่ซ้ำกันในช่องที่ห้ามซ้ำ (ขาออก ข้อ 1: เลข Booking ซ้ำ = ไฮไลต์แดง)
   const dupValues = useMemo(() => {
@@ -514,28 +502,6 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           </button>
         </div>
 
-        {sortFields.length > 0 && (
-          <div className="sort-box">
-            <div className="field">
-              <label>เรียงตามวันที่</label>
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-                <option value="">— ไม่เรียง —</option>
-                {sortFields.map((f) => (
-                  <option key={f.key} value={f.key}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              className="btn"
-              disabled={!sortKey}
-              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-              title="สลับลำดับ ก่อน↔หลัง"
-            >
-              {sortDir === "asc" ? "↑ เก่า→ใหม่" : "↓ ใหม่→เก่า"}
-            </button>
-          </div>
-        )}
-
         <div className="actions">
           <button className="btn" onClick={() => reload(true)} disabled={dataLoading}>
             รีเฟรช
@@ -562,9 +528,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         </div>
       </div>
 
-      <div className="toolbar" style={{ paddingTop: 0 }}>
-        <span className="muted" style={{ fontSize: 12 }}>
-          ⬇ Export = โหลดข้อมูล tab นี้เป็น Excel · ⬆ Import = แก้ในไฟล์แล้วโยนไฟล์กลับมาวางบนหน้านี้ได้เลย
+      <div className="io-hint">
+        <span>
+          <b>⬇ Export</b> = โหลดข้อมูล tab นี้เป็น Excel (มีตัวกรองอยู่ = โหลดเฉพาะแถวที่กรองเหลือ)
+        </span>
+        <span>
+          <b>⬆ Import</b> = แก้ในไฟล์แล้วโยนไฟล์กลับมาวางบนหน้านี้ได้เลย
           (แถวที่ Job No. ตรงกัน = อัปเดตทับ{csDriven ? " · tab นี้เพิ่มงานใหม่จากไฟล์ไม่ได้" : ""})
         </span>
       </div>
@@ -609,6 +578,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
               displayFields={groupedDisplayFields}
               rows={filtered}
               windowKey={windowKey}
+              sort={sort}
+              onSort={onSort}
               moduleId={mod.id}
               carrierColors={data?.carrierColors}
               statusKey={statusKey}
@@ -677,6 +648,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
             fields={viewFields}
             rows={filtered}
             windowKey={windowKey}
+            sort={sort}
+            onSort={onSort}
             lists={lists}
             carrierColors={data?.carrierColors}
             palette={data?.palette}

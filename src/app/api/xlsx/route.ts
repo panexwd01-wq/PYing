@@ -34,12 +34,13 @@ const stampNow = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 };
 
-// สร้างไฟล์ .xlsx ของโมดูล — ids = เอาเฉพาะแถวที่ระบุ (ใช้ตอน "Export เฉพาะที่กรองไว้")
+// สร้างไฟล์ .xlsx ของโมดูล — ids = เอาเฉพาะแถวที่ระบุ และเรียงตามลำดับใน ids (= ลำดับที่เห็นบนจอ)
+// ids เป็น array ว่าง = ไม่มีแถว (ตัวกรองไม่เหลืออะไร) — ไม่ใช่ "เอาทั้งหมด"
 async function exportWorkbook(m: ModuleDef, ids?: string[]): Promise<NextResponse> {
   let rows = await withSheetCache(() => listJobs(m));
-  if (ids && ids.length) {
-    const want = new Set(ids);
-    rows = rows.filter((r) => want.has(r.__id));
+  if (ids) {
+    const byId = new Map(rows.map((r) => [r.__id, r]));
+    rows = ids.map((id) => byId.get(id)).filter((r): r is JobRecord => !!r);
   }
   const buf = await buildWorkbook(m, rows);
   return new NextResponse(new Uint8Array(buf), {

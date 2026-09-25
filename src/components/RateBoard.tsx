@@ -11,6 +11,7 @@ import { RATE_FILTER_KEYS, RATE_SIGNER_KEY } from "@/lib/modules/rates";
 import { rateDupKeyOrNull } from "@/lib/rateDup";
 import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
 import { XlsxIO } from "@/components/XlsxIO";
+import { markColumnResized, SortMark, useTableSort } from "@/components/SortTh";
 import { JobRecord } from "@/lib/types";
 
 function tempId() {
@@ -177,6 +178,10 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
     );
   }, [rows, filters]);
 
+  // คลิกหัวคอลัมน์ = เรียง (ลำดับนี้ใช้ตอน Export ด้วย)
+  const { sorted, th, dirOf } = useTableSort(filtered);
+  const shownIds = useMemo(() => sorted.map((r) => r.__id), [sorted]);
+
   const clearFilters = () => setFilters({});
 
   return (
@@ -192,6 +197,8 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             canImport={mayAdd}
             onDone={applyOrReload}
             flash={flash}
+            filteredIds={shownIds}
+            totalCount={rows.length}
             dropzone={false} /* หน้านี้มี 2 ตาราง (Cost/Sell) — เลือกไฟล์ด้วยปุ่มจะได้ไม่สับสนว่าเข้าตารางไหน */
           />
         </span>
@@ -273,8 +280,9 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             <tr className="field-row">
               <th className="rownum">#</th>
               {viewFields.map((f) => (
-                <th key={f.key} style={{ minWidth: f.width, width: f.width }} title={f.help || f.label}>
+                <th key={f.key} {...th(f.key)} style={{ minWidth: f.width, width: f.width }} title={f.help || f.label}>
                   {f.label}
+                  <SortMark dir={dirOf(f.key)} />
                   <RateResizeHandle fieldKey={f.key} width={f.width || 130} onDone={saveWidth} />
                 </th>
               ))}
@@ -282,7 +290,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             </tr>
           </thead>
           <tbody>
-            {filtered.map((rec, i) => {
+            {sorted.map((rec, i) => {
               const isEditing = editing?.__id === rec.__id;
               return (
                 <tr key={rec.__id} className={isEditing ? "dirty" : ""}>
@@ -364,6 +372,7 @@ function RateResizeHandle({
     const up = () => {
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
+      markColumnResized(); // click ที่ตามมาหลังปล่อยเมาส์ ไม่ใช่การกดเรียง
       if (next !== w0) onDone(fieldKey, next);
     };
     document.addEventListener("mousemove", move);

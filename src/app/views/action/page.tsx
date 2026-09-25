@@ -4,7 +4,17 @@ import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
-import { actionRows } from "@/lib/stats";
+import { SortMark, useTableSort } from "@/components/SortTh";
+import { actionRows, ActionRow } from "@/lib/stats";
+
+// คอลัมน์ตาราง: [ฟิลด์ใน ActionRow, หัวคอลัมน์]
+const COLS: [keyof ActionRow, string][] = [
+  ["jobNo", "Job No."], ["booking", "Booking / MBL"], ["jobType", "Job Type"], ["customer", "Customer"], ["csPic", "CS / PIC"],
+  ["currentModule", "Current Module"],
+  ["contLabel", "จำนวน/หน่วย"],
+  ["currentStatus", "Current Status"], ["currentPic", "Current PIC"],
+  ["actionRequired", "Action Required"], ["firstAssigned", "1st Assigned"], ["blocking", "Blocking Party"], ["aging", "Aging"], ["remark", "Remark"],
+];
 
 export default function ActionPage() {
   return (
@@ -49,6 +59,9 @@ function ActionView() {
     const set = new Set(all.map((r) => (r.firstAssigned || "").slice(0, 4)).filter(Boolean));
     return Array.from(set).sort().reverse();
   }, [all]);
+
+  // คลิกหัวคอลัมน์เพื่อเรียง (Aging เรียงตามจำนวนวัน)
+  const { sorted, th, dirOf } = useTableSort(rows);
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -107,15 +120,13 @@ function ActionView() {
           <table className="view-table">
             <thead>
               <tr className="field-row">
-                <th>Job No.</th><th>Booking / MBL</th><th>Job Type</th><th>Customer</th><th>CS / PIC</th>
-                <th>Current Module</th>
-                <th>จำนวน/หน่วย</th>
-                <th>Current Status</th><th>Current PIC</th>
-                <th>Action Required</th><th>1st Assigned</th><th>Blocking Party</th><th>Aging</th><th>Remark</th>
+                {COLS.map(([k, label]) => (
+                  <th key={k} {...th(k)}>{label} <SortMark dir={dirOf(k)} /></th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {sorted.map((r, i) => (
                 <tr key={i} className={(r.aging ?? 0) > 30 ? "row-aging" : ""}>
                   <td>{r.jobNo}</td><td>{r.booking || "—"}</td><td>{r.jobType || "—"}</td>
                   <td>{r.customer || "—"}</td><td>{r.csPic || "—"}</td>

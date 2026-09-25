@@ -29,28 +29,22 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, filte
   const dragDepth = useRef(0);
   const lastFile = useRef<File | null>(null); // เก็บไฟล์ล่าสุดไว้ เผื่อผู้ใช้กดยืนยัน "ลงซ้ำ"
 
-  const exportFile = () => {
-    setBusy("กำลังสร้างไฟล์ .xlsx…");
-    // ให้เบราว์เซอร์โหลดไฟล์เอง (route ส่ง Content-Disposition มาแล้ว)
-    const a = document.createElement("a");
-    a.href = `/api/xlsx?module=${encodeURIComponent(moduleKey)}`;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => setBusy(""), 1200);
-  };
+  // กำลังกรองอยู่จริง = จำนวนที่เห็นน้อยกว่าทั้งหมด
+  const filtering = !!filteredIds && totalCount != null && filteredIds.length < totalCount;
+  const nothing = filtering && filteredIds!.length === 0;
 
-  // Export เฉพาะแถวที่ตัวกรองบนหน้าเหลืออยู่ (ขาออก ข้อ 6)
-  // ส่งรายการ id ทาง POST เพราะถ้าใส่ใน URL จะยาวเกินตอนกรองได้หลายร้อยแถว
-  const exportFiltered = async () => {
-    if (!filteredIds || !filteredIds.length) return;
-    setBusy(`กำลังสร้างไฟล์ .xlsx (${filteredIds.length} แถว)…`);
+  // Export = "สิ่งที่เห็นบนจอ" — มีตัวกรองก็ได้เฉพาะที่เหลือ และเรียงตามที่ sort ไว้ในตาราง
+  // ส่งรายการ id ทาง POST เพราะถ้าใส่ใน URL จะยาวเกินตอนมีหลายร้อยแถว
+  // (หน้าที่ไม่ได้ส่ง filteredIds มา = โหลดทั้ง tab ตามลำดับในชีท)
+  const exportFile = async () => {
+    if (nothing) return;
+    const ids = filteredIds;
+    setBusy(ids ? `กำลังสร้างไฟล์ .xlsx (${ids.length} แถว)…` : "กำลังสร้างไฟล์ .xlsx…");
     try {
       const r = await fetch(`/api/xlsx?module=${encodeURIComponent(moduleKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: filteredIds }),
+        method: ids ? "POST" : "GET",
+        headers: ids ? { "Content-Type": "application/json" } : undefined,
+        body: ids ? JSON.stringify({ ids }) : undefined,
       });
       if (!r.ok) throw new Error(((await r.json()) as { error?: string }).error || "สร้างไฟล์ไม่สำเร็จ");
       const blob = await r.blob();
@@ -70,9 +64,6 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, filte
       setBusy("");
     }
   };
-
-  // กำลังกรองอยู่จริง = จำนวนที่เห็นน้อยกว่าทั้งหมด
-  const filtering = !!filteredIds && totalCount != null && filteredIds.length < totalCount;
 
   const upload = useCallback(
     async (file: File, allowDup = false) => {
@@ -144,21 +135,19 @@ export function XlsxIO({ moduleKey, moduleLabel, canImport, onDone, flash, filte
 
   return (
     <>
-      {filtering && (
-        <button
-          className="btn"
-          onClick={exportFiltered}
-          title={`ดาวน์โหลดเฉพาะ ${filteredIds!.length} แถวที่ตัวกรองเหลืออยู่`}
-        >
-          ⬇ Export ที่กรอง ({filteredIds!.length})
-        </button>
-      )}
       <button
         className="btn"
         onClick={exportFile}
-        title={`ดาวน์โหลดข้อมูล ${moduleLabel} ทั้งหมดเป็นไฟล์ Excel`}
+        disabled={nothing}
+        title={
+          nothing
+            ? "ตัวกรองไม่เหลือแถวให้ Export"
+            : filtering
+            ? `ดาวน์โหลดเฉพาะ ${filteredIds!.length} แถวที่ตัวกรองเหลืออยู่ (ล้างตัวกรองก่อนถ้าต้องการทั้งหมด)`
+            : `ดาวน์โหลดข้อมูล ${moduleLabel} เป็นไฟล์ Excel`
+        }
       >
-        ⬇ Export {filtering ? "ทั้งหมด" : ".xlsx"}
+        ⬇ Export {filtering ? `ที่กรอง (${filteredIds!.length})` : ".xlsx"}
       </button>
       {canImport && (
         <>

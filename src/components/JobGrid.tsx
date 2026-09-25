@@ -8,6 +8,8 @@ import { ColorTag } from "@/lib/prefs";
 import { cellState } from "@/lib/cellState";
 import { Cell } from "./Cell";
 import { useRowWindow } from "./useRowWindow";
+import { SortState } from "@/lib/sort";
+import { markColumnResized, SortMark, sortThProps } from "./SortTh";
 
 const ROWNUM_W = 48;
 const MIN_COL_W = 60;
@@ -40,6 +42,7 @@ function ResizeHandle({
     const up = () => {
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
+      markColumnResized(); // click ที่ตามมาหลังปล่อยเมาส์ ไม่ใช่การกดเรียง
       if (next !== w0) onDone(fieldKey, next);
     };
     document.addEventListener("mousemove", move);
@@ -286,6 +289,8 @@ export function JobGrid({
   readOnly = false,
   canUnlock = true,
   windowKey = "",
+  sort = null,
+  onSort,
   onChange,
   onDelete,
   onUnlock,
@@ -313,6 +318,8 @@ export function JobGrid({
   windowKey?: string; // เปลี่ยนค่านี้ = เริ่มนับจำนวนแถวที่วาดใหม่ (ตัวกรอง/การเรียงเปลี่ยน)
   readOnly?: boolean; // ไม่มีสิทธิ์แก้ไข → ทั้งตารางอ่านอย่างเดียว
   canUnlock?: boolean; // มีสิทธิ์จัดการงานที่ End
+  sort?: SortState | null; // การเรียงปัจจุบัน (แถวที่ส่งมาเรียงแล้ว — ใช้แค่วาดลูกศร)
+  onSort?: (key: string) => void; // คลิกหัวคอลัมน์ = เรียง
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void;
   onUnlock: (id: string) => void;
@@ -425,7 +432,12 @@ export function JobGrid({
             {displayFields.map((f) => (
               <th
                 key={f.key}
-                className={(f.mandatory ? "req " : "") + (!collapsed && stickyLeft[f.key] != null ? "sticky-col" : "")}
+                {...(onSort ? sortThProps(sort, f.key, onSort) : {})}
+                className={
+                  (f.mandatory ? "req " : "") +
+                  (!collapsed && stickyLeft[f.key] != null ? "sticky-col " : "") +
+                  (onSort ? "sortable" + (sort?.key === f.key ? " sorted" : "") : "")
+                }
                 style={{
                   width: f.width,
                   minWidth: f.width,
@@ -434,6 +446,7 @@ export function JobGrid({
                 title={f.help || f.label}
               >
                 {f.label}
+                {onSort && <SortMark dir={sort?.key === f.key ? sort.dir : undefined} />}
                 {onResizeColumn && <ResizeHandle fieldKey={f.key} width={f.width || 130} onDone={onResizeColumn} />}
               </th>
             ))}

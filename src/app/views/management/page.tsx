@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
+import { SortMark, useTableSort } from "@/components/SortTh";
 import { managementDash, MONTHS_TH, yearsInData, SupplierStat } from "@/lib/stats";
 
 function KPI({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
@@ -52,6 +53,14 @@ function ManagementView() {
     () => (data ? managementDash(data, year, month, jobType) : null),
     [data, year, month, jobType]
   );
+
+  // คลิกหัวคอลัมน์เพื่อเรียง (hook ต้องอยู่ก่อน return ด้านล่าง)
+  const svcRows = useMemo(() => s?.serviceByModule || [], [s]);
+  const errRows = useMemo(() => s?.errorByModule || [], [s]);
+  const wfRows = useMemo(() => s?.workflow || [], [s]);
+  const svcSort = useTableSort(svcRows);
+  const errSort = useTableSort(errRows);
+  const wfSort = useTableSort(wfRows);
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -141,9 +150,15 @@ function ManagementView() {
           <h3 style={{ margin: "14px 4px 6px" }}>Service Module KPI (รายโมดูล)</h3>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>Module</th><th>Extra Cases</th><th>No Charge Cases</th><th>Lost Amount</th><th>No Charge %</th></tr></thead>
+              <thead><tr className="field-row">
+                <th {...svcSort.th("module")}>Module <SortMark dir={svcSort.dirOf("module")} /></th>
+                <th {...svcSort.th("extraCases")}>Extra Cases <SortMark dir={svcSort.dirOf("extraCases")} /></th>
+                <th {...svcSort.th("noChargeCases")}>No Charge Cases <SortMark dir={svcSort.dirOf("noChargeCases")} /></th>
+                <th {...svcSort.th("lost")}>Lost Amount <SortMark dir={svcSort.dirOf("lost")} /></th>
+                <th {...svcSort.th("noChargePct")}>No Charge % <SortMark dir={svcSort.dirOf("noChargePct")} /></th>
+              </tr></thead>
               <tbody>
-                {s.serviceByModule.map((m, i) => (
+                {svcSort.sorted.map((m, i) => (
                   <tr key={i}><td>{m.module}</td><td>{m.extraCases}</td><td>{m.noChargeCases}</td><td>{m.lost.toLocaleString()}</td><td>{m.noChargePct}%</td></tr>
                 ))}
               </tbody>
@@ -153,9 +168,14 @@ function ManagementView() {
           <h3 style={{ margin: "14px 4px 6px" }}>Internal Error Summary (รายโมดูล)</h3>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>Module</th><th>Internal Error Cases</th><th>Loss Amount</th><th>Error % (÷ Finished)</th></tr></thead>
+              <thead><tr className="field-row">
+                <th {...errSort.th("module")}>Module <SortMark dir={errSort.dirOf("module")} /></th>
+                <th {...errSort.th("cases")}>Internal Error Cases <SortMark dir={errSort.dirOf("cases")} /></th>
+                <th {...errSort.th("loss")}>Loss Amount <SortMark dir={errSort.dirOf("loss")} /></th>
+                <th {...errSort.th("pct")}>Error % (÷ Finished) <SortMark dir={errSort.dirOf("pct")} /></th>
+              </tr></thead>
               <tbody>
-                {s.errorByModule.map((m, i) => (
+                {errSort.sorted.map((m, i) => (
                   <tr key={i}><td>{m.module}</td><td>{m.cases}</td><td>{m.loss.toLocaleString()}</td><td>{m.pct}%</td></tr>
                 ))}
               </tbody>
@@ -165,9 +185,14 @@ function ManagementView() {
           <h3 style={{ margin: "14px 4px 6px" }}>Workflow Health (ทุกโมดูล)</h3>
           <div className="grid-wrap">
             <table className="view-table">
-              <thead><tr className="field-row"><th>Module</th><th>Active</th><th>Pending</th><th>End</th></tr></thead>
+              <thead><tr className="field-row">
+                <th {...wfSort.th("module")}>Module <SortMark dir={wfSort.dirOf("module")} /></th>
+                <th {...wfSort.th("active")}>Active <SortMark dir={wfSort.dirOf("active")} /></th>
+                <th {...wfSort.th("pending")}>Pending <SortMark dir={wfSort.dirOf("pending")} /></th>
+                <th {...wfSort.th("end")}>End <SortMark dir={wfSort.dirOf("end")} /></th>
+              </tr></thead>
               <tbody>
-                {s.workflow.map((w, i) => (
+                {wfSort.sorted.map((w, i) => (
                   <tr key={i}><td>{w.module}</td><td>{w.active}</td><td>{w.pending}</td><td>{w.end}</td></tr>
                 ))}
               </tbody>

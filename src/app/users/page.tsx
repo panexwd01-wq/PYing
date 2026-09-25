@@ -5,6 +5,7 @@ import { CenterLoading } from "@/components/Spinner";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { Toast } from "@/components/Toast";
 import { RequireTab } from "@/components/RequireTab";
+import { SortMark, useTableSort } from "@/components/SortTh";
 import { useAuth } from "@/components/AuthProvider";
 import { Perms, TABS, TabPerm, defaultUserPerms, emptyPerms } from "@/lib/perms";
 import type { Role } from "@/lib/session";
@@ -34,6 +35,9 @@ const blank = () => ({
   active: true,
   perms: defaultUserPerms(),
 });
+
+const permCount = (p: Perms) =>
+  TABS.filter((t) => !t.adminOnly && p.tabs?.[t.key]?.view).length;
 
 function UsersPageInner() {
   const { user: me, reload: reloadMe } = useAuth();
@@ -155,10 +159,19 @@ function UsersPageInner() {
     }
   };
 
-  const permCount = (p: Perms) =>
-    TABS.filter((t) => !t.adminOnly && p.tabs?.[t.key]?.view).length;
-
   const editableTabs = useMemo(() => TABS.filter((t) => !t.adminOnly), []);
+
+  // คลิกหัวคอลัมน์เพื่อเรียง — ค่าตามที่แสดงในตาราง
+  const sortVal = useCallback((u: UserRow, key: string) => {
+    switch (key) {
+      case "role": return u.role === "admin" ? "admin" : "user";
+      case "active": return u.active ? "ใช้งาน" : "ปิดใช้งาน";
+      case "tabs": return u.role === "admin" ? "ทั้งหมด" : permCount(u.perms);
+      case "lists": return u.role === "admin" || u.perms?.lists ? "ได้" : "";
+      default: return (u as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, th, dirOf } = useTableSort(users, sortVal);
 
   return (
     <main className="page fade-in">
@@ -183,11 +196,17 @@ function UsersPageInner() {
           <table className="view-table">
             <thead>
               <tr className="field-row">
-                <th>Username</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>สถานะ</th><th>Tab ที่เห็น</th><th>แก้ Dropdown</th><th>จัดการ</th>
+                <th {...th("username")}>Username <SortMark dir={dirOf("username")} /></th>
+                <th {...th("displayName")}>ชื่อที่แสดง <SortMark dir={dirOf("displayName")} /></th>
+                <th {...th("role")}>สิทธิ์ <SortMark dir={dirOf("role")} /></th>
+                <th {...th("active")}>สถานะ <SortMark dir={dirOf("active")} /></th>
+                <th {...th("tabs")}>Tab ที่เห็น <SortMark dir={dirOf("tabs")} /></th>
+                <th {...th("lists")}>แก้ Dropdown <SortMark dir={dirOf("lists")} /></th>
+                <th>จัดการ</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {sorted.map((u) => (
                 <tr key={u.id}>
                   <td><b>{u.username}</b>{me?.username === u.username && <span className="role-pill">คุณ</span>}</td>
                   <td>{u.displayName}</td>

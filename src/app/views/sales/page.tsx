@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
+import { SortMark, useTableSort } from "@/components/SortTh";
 import { MONTHS_TH, salesStats, yearsInData } from "@/lib/stats";
 
 export default function SalesPage() {
@@ -55,6 +56,10 @@ function SalesView() {
     setSales("");
   };
   const filtering = !!(year || month || day || jobType || customer || sales);
+
+  // คลิกหัวคอลัมน์เพื่อเรียง (hook ต้องอยู่ก่อน return ด้านล่าง)
+  const custRows = useMemo(() => s?.customers || [], [s]);
+  const { sorted, th, dirOf } = useTableSort(custRows);
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -126,14 +131,14 @@ function SalesView() {
             <table className="view-table">
               <thead>
                 <tr className="field-row">
-                  <th>Customer</th>
-                  <th>Jobs</th>
-                  <th>ตู้ 20 ฟุต</th>
-                  <th>ตู้ 40 ฟุต</th>
+                  <th {...th("name")}>Customer <SortMark dir={dirOf("name")} /></th>
+                  <th {...th("jobs")}>Jobs <SortMark dir={dirOf("jobs")} /></th>
+                  <th {...th("c20")}>ตู้ 20 ฟุต <SortMark dir={dirOf("c20")} /></th>
+                  <th {...th("c40")}>ตู้ 40 ฟุต <SortMark dir={dirOf("c40")} /></th>
                 </tr>
               </thead>
               <tbody>
-                {s.customers.map((c, i) => (
+                {sorted.map((c, i) => (
                   <tr key={i}>
                     <td>{c.name}</td>
                     <td>{c.jobs}</td>
