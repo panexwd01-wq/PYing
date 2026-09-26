@@ -55,6 +55,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     reload();
   }, [reload]);
 
+  // กลับมาที่แท็บ → ดึงสิทธิ์ล่าสุด (admin แก้สิทธิ์ระหว่างที่เปิดหน้าค้างไว้ จะได้มีผลโดยไม่ต้องรีเฟรช)
+  // เว้นอย่างน้อย 60 วิ/ครั้ง กันสลับแท็บไปมาแล้วเปลือง quota ชีท
+  useEffect(() => {
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 60_000) return;
+      last = Date.now();
+      reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reload]);
+
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);

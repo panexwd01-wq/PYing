@@ -920,6 +920,24 @@ tr.row-locked td {
   color: #333;
   min-width: 42px;
 }
+/* ช่อง Reason / Pending Remark แก้ในตารางได้ (บันทึกกลับไป tab Shipping) */
+.view-table input.sd-reason {
+  width: 100%;
+  min-width: 200px;
+  padding: 4px 8px;
+  border: 1px solid #d6dbe3;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+.view-table input.sd-reason:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+.view-table input.sd-reason:disabled {
+  opacity: 0.6;
+}
 
 /* ===== print (Ship Daily) ===== */
 @media print {

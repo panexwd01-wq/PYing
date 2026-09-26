@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { CenterLoading } from "@/components/Spinner";
 import { PrintButton } from "@/components/PrintButton";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { RequireTab } from "@/components/RequireTab";
 import { SortMark, useTableSort } from "@/components/SortTh";
+import { Toast } from "@/components/Toast";
 import { JobRecord } from "@/lib/types";
 import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
+import { cellCue } from "@/lib/cellRules";
+
+// ช่อง Reason / Pending Remark = Clearance Pending Reason ของ 06_Shipping
+const REASON_KEY = "clearance_pending_reason";
 
 const num = (v: unknown) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
@@ -37,7 +43,14 @@ export default function ShipDailyPage() {
 }
 
 function ShipDailyView() {
-  const { data, loading, error, reload } = useData();
+  const { data, loading, error, reload, applyOrReload } = useData();
+  const { can } = useAuth();
+  const [savingId, setSavingId] = useState("");
+  const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
+  const flash = useCallback((text: string, err = false) => {
+    setToast({ text, err });
+    setTimeout(() => setToast(null), err ? 4200 : 2200);
+  }, []);
   const lists = data?.lists || {};
   const [date, setDate] = useState("");
   const [jobType, setJobType] = useState("");
@@ -96,7 +109,8 @@ function ShipDailyView() {
       { key: "pending", label: "Pending", chk: true, center: true, value: () => BOX },
       { key: "ot_req", label: "OT Req", chk: true, center: true, value: () => BOX },
       { key: "ot_lost", label: "OT Receipt Lost", chk: true, center: true, value: () => BOX },
-      { key: "reason", label: "Reason / Pending Remark", wide: true, value: () => "" },
+      // = Clearance Pending Reason ของ tab Shipping (ช่องเดียวกัน แก้ที่นี่หรือที่ Shipping ก็ได้)
+      { key: REASON_KEY, label: "Reason / Pending Remark", wide: true, value: (r) => r[REASON_KEY] || "" },
     ],
     [csById, transConts] // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -110,8 +124,34 @@ function ShipDailyView() {
     [cols]
   );
   const { sorted, th, dirOf } = useTableSort(rows, sortVal);
-  // ช่องติ๊กมือ + ช่องเหตุผลเปล่า ไม่มีอะไรให้เรียง
-  const sortable = (c: Col) => !c.chk && c.key !== "reason";
+  // ช่องติ๊กมือ ไม่มีอะไรให้เรียง
+  const sortable = (c: Col) => !c.chk;
+
+  // บันทึก Reason กลับไปที่ tab Shipping — ส่งแค่ช่องเดียว (server merge กับค่าเดิมให้เอง)
+  const canEdit = can("shipping", "edit");
+  const saveReason = useCallback(
+    async (id: string, value: string) => {
+      setSavingId(id);
+      try {
+        const res = await fetch("/api/jobs?module=shipping", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: [{ __id: id, [REASON_KEY]: value }] }),
+        });
+        const j = await res.json();
+        if (j.error) throw new Error(j.error);
+        await applyOrReload(j.snapshot);
+        flash("บันทึก Reason เรียบร้อย");
+        return true;
+      } catch (e) {
+        flash("บันทึกไม่สำเร็จ: " + (e as Error).message, true);
+        return false;
+      } finally {
+        setSavingId("");
+      }
+    },
+    [applyOrReload, flash]
+  );
 
   if (loading && !data) return <main className="page fade-in"><CenterLoading /></main>;
 
@@ -175,7 +215,16 @@ function ShipDailyView() {
                     <td>{i + 1}</td>
                     {cols.map((c) => (
                       <td key={c.key} className={c.chk ? "chk" : undefined} style={c.center ? { textAlign: "center" } : undefined}>
-                        {c.value(r)}
+                        {c.key === REASON_KEY ? (
+                          <ReasonCell
+                            rec={r}
+                            canEdit={canEdit}
+                            saving={savingId === r.__id}
+                            onSave={saveReason}
+                          />
+                        ) : (
+                          c.value(r)
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -210,6 +259,62 @@ function ShipDailyView() {
           </div>
         </>
       )}
+
+      {toast && <Toast text={toast.text} err={toast.err} onClose={() => setToast(null)} />}
     </main>
+  );
+}
+
+// ช่อง Reason แก้ได้ในตาราง — พิมพ์แล้วกด Enter หรือคลิกออก = บันทึก · Esc = ยกเลิก
+// ล็อกตามกฎเดียวกับ tab Shipping (ต้องมี Entry PIC + Ship PIC ก่อน) และต้องมีสิทธิ์แก้ไข Shipping
+function ReasonCell({
+  rec,
+  canEdit,
+  saving,
+  onSave,
+}: {
+  rec: JobRecord;
+  canEdit: boolean;
+  saving: boolean;
+  onSave: (id: string, value: string) => Promise<boolean>;
+}) {
+  const saved = rec[REASON_KEY] || "";
+  const [draft, setDraft] = useState(saved);
+  // ค่าที่บันทึกเปลี่ยนจากที่อื่น (tab Shipping / รีเฟรช) → ตามค่าใหม่
+  useEffect(() => setDraft(saved), [saved]);
+
+  const cue = cellCue("06_Shipping", REASON_KEY, rec);
+  if (!canEdit || cue.locked) {
+    return (
+      <span title={!canEdit ? "ไม่มีสิทธิ์แก้ไข tab Shipping" : cue.hint}>
+        {saved || <span className="muted">—</span>}
+      </span>
+    );
+  }
+
+  const commit = async () => {
+    const v = draft.trim();
+    if (v === saved.trim()) return;
+    if (!(await onSave(rec.__id, v))) setDraft(saved);
+  };
+
+  return (
+    <input
+      className="sd-reason"
+      value={draft}
+      disabled={saving}
+      placeholder="พิมพ์เหตุผล…"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(saved);
+          // รอ state กลับเป็นค่าเดิมก่อน blur จะได้ไม่บันทึก
+          const el = e.currentTarget;
+          setTimeout(() => el.blur());
+        }
+      }}
+    />
   );
 }

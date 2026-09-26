@@ -6,10 +6,12 @@ import { withSheetCache } from "@/lib/sheets";
 export const dynamic = "force-dynamic";
 
 // จัดการผู้ใช้ + สิทธิ์ — admin เท่านั้น
+// อ่านสดเสมอ (ไม่ใช้ cache ข้ามคำขอ) — ถ้าหลายเครื่อง/หลาย instance cache ไม่ตรงกัน
+// หน้าผู้ใช้จะโชว์สิทธิ์เก่า แล้วพอกดบันทึกรอบถัดไปก็เขียนค่าเก่าทับค่าที่เพิ่งตั้งไป
 export async function GET() {
   try {
     await requireAdmin();
-    const users = await withSheetCache(() => listUsers());
+    const users = await withSheetCache(() => listUsers(), { fresh: true });
     return NextResponse.json({ users });
   } catch (e) {
     const { message, status } = authErrorResponse(e);
