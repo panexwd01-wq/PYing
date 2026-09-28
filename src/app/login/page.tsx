@@ -78,7 +78,6 @@ function LoginForm() {
         <button className="btn primary lg" type="submit" disabled={busy || !username || !password}>
           {busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
         </button>
-        <p className="muted login-hint">ใช้งานครั้งแรก: <b>admin</b> / <b>admin</b> (เปลี่ยนรหัสผ่านทันทีที่หน้า “ผู้ใช้”)</p>
       </form>
     </main>
   );

@@ -406,7 +406,17 @@ export function JobGrid({
               <th className="sticky-col" rowSpan={2} style={{ left: 0 }}>
                 #
               </th>
-              {onToggleSelect && <th className="sel-col" rowSpan={2} />}
+              {onToggleSelect && (
+                <th className="sel-col" rowSpan={2}>
+                  <input
+                    type="checkbox"
+                    checked={!!rows.length && !!selectedIds && rows.every((r) => selectedIds.has(r.__id))}
+                    onChange={() => onToggleSelectAll?.()}
+                    title="เลือก/ไม่เลือกทุกแถวที่เห็นอยู่"
+                    aria-label="เลือกทั้งหมด"
+                  />
+                </th>
+              )}
               {groupSpans.map((gs, i) => (
                 <th key={gs.group + i} colSpan={gs.span}>
                   {gs.group}
@@ -417,7 +427,8 @@ export function JobGrid({
           ) : null}
           <tr className="field-row">
             {collapsed && <th className="rownum">#</th>}
-            {onToggleSelect && (
+            {/* โหมดเต็ม: ช่องติ๊กอยู่ในแถวกลุ่มด้านบนแล้ว (rowSpan=2) — ห้ามวาดซ้ำตรงนี้ ไม่งั้นหัวคอลัมน์เลื่อนไป 1 ช่อง */}
+            {collapsed && onToggleSelect && (
               <th className="sel-col">
                 <input
                   type="checkbox"
