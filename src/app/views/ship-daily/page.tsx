@@ -13,6 +13,7 @@ import { JobRecord } from "@/lib/types";
 import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
 import { cellCue } from "@/lib/cellRules";
+import { formatStored } from "@/lib/dateFormat";
 
 // ช่อง Reason / Pending Remark = Clearance Pending Reason ของ 06_Shipping
 const REASON_KEY = "clearance_pending_reason";
@@ -97,7 +98,7 @@ function ShipDailyView() {
       { key: "customer", label: "Customer", value: (r) => r.customer || "—" },
       { key: "customer_ref", label: "Cust Ref", value: (r) => r.customer_ref || "—" },
       { key: "conts", label: "20GP/40HC ตู้", center: true, value: (r) => String(contQty((r[LINK_CS] || "").trim()) || "") },
-      { key: "delivery_date", label: "Delivery Date", value: (r) => r.delivery_date || "—" },
+      { key: "delivery_date", label: "Delivery Date", value: (r) => formatStored(r.delivery_date || "") || "—" },
       { key: "ship_pic", label: "Ship PIC", value: (r) => r.ship_pic || "—" },
       { key: "trans_conts", label: "Trans Conts", center: true, value: (r) => String(transConts.get((r[LINK_CS] || "").trim()) ?? "") },
       { key: "cs_note_ship", label: "Cs Note", wide: true, value: (r) => r.cs_note_ship || "" },

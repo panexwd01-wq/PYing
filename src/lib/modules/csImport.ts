@@ -86,7 +86,7 @@ export const IMPORT_FIELDS: Field[] = [
   { key: "transport_flag", label: "Transport?", group: "Transport", type: "toggle", mandatory: true, width: 100, help: "Yes = สร้างรายการที่ tab Transport" },
   { key: "cs_note_trans", label: "Cs Note for Trans Pic", group: "Transport", type: "text", mandatory: true, width: 180 },
   { key: "trans_extra_type", label: "(TRANS) Extra/Service Type", group: "Transport", type: "auto", width: 170, rpull: { from: "07_Transportation", field: "extra_req_type" }, help: "Type ที่ Transport เลือกไว้ (ดึงมาแสดง — แก้ที่ tab Transport)" },
-  { key: "delivery_date", label: "Delivery / Loading Date (รวม)", group: "Transport", type: "datetime", width: 190, help: "วันส่งรวมของรายการ (Shipping/Warehouse/สถิติ ใช้ช่องนี้)" },
+  { key: "delivery_date", label: "Delivery / Loading Date (รวม)", group: "Transport", type: "auto", width: 190, help: "อัตโนมัติ: วันแรกสุด ~ วันสุดท้าย ของ Supp 1–3 Delivery / Loading Date รวมกัน (Shipping/Warehouse/สถิติ ใช้ช่องนี้)" },
   ...transSupp(1),
   ...transSupp(2),
   ...transSupp(3),

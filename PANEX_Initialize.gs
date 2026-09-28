@@ -729,6 +729,104 @@ function PANEX_MIGRATE() {
   );
 }
 
+// ===================== เติม Delivery / Loading Date (รวม) ให้งานเก่า =====================
+// สูตรเดียวกับฝั่งเว็บ (applyAutoRules ใน src/lib/db.ts):
+//   delivery_date = วันแรกสุด ~ วันสุดท้าย ของ trans_supp1–3_delivery รวมกัน (วันเดียวกัน = แสดงวันเดียว)
+//   แถวที่ยังไม่มี Supp ไหนกรอกวันเลย = คงค่าเดิม
+// เขียนเฉพาะคอลัมน์ delivery_date ของ 04_CS_Import / 05_CS_Export · สำรองชีทเป็น BAK_ ก่อนเขียน
+//
+// วิธีใช้: รัน PANEX_FILL_DELIVERY_DATE_PREVIEW() ก่อน (ดูอย่างเดียว ไม่เขียน)
+//          → ถ้าถูกต้องค่อยรัน PANEX_FILL_DELIVERY_DATE()
+var PANEX_DELIVERY_SHEETS = ["04_CS_Import", "05_CS_Export"];
+var PANEX_RANGE_SEP = " ~ ";
+
+function PANEX_FILL_DELIVERY_DATE_PREVIEW() {
+  fillDeliveryDate_(false);
+}
+
+function PANEX_FILL_DELIVERY_DATE() {
+  fillDeliveryDate_(true);
+}
+
+function fillDeliveryDate_(write) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var report = [];
+  PANEX_DELIVERY_SHEETS.forEach(function (name) {
+    report.push(fillDeliveryDateSheet_(ss, name, write));
+  });
+  var NL = String.fromCharCode(10);
+  SpreadsheetApp.getUi().alert(
+    (write ? "เติม Delivery Date (รวม) เสร็จ" : "ตัวอย่าง (ยังไม่เขียนอะไร)") + NL + NL + report.join(NL + NL)
+  );
+}
+
+function calcDeliveryRange_(suppVals) {
+  var days = [];
+  suppVals.forEach(function (v) {
+    String(v || "").split(PANEX_RANGE_SEP).forEach(function (p) {
+      var m = /^\d{4}-\d{2}-\d{2}/.exec(p.trim());
+      if (m) days.push(m[0]);
+    });
+  });
+  if (!days.length) return null; // ไม่มีวัน Supp เลย = คงค่าเดิม
+  days.sort();
+  var first = days[0];
+  var last = days[days.length - 1];
+  return first === last ? first : first + PANEX_RANGE_SEP + last;
+}
+
+function fillDeliveryDateSheet_(ss, name, write) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) return name + " : ไม่พบชีท (ข้าม)";
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return name + " : ไม่มีข้อมูล (ข้าม)";
+
+  // อ่านเป็นข้อความที่แสดง — ค่าที่เว็บเขียนเป็นแบบ RAW จึงได้ "YYYY-MM-DD" ตรง ๆ
+  var values = sh.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+  var headers = values[0].map(function (v) { return String(v).trim(); });
+  var col = headers.indexOf("delivery_date");
+  var suppCols = [1, 2, 3].map(function (n) { return headers.indexOf("trans_supp" + n + "_delivery"); });
+  if (col < 0) return name + " : ไม่พบคอลัมน์ delivery_date (ข้าม — รัน PANEX_MIGRATE ก่อน)";
+  if (suppCols.every(function (c) { return c < 0; })) return name + " : ไม่พบคอลัมน์ trans_suppN_delivery (ข้าม)";
+
+  var out = [];
+  var changed = 0;
+  var samples = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    var cur = String(row[col] || "");
+    var next = cur;
+    if (String(row[0] || "").trim() !== "") {
+      var calc = calcDeliveryRange_(suppCols.map(function (c) { return c < 0 ? "" : row[c]; }));
+      if (calc != null) next = calc;
+    }
+    if (next !== cur) {
+      changed++;
+      if (samples.length < 5) samples.push("  แถว " + (r + 1) + ": \"" + cur + "\" → \"" + next + "\"");
+    }
+    out.push([next]);
+  }
+
+  var head = name + " : " + (write ? "เปลี่ยน " : "จะเปลี่ยน ") + changed + " แถว จาก " + (values.length - 1) + " แถว";
+  if (!write || !changed) return head + (samples.length ? String.fromCharCode(10) + samples.join(String.fromCharCode(10)) : "");
+
+  // สำรองชีทเดิมก่อนเขียนทับ
+  var bak = "BAK_" + name;
+  if (ss.getSheetByName(bak)) {
+    var n = 2;
+    while (ss.getSheetByName(bak + "_" + n)) n++;
+    bak = bak + "_" + n;
+  }
+  sh.copyTo(ss).setName(bak);
+
+  // ตั้งเป็นข้อความก่อนเขียน — ไม่ให้ Sheets แปลง "YYYY-MM-DD" เป็นวันที่เอง (เว็บอ่านแบบข้อความ)
+  var target = sh.getRange(2, col + 1, out.length, 1);
+  target.setNumberFormat("@");
+  target.setValues(out);
+  return head + " · สำรองที่ " + bak;
+}
+
 function migrateSheet_(ss, name) {
   var sh = ss.getSheetByName(name);
   var newHeaders = PANEX_HEADERS[name];

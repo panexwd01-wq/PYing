@@ -17,6 +17,7 @@ import {
   recordHeaders,
 } from "./schema";
 import { contLabel } from "./containers";
+import { RANGE_SEP } from "./dateFormat";
 import { AllUserPrefs, ColorTag, parseColorTags } from "./prefs";
 import { checkEnd, EndCtx } from "./endRules";
 import { checkReExport } from "./reExport";
@@ -300,6 +301,20 @@ export function applyAutoRules(m: ModuleDef, rec: Partial<JobRecord>): Partial<J
       if (!next.ended_at) next.ended_at = nowStamp();
     } else {
       next.ended_at = "";
+    }
+  }
+  // CS Import/Export: Delivery / Loading Date (รวม) = วันแรกสุด ~ วันสุดท้าย ของ Supp 1–3 รวมกัน
+  // ยังไม่มี Supp ไหนกรอกวันเลย = คงค่าเดิมไว้ (ข้อมูลเก่าที่เคยกรอกช่องรวมเองจะไม่หาย)
+  if ((m.id === "04_CS_Import" || m.id === "05_CS_Export") && hasField(m, "delivery_date")) {
+    const days = [1, 2, 3]
+      .flatMap((n) => String(next[`trans_supp${n}_delivery`] ?? "").split(RANGE_SEP))
+      .map((s) => /^\d{4}-\d{2}-\d{2}/.exec(s.trim())?.[0] || "")
+      .filter(Boolean)
+      .sort();
+    if (days.length) {
+      const first = days[0];
+      const last = days[days.length - 1];
+      next.delivery_date = first === last ? first : `${first}${RANGE_SEP}${last}`;
     }
   }
   // ตารางเรท: updated_at อัปเดตทุกครั้งที่บันทึก

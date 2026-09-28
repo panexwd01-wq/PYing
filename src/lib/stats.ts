@@ -3,6 +3,7 @@ import { contBySize, contLabel, contTotal } from "./containers";
 import { MODULES, MODULE_BY_KEY } from "./schema";
 import { LINK_CS, LINK_IMP, LINK_SRC } from "./fields";
 import { Snapshot } from "./types";
+import { RANGE_SEP } from "./dateFormat";
 
 const num = (v: unknown) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
@@ -309,7 +310,8 @@ function supplierBreakdown(
   for (const r of rows) {
     const conts = contQty(r);
     const actual = (r[actualKey] || "").slice(0, 10);
-    const due = (r[dueKey] || "").slice(0, 10);
+    // กำหนดส่งเป็นช่วงวันได้ ("a ~ b") — ยึดวันสุดท้ายของช่วง
+    const due = ((r[dueKey] || "").split(RANGE_SEP).pop() || "").trim().slice(0, 10);
     const measured = !!actual && !!due;
     const late = measured && actual > due;
     for (const sk of suppKeys) {
