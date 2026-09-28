@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Snapshot } from "@/lib/types";
+import type { ModulePrefs } from "@/lib/prefs";
 
 interface Ctx {
   data: Snapshot | null;
@@ -13,6 +14,9 @@ interface Ctx {
   apply: (snap: unknown) => boolean;
   /** ใช้ snapshot จาก API ถ้ามี ไม่งั้นค่อยยิง /api/snapshot */
   applyOrReload: (snap: unknown) => Promise<void>;
+  /** อัปเดตตั้งค่าคอลัมน์ของบัญชีนี้ลงข้อมูลกลางทันที (API ของ prefs ไม่แนบ snapshot กลับมา)
+   *  ต้องเก็บไว้ที่นี่ ไม่ใช่ state ของ ModuleBoard — ไม่งั้นสลับ tab แล้วกลับมาจะเห็นค่าเก่า */
+  patchPrefs: (userId: string, module: string, value: ModulePrefs) => void;
 }
 
 const DataCtx = createContext<Ctx>({
@@ -22,6 +26,7 @@ const DataCtx = createContext<Ctx>({
   reload: async () => {},
   apply: () => false,
   applyOrReload: async () => {},
+  patchPrefs: () => {},
 });
 
 export const useData = () => useContext(DataCtx);
@@ -100,12 +105,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [apply, reload]
   );
 
+  const patchPrefs = useCallback((userId: string, module: string, value: ModulePrefs) => {
+    markWrote(); // รีโหลดหน้าในช่วงนี้จะอ่านสด ไม่เจอค่าเก่าจาก cache
+    setData((d) =>
+      d ? { ...d, prefs: { ...d.prefs, [userId]: { ...(d.prefs?.[userId] || {}), [module]: value } } } : d
+    );
+  }, []);
+
   useEffect(() => {
     reload();
   }, [reload]);
 
   return (
-    <DataCtx.Provider value={{ data, loading, error, reload, apply, applyOrReload }}>
+    <DataCtx.Provider value={{ data, loading, error, reload, apply, applyOrReload, patchPrefs }}>
       {children}
     </DataCtx.Provider>
   );

@@ -36,7 +36,7 @@ function tempId() {
 
 export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading: dataLoading, error: dataError, reload, apply, applyOrReload } = useData();
+  const { data, loading: dataLoading, error: dataError, reload, apply, applyOrReload, patchPrefs } = useData();
   const { can, canLists, user } = useAuth();
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   const flash = useCallback((text: string, err = false) => {
@@ -84,10 +84,12 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [data?.collapse, moduleKey, mod]
   );
   // ตั้งค่าคอลัมน์ของบัญชีนี้ (ลำดับ/ความกว้าง/คอลัมน์ตอนย่อ) — ทับค่าส่วนกลางถ้ามี
-  const serverPrefs = data?.prefs?.[user?.id || ""]?.[moduleKey];
-  const [localPrefs, setLocalPrefs] = useState<ModulePrefs | undefined>(undefined);
-  useEffect(() => setLocalPrefs(undefined), [moduleKey, data]); // เปลี่ยน tab / โหลดใหม่ = ยึดของ server
-  const myPrefs = localPrefs ?? serverPrefs;
+  // อ่านจากข้อมูลกลาง (DataProvider) เสมอ — ตอนบันทึกจะ patch ลงที่นั่น สลับ tab ไปกลับค่าจึงไม่หาย
+  const myPrefs = data?.prefs?.[user?.id || ""]?.[moduleKey];
+  const setMyPrefs = useCallback(
+    (value: ModulePrefs) => user?.id && patchPrefs(user.id, moduleKey, value),
+    [user?.id, moduleKey, patchPrefs]
+  );
 
   // ลำดับ + ความกว้างที่ผู้ใช้จัดไว้ (ใช้แทน mod.fields ทุกที่ที่วาดตาราง)
   const viewFields = useMemo(() => applyColumnPrefs(mod.fields, myPrefs), [mod, myPrefs]);
@@ -107,15 +109,14 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         widths: { ...(base.widths || {}), [key]: width },
         collapse: base.collapse || [],
       };
-      setLocalPrefs(value);
-      apply(null); // จำว่าเพิ่งเขียน → รีโหลดหน้าในช่วงนี้จะอ่านสด ไม่เจอค่าเก่าจาก cache
+      setMyPrefs(value);
       fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefs: { module: moduleKey, value } }),
       }).catch(() => flash("จำความกว้างคอลัมน์ไม่สำเร็จ", true));
     },
-    [myPrefs, moduleKey, flash, apply]
+    [myPrefs, moduleKey, flash, setMyPrefs]
   );
 
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
@@ -212,18 +213,20 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   );
 
   // sync แถวจาก snapshot (โหลดครั้งแรก / หลัง reload) — ทิ้ง state แก้ไขที่ค้าง
+  // ผูกกับ data.modules ไม่ใช่ data ทั้งก้อน — ตอนบันทึกตั้งค่าคอลัมน์/ลากความกว้าง (patchPrefs) ห้ามล้างงานที่แก้ค้าง
+  const modules = data?.modules;
   const resetFromData = useCallback(() => {
-    setRows(data?.modules[moduleKey] || []);
+    setRows(modules?.[moduleKey] || []);
     setDirty(new Set());
     setNews(new Set());
     setUnlocked(new Set());
     setSelected(new Set());
-  }, [data, moduleKey]);
+  }, [modules, moduleKey]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!modules) return;
     resetFromData();
-  }, [data, moduleKey, resetFromData]);
+  }, [modules, moduleKey, resetFromData]);
 
   // เปลี่ยน tab = กลับไปใช้การเรียงตั้งต้นของ tab นั้น (ใหม่→เก่า ตามช่องวันที่หลัก)
   useEffect(() => setSort(defaultSort), [defaultSort]);
@@ -700,10 +703,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           prefs={myPrefs}
           canSetShared={canLists()}
           onClose={() => setShowCfg(false)}
-          onSavedPrefs={(v) => {
-            setLocalPrefs(v);
-            apply(null); // จำว่าเพิ่งเขียน (API นี้ไม่แนบ snapshot กลับมา)
-          }}
+          onSavedPrefs={setMyPrefs}
           onSavedShared={applyOrReload}
         />
       )}

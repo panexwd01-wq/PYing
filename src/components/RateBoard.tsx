@@ -24,7 +24,7 @@ function tempId() {
 //   3) ตารางผลลัพธ์ — บันทึกแล้ว "แก้ไขไม่ได้" (เฉพาะ admin แก้/ลบได้)
 export function RateBoard({ moduleKey, title }: { moduleKey: string; title: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
-  const { data, loading, apply, applyOrReload } = useData();
+  const { data, loading, applyOrReload, patchPrefs } = useData();
   const { user, isAdmin, can } = useAuth();
   const lists = data?.lists || {};
 
@@ -51,10 +51,9 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
   const [editing, setEditing] = useState<JobRecord | null>(null); // admin แก้แถวที่บันทึกแล้ว
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
-  const [localPrefs, setLocalPrefs] = useState<ModulePrefs | undefined>(undefined);
-
+  
   // ความกว้างคอลัมน์ที่ผู้ใช้ลากไว้ (จำเฉพาะบัญชีนี้ — หน้า Rate ก็ยืดหดได้เหมือน Excel)
-  const myPrefs = localPrefs ?? data?.prefs?.[user?.id || ""]?.[moduleKey];
+  const myPrefs = data?.prefs?.[user?.id || ""]?.[moduleKey];
   const viewFields = useMemo(() => applyColumnPrefs(mod.fields, myPrefs), [mod, myPrefs]);
 
   const saveWidth = useCallback(
@@ -65,15 +64,14 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
         widths: { ...(base.widths || {}), [key]: width },
         collapse: base.collapse || [],
       };
-      setLocalPrefs(value);
-      apply(null); // จำว่าเพิ่งเขียน → รีโหลดหน้าในช่วงนี้จะอ่านสด ไม่เจอค่าเก่าจาก cache
+      if (user?.id) patchPrefs(user.id, moduleKey, value); // เก็บลงข้อมูลกลาง สลับ tab แล้วค่าไม่หาย
       fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefs: { module: moduleKey, value } }),
       }).catch(() => undefined);
     },
-    [myPrefs, moduleKey, apply]
+    [myPrefs, moduleKey, patchPrefs, user?.id]
   );
 
   const flash = useCallback((text: string, err = false) => {
@@ -81,11 +79,12 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
     setTimeout(() => setToast(null), err ? 4200 : 2600);
   }, []);
 
+  // ผูกกับ data.modules — patchPrefs (ลากความกว้าง) ต้องไม่ล้างแถวที่กำลังแก้
+  const modules = data?.modules;
   useEffect(() => {
-    setRows(data?.modules[moduleKey] || []);
+    setRows(modules?.[moduleKey] || []);
     setEditing(null);
-    setLocalPrefs(undefined);
-  }, [data, moduleKey]);
+  }, [modules, moduleKey]);
 
   const setDraftValue = (key: string, value: string) => setDraft((p) => ({ ...p, [key]: value }));
   const setEditValue = (key: string, value: string) =>
