@@ -21,16 +21,19 @@ function tempId() {
 // ตารางเรท (Cost / Sell) ตามฟอร์ม PANEX CHECKER:
 //   1) Add New List — ฟอร์มเพิ่มเรทใหม่
 //   2) Search By Filter — กรอง Supplier / Customer / Service Type / Cargo Type / Port-Route / Job Type / Address
-//   3) ตารางผลลัพธ์ — บันทึกแล้ว "แก้ไขไม่ได้" (เฉพาะ admin แก้/ลบได้)
+//   3) ตารางผลลัพธ์ — บันทึกแล้ว "แก้ไขไม่ได้" (แก้/ลบได้เฉพาะคนที่มีสิทธิ์ แก้ไข/ลบ ของ tab Rates)
 export function RateBoard({ moduleKey, title }: { moduleKey: string; title: string }) {
   const mod = MODULE_BY_KEY[moduleKey];
   const { data, loading, applyOrReload, patchPrefs } = useData();
-  const { user, isAdmin, can } = useAuth();
+  const { user, can } = useAuth();
   const lists = data?.lists || {};
 
   const signerKey = RATE_SIGNER_KEY[moduleKey];
   const signerLabel = mod.fields.find((f) => f.key === signerKey)?.label || "ผู้ตรวจ";
   const mayAdd = can("rates", "add");
+  const mayEdit = can("rates", "edit");
+  const mayDelete = can("rates", "del");
+  const showActions = mayEdit || mayDelete; // คอลัมน์ "จัดการ" ท้ายตาราง
 
   // ช่องที่กรอกเองได้ (ตัด auto ทั้งหมด — checked_by/quoted_by/updated_at ระบบเติมให้)
   const inputFields = useMemo(() => mod.fields.filter((f) => f.type !== "auto"), [mod]);
@@ -48,7 +51,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
   const [rows, setRows] = useState<JobRecord[]>([]);
   const [draft, setDraft] = useState<JobRecord>(emptyDraft);
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<JobRecord | null>(null); // admin แก้แถวที่บันทึกแล้ว
+  const [editing, setEditing] = useState<JobRecord | null>(null); // แถวที่บันทึกแล้วที่กำลังแก้ (ต้องมีสิทธิ์แก้ไข)
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   
@@ -129,7 +132,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
     }
   };
 
-  // ----- admin: แก้ไข / ลบแถวที่บันทึกแล้ว -----
+  // ----- แก้ไข / ลบแถวที่บันทึกแล้ว (ตามสิทธิ์ แก้ไข/ลบ ของ tab Rates) -----
   const saveEdit = async () => {
     if (!editing || !user) return;
     setSaving(true);
@@ -193,7 +196,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
           <XlsxIO
             moduleKey={moduleKey}
             moduleLabel={mod.label}
-            canImport={mayAdd}
+            canImport={mayAdd || mayEdit}
             onDone={applyOrReload}
             flash={flash}
             filteredIds={shownIds}
@@ -285,7 +288,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
                   <RateResizeHandle fieldKey={f.key} width={f.width || 130} onDone={saveWidth} />
                 </th>
               ))}
-              {isAdmin && <th>จัดการ</th>}
+              {showActions && <th>จัดการ</th>}
             </tr>
           </thead>
           <tbody>
@@ -308,7 +311,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
                       )}
                     </td>
                   ))}
-                  {isAdmin && (
+                  {showActions && (
                     <td>
                       <div className="row-actions">
                         {isEditing ? (
@@ -318,8 +321,12 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
                           </>
                         ) : (
                           <>
-                            <button className="btn sm" onClick={() => setEditing({ ...rec })}>แก้ไข</button>
-                            <button className="btn sm danger" onClick={() => removeRate(rec.__id)}>ลบ</button>
+                            {mayEdit && (
+                              <button className="btn sm" onClick={() => setEditing({ ...rec })}>แก้ไข</button>
+                            )}
+                            {mayDelete && (
+                              <button className="btn sm danger" onClick={() => removeRate(rec.__id)}>ลบ</button>
+                            )}
                           </>
                         )}
                       </div>
@@ -330,7 +337,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={viewFields.length + (isAdmin ? 2 : 1)} style={{ padding: 24, textAlign: "center", color: "#777" }}>
+                <td colSpan={viewFields.length + (showActions ? 2 : 1)} style={{ padding: 24, textAlign: "center", color: "#777" }}>
                   {loading ? "กำลังโหลด…" : rows.length ? "ไม่พบเรทตามตัวกรอง" : "ยังไม่มีเรท — เพิ่มที่กล่อง “Add New List”"}
                 </td>
               </tr>

@@ -3,7 +3,7 @@ import { createJobs, deleteJob, listJobs, listJobsRaw, updateJobs } from "@/lib/
 import { writeThenSnapshot } from "@/lib/apiWrite";
 import { withSheetCache } from "@/lib/sheets";
 import { LINK_KEYS, MODULE_BY_KEY, ModuleDef } from "@/lib/schema";
-import { AuthError, assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
+import { assertCan, authErrorResponse, requireUser } from "@/lib/authServer";
 import { MODULE_TAB_KEY } from "@/lib/perms";
 import type { AppUser } from "@/lib/users";
 import type { JobRecord } from "@/lib/types";
@@ -29,12 +29,6 @@ function readRecords(body: { records?: unknown; record?: unknown }): Partial<Job
     for (const k of LINK_KEYS) delete out[k];
     return out as Partial<JobRecord>;
   });
-}
-
-// เรทที่บันทึกแล้ว ห้ามแก้/ลบ — ยกเว้น admin (ต้องติดต่อฝ่ายบัญชี)
-function assertRateWritable(u: AppUser, tab: string) {
-  if (tab === "rates" && u.role !== "admin")
-    throw new AuthError("เรทที่บันทึกแล้วแก้ไข/ลบไม่ได้ — กรุณาติดต่อฝ่ายบัญชี", 403);
 }
 
 // งานสถานะ End ต้องมีสิทธิ์ "END" แยกต่างหาก
@@ -79,8 +73,7 @@ export async function PUT(req: NextRequest) {
   try {
     const u = await requireUser();
     const { m, tab } = resolve(req);
-    assertCan(u, tab, "edit");
-    assertRateWritable(u, tab);
+    assertCan(u, tab, "edit"); // เรท: ค่าตั้งต้นปิดสิทธิ์แก้ไว้ — admin เปิดให้รายคนได้ที่หน้าผู้ใช้
     const body = await req.json();
     const records = readRecords(body);
     assertEnd(u, tab, m, records);
@@ -98,8 +91,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const u = await requireUser();
     const { m, tab } = resolve(req);
-    assertCan(u, tab, "del");
-    assertRateWritable(u, tab);
+    assertCan(u, tab, "del"); // เรท: ค่าตั้งต้นปิดสิทธิ์ลบไว้ — admin เปิดให้รายคนได้ที่หน้าผู้ใช้
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
     const { snapshot } = await writeThenSnapshot(async () => {

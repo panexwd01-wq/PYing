@@ -111,7 +111,9 @@ export async function POST(req: NextRequest) {
   try {
     const u = await requireUser();
     const { m, tab } = resolve(req);
-    assertCan(u, tab, "edit");
+    // ตารางเรท: นำเข้าได้ถ้ามีสิทธิ์ "เพิ่ม" หรือ "แก้ไข" (แถวใหม่ต้องมีสิทธิ์เพิ่ม แถวเดิมต้องมีสิทธิ์แก้ — คัดทีละแถวด้านล่าง)
+    if (m.rate && can(u.role, u.perms, tab, "add")) assertCan(u, tab, "view");
+    else assertCan(u, tab, "edit");
 
     const form = await req.formData();
     const file = form.get("file");
@@ -139,17 +141,17 @@ export async function POST(req: NextRequest) {
       });
       const skipped = plan.skipped;
 
-      // ตารางเรท: เรทที่บันทึกแล้วแก้ได้เฉพาะ admin (กติกาเดียวกับหน้า Rates)
+      // ตารางเรท: เรทที่บันทึกแล้วแก้ได้เฉพาะคนที่มีสิทธิ์ "แก้ไข" ของ tab Rates (กติกาเดียวกับหน้า Rates)
       // + ช่องผู้ตรวจ/ผู้เสนอราคา ระบบเติมชื่อคนที่ล็อกอินให้เสมอ (ห้ามกรอกจากไฟล์)
       if (m.rate) {
         const signer = RATE_SIGNER_KEY[m.key];
         if (signer) for (const it of [...plan.updates, ...plan.creates]) it.rec[signer] = u.displayName;
-        if (u.role !== "admin" && plan.updates.length) {
+        if (!can(u.role, u.perms, tab, "edit") && plan.updates.length) {
           for (const it of plan.updates)
             skipped.push({
               row: it.src.row,
               ident: identityLabel(m, it.src.ident),
-              reason: "เรทนี้มีอยู่แล้ว — แก้ไขเรทที่บันทึกแล้วได้เฉพาะ admin",
+              reason: "เรทนี้มีอยู่แล้ว — บัญชีนี้ไม่มีสิทธิ์แก้ไขเรทที่บันทึกแล้ว",
             });
           plan.updates.length = 0;
         }
