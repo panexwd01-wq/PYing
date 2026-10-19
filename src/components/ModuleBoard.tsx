@@ -18,7 +18,7 @@ import { LINK_CS, LINK_IMP, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeade
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
 import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
 import { nextSort, sortRows, SortState } from "@/lib/sort";
-import { ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
+import { ACC_AP_JOB_KEYS, ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import { checkReExport } from "@/lib/reExport";
 import { deleteImpact } from "@/lib/stats";
@@ -28,7 +28,19 @@ import { JobRecord } from "@/lib/types";
 
 const CS_KEYS = ["im_cs", "ex_cs", "cs_pic"];
 
-// คีย์วันที่ที่ให้เลือกเรียง (ตามที่มีจริงในโมดูล)
+// คำค้นล่าสุด — ค้างข้าม tab (เปลี่ยน tab = ค้นคำเดิมใน tab ใหม่ ไม่ต้องพิมพ์ซ้ำ)
+// เก็บแค่ในหน่วยความจำของหน้า → รีเฟรชหน้าเว็บแล้วล้างเอง · ตัวกรองอื่นไม่ค้าง (ตัวเลือกแต่ละ tab ต่างกัน)
+let sharedSearch = "";
+
+// tab ที่มีช่องเลือกช่วงวันที่ — ยึดวันที่หลักของ tab (dateKey): Export = ETD · Import = ETA
+// Shipping = Clearance Date · Transport = Delivery / Loading Date · tab อื่นแค่ดึงวันที่มาแสดง จึงไม่มี
+const RANGE_MODULES = new Set(["cs-import", "cs-export", "shipping", "transport"]);
+
+// วันแรก–วันสุดท้ายของค่าในช่อง (ช่อง Delivery / Loading Date (รวม) เก็บเป็นช่วง "a ~ b" ได้)
+function dateSpan(v: string): [string, string] | null {
+  const ds = (v || "").match(/\d{4}-\d{2}-\d{2}/g);
+  return ds ? [ds[0], ds[ds.length - 1]] : null;
+}
 
 function tempId() {
   return "J" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
@@ -139,7 +151,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const panelFields = useMemo(() => {
     const lineKeys =
       moduleKey === "accounting"
-        ? new Set<string>([ACC_LINE_LEAD, ...ACC_LINE_COLUMNS.ap, ...ACC_LINE_COLUMNS.ar])
+        ? new Set<string>([ACC_LINE_LEAD, ...ACC_LINE_COLUMNS.ap, ...ACC_LINE_COLUMNS.ar, ...ACC_AP_JOB_KEYS])
         : moduleKey === "extra"
         ? new Set<string>([...EXTRA_LINE_COLUMNS.sell, ...EXTRA_LINE_COLUMNS.cost])
         : null;
@@ -198,7 +210,10 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
   const [news, setNews] = useState<Set<string>>(new Set());
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState(true); // เริ่มที่โหมดย่อ
-  const [filters, setFilters] = useState<Filters>({ year: "", month: "", status: "", cs: "", q: "" });
+  const [filters, setFilters] = useState<Filters>({ year: "", month: "", range: "", status: "", cs: "", q: sharedSearch });
+  useEffect(() => {
+    sharedSearch = filters.q;
+  }, [filters.q]);
   // เรียงด้วยการคลิกหัวคอลัมน์ — ตั้งต้น = ใหม่→เก่า ตามช่องวันที่หลักของ tab
   const defaultSort = useMemo<SortState | null>(() => (mod.dateKey ? { key: mod.dateKey, dir: "desc" } : null), [mod]);
   const [sort, setSort] = useState<SortState | null>(defaultSort);
@@ -208,7 +223,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
   // เปลี่ยนตัวกรอง/การเรียง/โมดูล = คนละชุดข้อมูล → ตารางเริ่มนับแถวที่วาดใหม่
   const windowKey = useMemo(
-    () => [moduleKey, filters.year, filters.month, filters.status, filters.cs, filters.q, sort?.key, sort?.dir].join("|"),
+    () => [moduleKey, filters.year, filters.month, filters.range, filters.status, filters.cs, filters.q, sort?.key, sort?.dir].join("|"),
     [moduleKey, filters, sort]
   );
 
@@ -407,12 +422,20 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [data, moduleKey]
   );
 
+  const showRange = RANGE_MODULES.has(moduleKey) && !!dateField;
   const filtered = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
+    // เลือกช่วงวันที่แล้ว = ใช้ช่วงวันที่แทนปี/เดือน · งานที่วันที่เป็นช่วง นับถ้าคาบเกี่ยวกับช่วงที่เลือก
+    const range = showRange ? dateSpan(filters.range) : null;
     const out = rows.filter((r) => {
       const d = (dateField ? r[dateField.key] : "") || "";
-      if (dateField && filters.year && d.slice(0, 4) !== filters.year) return false;
-      if (dateField && filters.month && d.slice(5, 7) !== filters.month) return false;
+      if (range) {
+        const span = dateSpan(d);
+        if (!span || span[0] > range[1] || span[1] < range[0]) return false;
+      } else {
+        if (dateField && filters.year && d.slice(0, 4) !== filters.year) return false;
+        if (dateField && filters.month && d.slice(5, 7) !== filters.month) return false;
+      }
       if (filters.status && r[statusKey] !== filters.status) return false;
       if (csField && filters.cs && r[csField.key] !== filters.cs) return false;
       if (q && !(haystacks.get(r.__id) || "").includes(q)) return false;
@@ -421,7 +444,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     // เรียงด้วยค่าที่บันทึกแล้ว (ไม่ใช่ค่าที่กำลังพิมพ์) — ไม่งั้นแถวจะกระโดดหนีทุกตัวอักษรที่พิมพ์
     // ในคอลัมน์ที่เรียงอยู่ · กดบันทึกแล้วค่อยย้ายไปอยู่ตำแหน่งใหม่
     return sortRows(out, sort, (r, k) => (savedById.get(r.__id) || r)[k]);
-  }, [rows, filters, dateField, statusKey, csField, haystacks, sort, savedById]);
+  }, [rows, filters, dateField, showRange, statusKey, csField, haystacks, sort, savedById]);
 
   // ค่าที่ซ้ำกันในช่องที่ห้ามซ้ำ (ขาออก ข้อ 1: เลข Booking ซ้ำ = ไฮไลต์แดง)
   const dupValues = useMemo(() => {
@@ -550,6 +573,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           csLabel={csField?.label || "CS"}
           years={years}
           showDate={!!dateField}
+          showRange={showRange}
           dateLabel={dateField?.label}
         />
         <span className="count-pill">{filtered.length} / {rows.length} รายการ</span>
@@ -559,6 +583,16 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         <span className="item"><span className="sw" style={{ background: "var(--c-mandatory)", borderColor: "var(--c-mandatory-bd)" }} /> ฟ้า = ต้องกรอก</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-editable)", borderColor: "var(--c-editable-bd)" }} /> เหลือง = แก้ไขได้ (ต้องมี PIC)</span>
         <span className="item"><span className="sw" style={{ background: "var(--c-locked)", borderColor: "var(--c-locked-bd)" }} /> เทา = Auto / ดึงจาก Module อื่น</span>
+        {fbk.duty_vat_amount?.cycleColors && (
+          <span className="item">
+            DUTY/VAT AMOUNT (คลิกช่อง):
+            {fbk.duty_vat_amount.cycleColors.map((t) => (
+              <span key={t.color} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 6 }}>
+                <span className="sw" style={{ background: t.color }} /> {t.label}
+              </span>
+            ))}
+          </span>
+        )}
         {dupCount > 0 && (
           <span className="item"><span className="sw" style={{ background: "#ff8f8f", borderColor: "#e06060" }} /> แดง = {fbk[mod.dupKey!]?.label || "เลข"} ซ้ำ ({dupCount} แถว)</span>
         )}

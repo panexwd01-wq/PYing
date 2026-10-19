@@ -8,6 +8,7 @@ import { ColorTag } from "@/lib/prefs";
 import { cellState } from "@/lib/cellState";
 import { Cell } from "./Cell";
 import { useRowWindow } from "./useRowWindow";
+import { useFitHeight } from "./useFitHeight";
 import { SortState } from "@/lib/sort";
 import { markColumnResized, SortMark, sortThProps } from "./SortTh";
 
@@ -77,6 +78,8 @@ interface RowProps {
   isDupValue?: (v: string) => boolean; // ค่านี้ไปซ้ำกับแถวอื่นไหม
   selected?: boolean; // ติ๊กเลือกไว้ (โหมดแก้หลายแถวพร้อมกัน)
   onToggleSelect?: (id: string) => void;
+  active: boolean; // แถวที่กำลังทำงานอยู่ (คลิกเลขลำดับ) — ไฮไลต์ทั้งแถบ กันกรอกผิดแถว
+  onToggleActive: (id: string) => void;
   detailFields: Field[]; // ช่องที่ซ่อน (โชว์ตอนกาง) — ว่าง = โหมดเต็ม
   detailGroups: string[];
   collapsed: boolean;
@@ -108,6 +111,8 @@ const Row = React.memo(function Row({
   isDupValue,
   selected,
   onToggleSelect,
+  active,
+  onToggleActive,
   detailFields,
   detailGroups,
   collapsed,
@@ -144,7 +149,7 @@ const Row = React.memo(function Row({
     const st = cellState(moduleId, rec, f, { statusKey, picKey, unlocked, readOnly }, carrierColors);
     const { locked, hint } = st;
     const bg = dupHit(f) ? DUP_BG : st.bg;
-    const pick = f.colorPick ? (color: string) => onChange(rec.__id, `${f.key}_color`, color) : undefined;
+    const pick = f.colorPick || f.cycleColors ? (color: string) => onChange(rec.__id, `${f.key}_color`, color) : undefined;
     return (
       <Cell
         field={f}
@@ -176,14 +181,19 @@ const Row = React.memo(function Row({
     );
   };
 
-  const rowCls = (dirty ? "dirty " : "") + (isNew ? "row-new " : "") + (endLocked ? "row-locked " : "") + (expanded ? "row-expanded" : "");
+  const rowCls = (dirty ? "dirty " : "") + (isNew ? "row-new " : "") + (endLocked ? "row-locked " : "") + (expanded ? "row-expanded " : "") + (active ? "row-active" : "");
   // จำนวนคอลัมน์ทั้งแถว (สำหรับ colSpan ของแผงรายละเอียด): # + [ปุ่มกาง] + fields + จัดการ
   const totalCols = 1 + (onToggleSelect ? 1 : 0) + (collapsed ? 1 : 0) + displayFields.length + 1;
 
   return (
     <>
       <tr className={rowCls}>
-        <td className="sticky-col rownum" style={{ left: 0 }}>
+        <td
+          className="sticky-col rownum pick"
+          style={{ left: 0 }}
+          onClick={() => onToggleActive(rec.__id)}
+          title={active ? "คลิกอีกครั้งเพื่อเลิกไฮไลต์" : "คลิกเพื่อไฮไลต์แถวที่กำลังกรอก"}
+        >
           {index + 1}
         </td>
         {onToggleSelect && (
@@ -240,7 +250,7 @@ const Row = React.memo(function Row({
                     <div className="detail-group-title">{g}</div>
                     <div className="detail-grid">
                       {gf.map((f) => {
-                        // กติกาสี (Form E / PERMIT / PV / Carrier …) ให้ระบายทั้งกล่อง ไม่ใช่แค่ช่องกรอก
+                        // กติกาสี (Form E / PERMIT / Carrier …) ให้ระบายทั้งกล่อง ไม่ใช่แค่ช่องกรอก
                         const cueBg = cueFor(f).bg;
                         return (
                           <div
@@ -334,8 +344,12 @@ export function JobGrid({
 
   // วาดทีละชุด — ข้อมูลมาครบตั้งแต่แรกแล้ว แค่ทยอยวาดให้ตารางขึ้นเร็ว
   const { limit, hasMore, sentinel, showAll } = useRowWindow(rows.length, windowKey);
+  const wrapRef = useFitHeight<HTMLDivElement>(); // ตารางยืดพอดีจอ — scroll เดียว
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // แถวที่กำลังทำงานอยู่ — ไฮไลต์ชั่วคราวในเครื่องนี้ (ไม่บันทึก) · ทีละแถว คลิกซ้ำ = เลิก
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const onToggleActive = React.useCallback((id: string) => setActiveId((cur) => (cur === id ? null : id)), []);
   const onToggleExpand = React.useCallback((id: string) => {
     setExpanded((prev) => {
       const n = new Set(prev);
@@ -398,7 +412,7 @@ export function JobGrid({
   }, [displayFields]);
 
   return (
-    <div className={"grid-wrap" + (collapsed ? " collapsed" : "")}>
+    <div ref={wrapRef} className={"grid-wrap fit" + (collapsed ? " collapsed" : "")}>
       <table className="grid">
         <thead>
           {!collapsed ? (
@@ -478,6 +492,8 @@ export function JobGrid({
               isDupValue={isDupValue}
               selected={selectedIds?.has(rec.__id)}
               onToggleSelect={onToggleSelect}
+              active={activeId === rec.__id}
+              onToggleActive={onToggleActive}
               detailFields={detailFields}
               detailGroups={detailGroups}
               collapsed={collapsed}

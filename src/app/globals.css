@@ -177,6 +177,36 @@ a {
   background: #fff;
   min-width: 120px;
 }
+.toolbar .field select:disabled {
+  background: var(--c-locked);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+/* ช่องเลือกช่วงวันที่ในแถบตัวกรอง + ปุ่มล้าง */
+.range-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.toolbar .range-filter input {
+  width: 230px;
+  padding-right: 26px;
+  cursor: pointer;
+}
+.range-clear {
+  position: absolute;
+  right: 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+.range-clear:hover {
+  color: var(--danger);
+}
 /* แถบอธิบายปุ่ม Export / Import ใต้แถบเครื่องมือ */
 .io-hint {
   display: flex;
@@ -382,6 +412,32 @@ tr.dirty td:first-child {
 }
 tr.row-new td.sticky-col {
   background: #fff7e8;
+}
+/* แถวที่กำลังทำงานอยู่ (คลิกเลขลำดับ) — ทาสีทั้งแถบ + เส้นขอบบน/ล่าง กันกรอกผิดแถว
+   ช่องที่มีสีตามกติกา (inline style) ยังคงสีของตัวเอง แต่เส้นขอบยังคาดผ่านให้เห็นว่าอยู่แถวเดียวกัน */
+table.grid tr.row-active > td,
+.view-table tr.row-active > td {
+  background: #ffe1ad;
+  box-shadow: inset 0 2px 0 #e39a1f, inset 0 -2px 0 #e39a1f;
+}
+td.rownum.pick {
+  cursor: pointer;
+  user-select: none;
+}
+td.rownum.pick:hover {
+  color: var(--petrol);
+  font-weight: 700;
+}
+tr.row-active > td.rownum {
+  color: #8a4b00;
+  font-weight: 700;
+}
+/* ช่องที่คลิกวนสีได้ (DUTY/VAT AMOUNT: ฟ้า = PANEX จ่าย / เหลือง = ลูกค้าจ่ายเอง) */
+.cellbox.cycle-color {
+  cursor: pointer;
+}
+.cellbox.cycle-color:hover {
+  box-shadow: inset 0 0 0 1px var(--petrol);
 }
 .rownum {
   width: 46px;
@@ -2395,7 +2451,7 @@ tr.wl-min td {
   }
 }
 
-/* ===== ช่องที่มีกติกาสี (Form E / PERMIT / PV Status / Carrier / ETD ตามวัน) ===== */
+/* ===== ช่องที่มีกติกาสี (Form E / PERMIT / Carrier / ETD ตามวัน) ===== */
 /* ระบายสีทั้งกล่อง ไม่ใช่แค่ช่องกรอกด้านใน — ให้เห็นชัดจากระยะไกล */
 .detail-item.has-cue {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
@@ -2493,4 +2549,32 @@ th.sortable:hover .sort-mark {
 th.sortable:hover .sort-mark.on {
   opacity: 1;
   color: var(--petrol);
+}
+
+/* ===== scroll เดียวทั้งหน้า =====
+   หน้าที่มีตารางหลักตารางเดียว (.grid-wrap.fit): กรอบตารางยืดพอดีขอบล่างจอ (useFitHeight) → หน้าเว็บไม่เลื่อน
+   เผื่อขอบล่างไว้นิดเดียว · มีแถบ "ยังไม่บันทึก" ลอยอยู่ → เผื่อที่ให้แถบ ไม่ให้บังแถวล่างสุด/แถบเลื่อนแนวนอน */
+.page:has(.grid-wrap.fit) {
+  padding-bottom: 14px;
+}
+body:has(.save-bar) .page:has(.grid-wrap.fit) {
+  padding-bottom: 76px;
+}
+/* หน้าที่มีหลายตาราง (Dashboard / Rate Checker): ตารางไม่จำกัดความสูง — เลื่อนหน้าอย่างเดียว */
+.grid-wrap.flow {
+  max-height: none !important;
+}
+
+/* ===== Accounting: ฟอร์มของทั้ง Job ใต้ตาราง AP (กรอกครั้งเดียว มีผลทุกบรรทัด) ===== */
+.lines-job-form {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: #fafbfc;
+}
+.mixed-tag {
+  color: var(--amber);
+  font-weight: 600;
+  text-transform: none;
 }

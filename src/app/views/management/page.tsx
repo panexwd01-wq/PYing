@@ -148,7 +148,7 @@ function ManagementView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Service Module KPI (รายโมดูล)</h3>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 <th {...svcSort.th("module")}>Module <SortMark dir={svcSort.dirOf("module")} /></th>
@@ -166,7 +166,7 @@ function ManagementView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Internal Error Summary (รายโมดูล)</h3>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 <th {...errSort.th("module")}>Module <SortMark dir={errSort.dirOf("module")} /></th>
@@ -183,7 +183,7 @@ function ManagementView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Workflow Health (ทุกโมดูล)</h3>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 <th {...wfSort.th("module")}>Module <SortMark dir={wfSort.dirOf("module")} /></th>

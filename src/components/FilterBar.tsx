@@ -1,8 +1,11 @@
 "use client";
 
+import { DateTimePicker } from "./DateTimePicker";
+
 export interface Filters {
   year: string;
   month: string;
+  range: string; // ช่วงวันที่ "YYYY-MM-DD ~ YYYY-MM-DD" — มีค่า = ใช้แทนปี/เดือน
   status: string;
   cs: string;
   q: string;
@@ -21,6 +24,7 @@ export function FilterBar({
   csLabel,
   years,
   showDate,
+  showRange = false,
   dateLabel,
 }: {
   filters: Filters;
@@ -30,9 +34,12 @@ export function FilterBar({
   csLabel: string;
   years: string[];
   showDate: boolean;
+  showRange?: boolean; // ช่องเลือกช่วงวันที่ (เฉพาะ tab ที่มีวันที่หลักของตัวเอง)
   dateLabel?: string; // ชื่อช่องวันที่ที่ฟิลเตอร์ปี/เดือนยึด (เช่น ETA (IMP))
 }) {
   const set = (k: keyof Filters, v: string) => setFilters({ ...filters, [k]: v });
+  const byRange = showRange && !!filters.range; // เลือกช่วงวันที่แล้ว → ปี/เดือนไม่ถูกนำมาคิด
+  const ymTitle = byRange ? "กำลังกรองตามช่วงวันที่ — ล้างช่วงวันที่ก่อนจึงจะใช้ปี/เดือน" : undefined;
 
   return (
     <>
@@ -40,7 +47,7 @@ export function FilterBar({
         <>
           <div className="field">
             <label>ปี{dateLabel ? ` — ${dateLabel}` : " (ค.ศ.)"}</label>
-            <select value={filters.year} onChange={(e) => set("year", e.target.value)}>
+            <select value={filters.year} onChange={(e) => set("year", e.target.value)} disabled={byRange} title={ymTitle}>
               <option value="">ทั้งหมด</option>
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -51,7 +58,7 @@ export function FilterBar({
           </div>
           <div className="field">
             <label>เดือน</label>
-            <select value={filters.month} onChange={(e) => set("month", e.target.value)}>
+            <select value={filters.month} onChange={(e) => set("month", e.target.value)} disabled={byRange} title={ymTitle}>
               <option value="">ทั้งหมด</option>
               {MONTHS_TH.map((m, i) => (
                 <option key={i} value={String(i + 1).padStart(2, "0")}>
@@ -60,6 +67,19 @@ export function FilterBar({
               ))}
             </select>
           </div>
+          {showRange && (
+            <div className="field">
+              <label>ช่วงวันที่{dateLabel ? ` — ${dateLabel}` : ""}</label>
+              <div className="range-filter">
+                <DateTimePicker value={filters.range} onChange={(v) => set("range", v)} range className="" />
+                {filters.range && (
+                  <button type="button" className="range-clear" onClick={() => set("range", "")} title="ล้างช่วงวันที่" aria-label="ล้างช่วงวันที่">
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
       <div className="field">

@@ -9,6 +9,7 @@ import { SortMark, useTableSort } from "@/components/SortTh";
 import { useAuth } from "@/components/AuthProvider";
 import { Perms, TABS, TabPerm, defaultUserPerms, emptyPerms } from "@/lib/perms";
 import type { Role } from "@/lib/session";
+import { FitGridWrap } from "@/components/useFitHeight";
 
 interface UserRow {
   id: string;
@@ -192,7 +193,7 @@ function UsersPageInner() {
       {loading ? (
         <CenterLoading text="กำลังโหลดผู้ใช้…" />
       ) : (
-        <div className="grid-wrap">
+        <FitGridWrap>
           <table className="view-table">
             <thead>
               <tr className="field-row">
@@ -227,7 +228,7 @@ function UsersPageInner() {
               )}
             </tbody>
           </table>
-        </div>
+        </FitGridWrap>
       )}
 
       {editing && (

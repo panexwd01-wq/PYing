@@ -14,6 +14,7 @@ import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
 import { cellCue } from "@/lib/cellRules";
 import { formatStored } from "@/lib/dateFormat";
+import { FitGridWrap } from "@/components/useFitHeight";
 
 // ช่อง Reason / Pending Remark = Clearance Pending Reason ของ 06_Shipping
 const REASON_KEY = "clearance_pending_reason";
@@ -196,7 +197,7 @@ function ShipDailyView() {
       {!error && (
         <>
           {/* ----- บนจอ: ตารางเลื่อนแนวนอนตามปกติ ----- */}
-          <div className="grid-wrap screen-only">
+          <FitGridWrap className="screen-only">
             <table className="view-table ship-daily">
               <thead>
                 <tr className="field-row">
@@ -235,7 +236,7 @@ function ShipDailyView() {
                 )}
               </tbody>
             </table>
-          </div>
+          </FitGridWrap>
 
           {/* ----- ตอนพิมพ์: 1 รายการ = 1 บล็อก คอลัมน์ที่เกินหน้ากระดาษไหลลงบรรทัดถัดไปของรายการเดิม ----- */}
           <div className="print-only pd-sheet">

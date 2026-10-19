@@ -6,6 +6,7 @@ import { JobRecord, Lists } from "@/lib/types";
 import { cellState } from "@/lib/cellState";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import {
+  ACC_AP_JOB_KEYS,
   ACC_FUEL_NA_KEYS,
   ACC_LINE_COLUMNS,
   ACC_LINE_LEAD,
@@ -47,6 +48,7 @@ export interface LineSide {
   rowFilter?: (r: JobRecord) => boolean; // แถวที่ตารางนี้แสดง (เช่น AR ไม่เอาแถว Fuel)
   lockCell?: (key: string, r: JobRecord) => boolean; // ช่องที่ระบบเป็นคนใส่ (แสดงเป็นข้อความ)
   optionsFor?: (key: string, r: JobRecord) => string[] | undefined; // ตัวเลือก dropdown ที่ไม่ได้มาจาก f.list
+  jobFields?: readonly string[]; // ช่องของทั้ง Job — ฟอร์มใต้ตาราง กรอกครั้งเดียวเขียนลงทุกบรรทัด (ข้ามช่องที่ lockCell)
 }
 
 interface Props {
@@ -164,6 +166,40 @@ export function LinesTable({
                 </tfoot>
               )}
             </table>
+            {side.jobFields && side.jobFields.length > 0 && (
+              <div className="detail-grid lines-job-form">
+                {side.jobFields.map((k) => {
+                  const f = fieldByKey[k];
+                  if (!f) return null;
+                  // บรรทัดที่ช่องนี้กรอกได้ (แถว Fuel ที่ระบบใส่ N/A ไว้ไม่นับ)
+                  const targets = sideRows.filter((r) => !side.lockCell?.(k, r));
+                  const head = targets[0] || sideRows[0];
+                  if (!head) return null;
+                  const value = head[k] || "";
+                  const mixed = targets.some((r) => (r[k] || "") !== value);
+                  const st = cellState(moduleId, head, f, { statusKey, picKey, unlocked: unlockedIds.has(head.__id), readOnly });
+                  const tint = f.mandatory ? "tint-mandatory" : "tint-editable";
+                  return (
+                    <div className={"detail-item " + tint} key={k}>
+                      <label title={f.help || f.label}>
+                        {f.label}
+                        {mixed && <span className="mixed-tag" title="ค่าในแต่ละบรรทัดยังไม่ตรงกัน — เลือกใหม่เพื่อให้ทุกบรรทัดเป็นค่าเดียวกัน"> (แต่ละบรรทัดไม่ตรงกัน)</span>}
+                      </label>
+                      <Cell
+                        field={f}
+                        value={value}
+                        options={side.optionsFor?.(k, head) ?? (f.list ? lists[f.list] || [] : [])}
+                        onChange={(v) => {
+                          for (const r of targets) onChange(r.__id, k, v);
+                        }}
+                        locked={st.locked || !targets.length}
+                        lockHint={!targets.length ? "ช่องนี้ระบบใส่ให้ (แถวที่ไม่เกี่ยวกับ Extra)" : st.hint}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
@@ -236,6 +272,8 @@ export function AccountingLinesTable(props: WrapProps) {
         totalLabel: "Total Cost =",
         // แถว Fuel: ช่วง Extra Root Cause → Received Ship Close Acc ระบบใส่ N/A ให้ (แก้ไม่ได้)
         lockCell: (k, r) => isFuelRow(r) && (ACC_FUEL_NA_KEYS as readonly string[]).includes(k),
+        // ข้อมูล Trans Supp + AP Status / Received Ship Close Acc — กรอกครั้งเดียวใต้ตาราง AP
+        jobFields: ACC_AP_JOB_KEYS,
       },
     ],
     []

@@ -91,6 +91,7 @@ export const DEFAULT_COLLAPSE: Record<string, string[]> = {
     "acc_job_status",
     "acc_pic",
     "job_type",
+    "acc_eta",
     "job_no",
     "booking_mbl",
     "customer",

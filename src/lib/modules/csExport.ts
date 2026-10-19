@@ -1,4 +1,4 @@
-import { Field } from "../fields";
+import { DUTY_PAYER_COLORS, Field } from "../fields";
 
 // ===== 05_CS_Export — จัดเรียง section ตาม requirement ใหม่ (mirror Import) =====
 
@@ -47,7 +47,7 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "cnt2_unit", label: "หน่วย 2", group: "OPS", type: "dropdown", list: "container_unit", width: 100 },
   // กลุ่ม 4
   { key: "pv_no", label: "PV No.", group: "OPS", type: "text", width: 130 },
-  { key: "pv_status", label: "PV Status", group: "OPS", type: "dropdown", list: "pv_status", width: 120, help: "รอจ่าย(ส้ม) / จ่ายแล้ว(เขียว) / จบแล้ว(เทา)" },
+  { key: "pv_status", label: "PV Status", group: "OPS", type: "text", width: 120, placeholder: "จ่ายแล้ว / ยังไม่จ่าย", help: "พิมพ์สถานะเอง เช่น จ่ายแล้ว / ยังไม่จ่าย" },
   // กลุ่ม 5 (แก้ตัวเลือกได้ที่หน้า “ตั้งค่า Dropdown”)
   { key: "agent", label: "AGENT", group: "OPS", type: "dropdown", list: "agent", width: 130 },
   { key: "bc_by", label: "BC BY", group: "OPS", type: "dropdown", list: "bc_by", width: 110 },
@@ -78,7 +78,8 @@ export const EXPORT_FIELDS: Field[] = [
   { key: "cs_note_ship", label: "Cs Note for Ship Pic", group: "Shipping", type: "text", mandatory: true, width: 180 },
   { key: "shipp_extra_type", label: "(SHIPP) Extra/Service Type", group: "Shipping", type: "auto", width: 170, rpull: { from: "06_Shipping", field: "extra_req_type" } },
   { key: "ship_outsourcing", label: "Ship Outsourcing", group: "Shipping", type: "auto", width: 150, rpull: { from: "06_Shipping", field: "ship_outsourcing" } },
-  { key: "duty_vat_amount", label: "DUTY/VAT AMOUNT", group: "Shipping", type: "auto", width: 140, rpull: { from: "06_Shipping", field: "duty_vat_amount" } },
+  { key: "duty_vat_amount", label: "DUTY/VAT AMOUNT", group: "Shipping", type: "auto", width: 140, rpull: { from: "06_Shipping", field: "duty_vat_amount" }, cycleColors: DUTY_PAYER_COLORS, help: "ค่าดึงจาก Shipping · คลิกช่องเพื่อเปลี่ยนสี: ฟ้า = PANEX จ่าย → เหลือง = ลูกค้าจ่ายเอง → ไม่มีสี" },
+  { key: "duty_vat_amount_color", label: "DUTY/VAT Payer Color", group: "Shipping", type: "text", hidden: true },
   { key: "entry_status", label: "Entry Status", group: "Shipping", type: "auto", width: 120, rpull: { from: "06_Shipping", field: "entry_status" }, help: "ดึงจาก Shipping · Done = แดง" },
   { key: "permit", label: "PERMIT", group: "Shipping", type: "auto", width: 130, rpull: { from: "06_Shipping", field: "permit" }, help: "ดึงจาก Shipping (แก้ที่ tab Shipping) · ไม่ใช่ว่าง/N/A = แดง" },
   { key: "form_e", label: "Form E", group: "Shipping", type: "dropdown", list: "form_e", width: 150, help: "มีสีตามค่าที่เลือก" },

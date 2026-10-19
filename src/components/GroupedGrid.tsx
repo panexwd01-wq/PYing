@@ -5,6 +5,7 @@ import { Field } from "@/lib/fields";
 import { JobRecord } from "@/lib/types";
 import { cellCue } from "@/lib/cellRules";
 import { useRowWindow } from "./useRowWindow";
+import { useFitHeight } from "./useFitHeight";
 import { SortState } from "@/lib/sort";
 import { SortMark, sortThProps } from "./SortTh";
 
@@ -81,13 +82,17 @@ export function GroupedGrid({
       return n;
     });
 
+  // บรรทัดที่กำลังทำงานอยู่ (คลิกเลขลำดับ) — ไฮไลต์ชั่วคราวในเครื่องนี้ ทีละบรรทัด
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+
   const groups = useMemo(() => groupRows(rows, groupKey), [rows, groupKey]);
   const cols = 1 + 1 + displayFields.length + 1;
   // วาดทีละชุดเหมือนตารางปกติ (1 กลุ่ม = 1 บรรทัด แต่คอลัมน์เยอะ)
   const { limit, hasMore, sentinel, showAll } = useRowWindow(groups.length, windowKey);
+  const wrapRef = useFitHeight<HTMLDivElement>(); // ตารางยืดพอดีจอ — scroll เดียว
 
   return (
-    <div className="grid-wrap collapsed">
+    <div ref={wrapRef} className="grid-wrap fit collapsed">
       <table className="grid grouped">
         <thead>
           <tr className="field-row">
@@ -115,8 +120,14 @@ export function GroupedGrid({
             const allUnlocked = g.rows.every((r) => unlockedIds.has(r.__id));
             return (
               <React.Fragment key={g.key}>
-                <tr className={(anyDirty ? "dirty " : "") + (open ? "row-expanded" : "")}>
-                  <td className="rownum">{i + 1}</td>
+                <tr className={(anyDirty ? "dirty " : "") + (open ? "row-expanded " : "") + (activeKey === g.key ? "row-active" : "")}>
+                  <td
+                    className="rownum pick"
+                    onClick={() => setActiveKey((cur) => (cur === g.key ? null : g.key))}
+                    title={activeKey === g.key ? "คลิกอีกครั้งเพื่อเลิกไฮไลต์" : "คลิกเพื่อไฮไลต์แถวที่กำลังกรอก"}
+                  >
+                    {i + 1}
+                  </td>
                   <td className="expand-col">
                     <button
                       className={"expand-btn" + (open ? " on" : "")}

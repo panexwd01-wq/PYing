@@ -4,6 +4,7 @@ import { MODULES, MODULE_BY_KEY } from "./schema";
 import { LINK_CS, LINK_IMP, LINK_SRC } from "./fields";
 import { Snapshot } from "./types";
 import { RANGE_SEP } from "./dateFormat";
+import { baseExtraType } from "./extraTypes"; // OT-TRUCK #2 นับรวมเป็น OT-TRUCK
 
 const num = (v: unknown) => {
   const n = parseFloat(String(v ?? "").replace(/,/g, ""));
@@ -218,7 +219,7 @@ export function managementStats(snap: Snapshot): MgmtStats {
     extraItems: extra.length,
     transJobs: trans.length,
     whJobs: wh.length,
-    topExtra: topCount(extra.map((r) => r.extra_req_type || "")),
+    topExtra: topCount(extra.map((r) => baseExtraType(r.extra_req_type || ""))),
     topTransSupp: topCount(trans.flatMap((r) => [r.supp1 || "", r.supp2 || "", r.supp3 || ""])),
     topWhSupp: topCount(wh.map((r) => r.wh_supp1 || "")),
   };
@@ -635,7 +636,7 @@ export function supervisorDash(
       team,
       noChargeCases: nc.length,
       riskPic: topCount(errs.map((r) => modulePic("extra", r)), 1)[0]?.name || "—",
-      extraType: topCount(rs.map((r) => r.extra_req_type || ""), 1)[0]?.name || "—",
+      extraType: topCount(rs.map((r) => baseExtraType(r.extra_req_type || "")), 1)[0]?.name || "—",
       lost: nc.reduce((a, r) => a + num(r.cost_total), 0),
       errorRate: end ? Math.round((errs.length / end) * 100) : 0,
     };

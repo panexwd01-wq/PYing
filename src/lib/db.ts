@@ -42,6 +42,7 @@ import {
   ACC_FUEL_LABEL,
   ACC_FUEL_NA,
   ACC_FUEL_NA_KEYS,
+  ACC_AP_JOB_KEYS,
 } from "./modules/accounting";
 import { JobRecord, Lists, Snapshot } from "./types";
 import {
@@ -1136,9 +1137,17 @@ async function reconcileAccounting(csIds: Iterable<string>): Promise<void> {
     const byKey = new Map<string, JobRecord>();
     for (const r of existing) byKey.set(linkOf(r, LINK_KEY), r);
 
+    // ช่องของทั้ง Job (ETA + ฟอร์มใต้ตาราง AP) — บรรทัดใหม่ของ Job เดิมรับค่าที่กรอกไว้แล้วจากบรรทัดพี่น้อง
+    // (ค่าที่ระบบใส่ให้แถว Fuel เช่น N/A มาจาก w.data ซึ่งทับทีหลัง จึงไม่เพี้ยน)
+    const jobLevel: Partial<JobRecord> = {};
+    for (const k of ["acc_eta", ...ACC_AP_JOB_KEYS]) {
+      const v = existing.map((r) => (r[k] || "").trim()).find((x) => x && x !== ACC_FUEL_NA);
+      if (v) jobLevel[k] = v;
+    }
+
     for (const w of wants) {
       const cur = byKey.get(w.key);
-      if (!cur) toCreate.push({ job_no: jobNo, [LINK_CS]: csId, [LINK_KEY]: w.key, ...w.data });
+      if (!cur) toCreate.push({ job_no: jobNo, [LINK_CS]: csId, [LINK_KEY]: w.key, ...jobLevel, ...w.data });
       // refresh ค่าที่ดึงจาก extra (คงค่าที่กรอกเอง) — เฉพาะที่ค่าเปลี่ยนจริง
       else if (Object.entries(w.data).some(([k, v]) => (cur[k] ?? "") !== (v ?? "")))
         toUpdate.push({ __id: cur.__id, ...w.data });

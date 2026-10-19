@@ -27,13 +27,6 @@ const FORM_E_COLORS: Record<string, string> = {
   "Customer Confirm": C.red,
 };
 
-// PV Status → สีตามค่า
-const PV_COLORS: Record<string, string> = {
-  รอจ่าย: C.orange,
-  จ่ายแล้ว: C.green,
-  จบแล้ว: C.gray,
-};
-
 // สีตามวัน (getDay: 0=อาทิตย์ .. 6=เสาร์)
 const WEEKDAY_COLORS = [C.red, C.yellow, C.pink, C.green, C.orange, C.blue, C.purple];
 // เฉพาะ Export: ช่องวันที่ที่ระบายสีตามวัน
@@ -128,12 +121,6 @@ export function cellCue(
   // ----- Form E → สีตามค่า -----
   if (fieldKey === "form_e") {
     const bg = FORM_E_COLORS[(rec.form_e || "").trim()];
-    if (bg) return { bg };
-  }
-
-  // ----- PV Status → สีตามค่า -----
-  if (fieldKey === "pv_status") {
-    const bg = PV_COLORS[(rec.pv_status || "").trim()];
     if (bg) return { bg };
   }
 

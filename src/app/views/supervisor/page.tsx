@@ -139,7 +139,7 @@ function SupervisorView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>Internal Error Health (รายทีม)</h3>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 <th {...ehSort.th("team")}>Team / Module <SortMark dir={ehSort.dirOf("team")} /></th>
@@ -161,7 +161,7 @@ function SupervisorView() {
           <p className="muted" style={{ margin: "0 4px 6px", fontSize: 12 }}>
             กด ▸ หน้าแถวทีม เพื่อดูรายชื่อพนักงานทุกคนในทีมนั้น (เรียงจากงานมากสุด → น้อยสุด)
           </p>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table team-workload">
               <thead><tr className="field-row">
                 <th style={{ width: 40 }} /><th {...teamSort.th("team")}>Team <SortMark dir={teamSort.dirOf("team")} /></th>
@@ -211,7 +211,7 @@ function SupervisorView() {
             โดยยึด PIC ของ tab นั้น ๆ (Ship PIC / Trans PIC / WH PIC / Acc PIC — ไม่ใช่ CS PIC ที่ดึงมาแสดง)
             → งาน 1 ใบที่วิ่งหลาย tab จะถูกนับให้เจ้าของแต่ละ tab คนละ 1
           </p>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 <th {...staffSort.th("pic")}>PIC <SortMark dir={staffSort.dirOf("pic")} /></th>
@@ -231,7 +231,7 @@ function SupervisorView() {
           </div>
 
           <h3 style={{ margin: "14px 4px 6px" }}>No Charge / Internal Error Detail</h3>
-          <div className="grid-wrap">
+          <div className="grid-wrap flow">
             <table className="view-table">
               <thead><tr className="field-row">
                 {NC_COLS.map(([k, label]) => (

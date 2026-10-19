@@ -6,6 +6,7 @@ import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
 import { SortMark, useTableSort } from "@/components/SortTh";
 import { actionRows, ActionRow } from "@/lib/stats";
+import { FitGridWrap } from "@/components/useFitHeight";
 
 // คอลัมน์ตาราง: [ฟิลด์ใน ActionRow, หัวคอลัมน์]
 const COLS: [keyof ActionRow, string][] = [
@@ -116,7 +117,7 @@ function ActionView() {
       </div>
 
       {!error && (
-        <div className="grid-wrap">
+        <FitGridWrap>
           <table className="view-table">
             <thead>
               <tr className="field-row">
@@ -144,7 +145,7 @@ function ActionView() {
               )}
             </tbody>
           </table>
-        </div>
+        </FitGridWrap>
       )}
     </main>
   );

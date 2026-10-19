@@ -6,6 +6,7 @@ import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
 import { SortMark, useTableSort } from "@/components/SortTh";
 import { MONTHS_TH, salesStats, yearsInData } from "@/lib/stats";
+import { FitGridWrap } from "@/components/useFitHeight";
 
 export default function SalesPage() {
   return (
@@ -127,7 +128,7 @@ function SalesView() {
       {s && !error && (
         <div className="panel">
           <h2 style={{ fontSize: 15 }}>งานแยกตามลูกค้า</h2>
-          <div className="grid-wrap">
+          <FitGridWrap>
             <table className="view-table">
               <thead>
                 <tr className="field-row">
@@ -155,7 +156,7 @@ function SalesView() {
                 )}
               </tbody>
             </table>
-          </div>
+          </FitGridWrap>
         </div>
       )}
     </main>

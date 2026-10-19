@@ -42,6 +42,8 @@ export interface Field {
   hidden?: boolean; // เก็บเป็นคอลัมน์ในชีทแต่ไม่แสดงในตาราง (เช่นช่องเก็บสีปุ่ม)
   internal?: boolean; // ช่องของระบบล้วน (รหัสเชื่อม) — ไม่แสดงที่ไหนเลย ไม่ออกไฟล์ Excel ไม่รับค่าจากหน้าเว็บ
   colorPick?: boolean; // ปุ่มเลือกสีข้างช่อง — เลือกจาก "ชุดสีกลาง" ที่ตั้งไว้ในหน้าตั้งค่า (เก็บใน <key>_color)
+  cycleColors?: { color: string; label: string }[]; // คลิกช่องแล้ววนสีตามลำดับ (ไม่มีสี → สีที่ 1 → … → ไม่มีสี) — เก็บใน <key>_color · ใช้ได้กับช่อง auto
+  placeholder?: string; // ข้อความจาง ๆ ในช่องว่าง (ช่อง text)
   range?: boolean; // datetime แบบเลือกช่วงวันที่ (เก็บ "YYYY-MM-DD ~ YYYY-MM-DD")
   dateOnly?: boolean; // datetime ที่เลือกได้แค่วันที่ (ไม่มีเวลา) — เก็บ "YYYY-MM-DD"
 }
@@ -59,3 +61,9 @@ export const LINK_SRC = "link_src"; // 09: __id ของแถวต้นท�
 export const LINK_KEY = "link_key"; // 10: แถวนี้มาจากอะไร — "base" / "extra:<__id แถว Extra>" / "fuel:<__id แถว Transport>:<ลำดับ Supp>"
 export const LINK_IMP = "link_imp"; // 05: __id ของงาน Import ที่สร้างแถว Export นี้ (Re-Export)
 export const LINK_KEYS = [LINK_CS, LINK_SRC, LINK_KEY, LINK_IMP];
+
+// DUTY/VAT AMOUNT (CS Import/Export): คลิกช่องเพื่อบอกว่าใครจ่ายภาษี — เริ่มต้นไม่มีสี
+export const DUTY_PAYER_COLORS = [
+  { color: "#bcdcff", label: "PANEX จ่าย" },
+  { color: "#fff3b0", label: "ลูกค้าจ่ายเอง" },
+];

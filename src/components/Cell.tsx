@@ -7,6 +7,7 @@ import { formatIfDate } from "@/lib/dateFormat";
 import { ColorTag, colorLabel } from "@/lib/prefs";
 import { Toggle } from "./Toggle";
 import { DateTimePicker } from "./DateTimePicker";
+import { nextExtraTypeLabel } from "@/lib/extraTypes";
 
 export function Cell({
   field,
@@ -45,6 +46,24 @@ export function Cell({
   switch (field.type) {
     case "auto":
       // ดึงจาก Module อื่น -> read-only (เทา) — แต่ยังระบายสี cue ได้ (เช่น Entry Status แดง)
+      // ช่องที่คลิกวนสีได้ (DUTY/VAT AMOUNT): ค่ายังอ่านอย่างเดียว แต่คลิกเพื่อเปลี่ยนสีสถานะ
+      if (field.cycleColors && onColorPick) {
+        const tags = field.cycleColors;
+        const cur = (pickedColor || "").toLowerCase();
+        const idx = tags.findIndex((t) => t.color.toLowerCase() === cur);
+        const next = idx + 1 < tags.length ? tags[idx + 1].color : ""; // สีสุดท้าย → กลับเป็นไม่มีสี
+        const legend = tags.map((t) => t.label).join(" → ") + " → ไม่มีสี";
+        return (
+          <div
+            className={"cellbox" + (locked ? "" : " cycle-color")}
+            style={bgStyle}
+            title={`${idx >= 0 ? tags[idx].label : "ยังไม่ระบุ"}${locked ? "" : ` · คลิกเพื่อเปลี่ยน (${legend})`}`}
+            onClick={locked ? undefined : () => onColorPick(next)}
+          >
+            {formatIfDate(value, field.dateOnly) || "—"}
+          </div>
+        );
+      }
       return (
         <div className="cellbox" style={bgStyle} title={value}>
           {formatIfDate(value, field.dateOnly) || "—"}
@@ -105,7 +124,14 @@ export function Cell({
         );
       }
       return (
-        <input className="cell" style={bgStyle} title={value} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input
+          className="cell"
+          style={bgStyle}
+          title={value}
+          value={value}
+          placeholder={field.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
       );
   }
 }
@@ -121,11 +147,11 @@ function MultiSelectCell({
 }) {
   const [adding, setAdding] = useState(false);
   const selected = value ? value.split(" | ").filter(Boolean) : [];
-  const remaining = options.filter((o) => !selected.includes(o));
 
+  // เลือกรายการเดิมซ้ำได้ — ตัวที่ซ้ำจะได้เลขต่อท้าย (#2, #3 …) แยกเป็นคนละบรรทัดใน Extra/Accounting
   const remove = (o: string) => onChange(selected.filter((s) => s !== o).join(" | "));
   const add = (o: string) => {
-    if (o) onChange([...selected, o].join(" | "));
+    if (o) onChange([...selected, nextExtraTypeLabel(selected, o)].join(" | "));
     setAdding(false);
   };
 
@@ -149,14 +175,14 @@ function MultiSelectCell({
           defaultValue=""
         >
           <option value="">เลือก…</option>
-          {remaining.map((o) => (
+          {options.map((o) => (
             <option key={o} value={o}>
               {o}
             </option>
           ))}
         </select>
       ) : (
-        remaining.length > 0 && (
+        options.length > 0 && (
           <button type="button" className="chips-add" onClick={() => setAdding(true)}>
             + เพิ่ม
           </button>

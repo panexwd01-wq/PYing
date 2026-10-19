@@ -7,6 +7,7 @@ export const ACCOUNTING_FIELDS: Field[] = [
   { key: "acc_pic", label: "Acc PIC", group: "Job Header", type: "dropdown", list: "acc_pic", mandatory: true, sticky: true, summary: true, width: 120 },
   { key: "acc_approved_sts", label: "Acc Approved Sts", group: "Job Header", type: "dropdown", list: "approved_sts", mandatory: true, width: 130, help: "Approved ได้เมื่อ AP=Completed, AR=Paid, Cus Paid?=Done" },
   { key: "job_type", label: "Job Type", group: "Job Header", type: "auto", width: 120, pull: { imp: "job_type", exp: "job_type" } },
+  { key: "acc_eta", label: "ETA", group: "Job Header", type: "datetime", dateOnly: true, width: 150, help: "กรอกเอง (ไม่ดึงจาก CS)" },
   { key: "job_no", label: "Job No. (IMP/EXP)", group: "Job Header", type: "auto", summary: true, width: 130, pull: { imp: "imp_job_no", exp: "exp_job_no" }, help: "ดึงจากงาน CS แม่ (แก้ที่ CS เท่านั้น)" },
   { key: "booking_mbl", label: "Booking / MBL No. (IMP/EXP)", group: "Job Header", type: "auto", width: 160, pull: { imp: "imp_booking_mbl", exp: "exp_booking_mbl" } },
   { key: "customer", label: "Customer (IMP/EXP)", group: "Job Header", type: "auto", summary: true, width: 160, pull: { imp: "customer", exp: "customer" } },
@@ -43,6 +44,11 @@ export const ACCOUNTING_FIELDS: Field[] = [
   { key: "ap_cost_unit", label: "Extra Cost Rate", group: "Accounts Payable (AP)", type: "auto", width: 120, help: "Rate ในตาราง Job Cost ของ 09_Extra_Service" },
   { key: "ap_cost_cur", label: "Extra Cost Cur", group: "Accounts Payable (AP)", type: "auto", width: 110 },
   { key: "ap_total_cost", label: "Extra Total Cost", group: "Accounts Payable (AP)", type: "auto", width: 150, help: "= Total Rate ฝั่ง Job Cost ของ 09_Extra_Service" },
+  // ----- ช่องของทั้ง Job (กรอกครั้งเดียวใต้ตาราง AP — เขียนลงทุกบรรทัดของ Job) -----
+  { key: "ap_trans_supp", label: "Trans Supp", group: "Accounts Payable (AP)", type: "text", width: 150, help: "กรอกเอง (ไม่ดึงจาก Transport) · 1 เจ้าต่อ Job" },
+  { key: "ap_supp_address", label: "Supp Address", group: "Accounts Payable (AP)", type: "text", width: 200 },
+  { key: "ap_trans_supp_vol", label: "Trans Supp Vol", group: "Accounts Payable (AP)", type: "number", width: 110 },
+  { key: "ap_delivery_date", label: "Delivery / Loading Date", group: "Accounts Payable (AP)", type: "datetime", range: true, width: 210, help: "เลือกช่วงวันที่" },
   { key: "received_ship_close_acc", label: "Received Ship Close Acc", group: "Accounts Payable (AP)", type: "dropdown", list: "rcv_ship_close_acc", mandatory: true, width: 160 },
   { key: "ap_remark", label: "AP Remark", group: "Accounts Payable (AP)", type: "text", width: 170 },
   { key: "ap_status", label: "AP Status", group: "Accounts Payable (AP)", type: "dropdown", list: "ap_status", mandatory: true, summary: true, width: 150 },
@@ -56,8 +62,15 @@ export const ACCOUNTING_FIELDS: Field[] = [
 export const ACC_LINE_LEAD = "ap_extra_req_type";
 export const ACC_LINE_COLUMNS = {
   ar: ["ar_pic", "ar_received_from", "customer_inv", "ar_qty", "ar_unit", "ar_sell_unit", "ar_sell_cur", "ar_total_sell", "billing_date", "cus_paid", "cus_paid_date", "ar_remark", "ar_status"],
-  ap: ["ap_pic", "ap_paid_to", "supp_inv", "ap_fuel_rate", "ap_root_cause", "ap_qty", "ap_unit", "ap_cur", "ap_cost_unit", "ap_cost_cur", "ap_total_cost", "received_ship_close_acc", "ap_remark", "ap_status"],
+  ap: ["ap_pic", "ap_paid_to", "supp_inv", "ap_fuel_rate", "ap_root_cause", "ap_qty", "ap_unit", "ap_cur", "ap_cost_unit", "ap_cost_cur", "ap_total_cost", "ap_remark"],
 } as const;
+
+// ช่องของทั้ง Job ที่แสดงเป็นฟอร์มใต้ตาราง AP — เลือก/กรอกครั้งเดียว มีผลกับทุกบรรทัดของ Job
+// (แถว Fuel ที่ระบบใส่ N/A ไว้ เช่น Received Ship Close Acc จะไม่ถูกเขียนทับ)
+export const ACC_AP_JOB_KEYS = [
+  "ap_trans_supp", "ap_supp_address", "ap_trans_supp_vol", "ap_delivery_date",
+  "received_ship_close_acc", "ap_status",
+] as const;
 
 // ยอดรวมท้ายตาราง (คอลัมน์ที่บวกกันทั้ง Job)
 export const ACC_LINE_SUMS = { ap: ["ap_total_cost"], ar: ["ar_total_sell"] } as const;
