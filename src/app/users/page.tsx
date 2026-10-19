@@ -9,7 +9,7 @@ import { SortMark, useTableSort } from "@/components/SortTh";
 import { useAuth } from "@/components/AuthProvider";
 import { Perms, TABS, TabPerm, defaultUserPerms, emptyPerms } from "@/lib/perms";
 import type { Role } from "@/lib/session";
-import { FitGridWrap } from "@/components/useFitHeight";
+import { FitGridWrap } from "@/components/FitGridWrap";
 
 interface UserRow {
   id: string;

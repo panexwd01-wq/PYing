@@ -305,7 +305,7 @@ table.grid td {
 }
 table.grid thead th {
   position: sticky;
-  top: 0;
+  top: var(--hdr, 0px);
   z-index: 20;
   background: #f3f5f7;
   color: var(--ink);
@@ -325,11 +325,11 @@ table.grid thead tr.group-row th {
   text-transform: uppercase;
   padding: 5px 8px;
   border-right: 1px solid rgba(255, 255, 255, 0.18);
-  top: 0;
+  top: var(--hdr, 0px);
   z-index: 25;
 }
 table.grid thead tr.field-row th {
-  top: 27px;
+  top: calc(var(--hdr, 0px) + 27px);
   z-index: 22;
 }
 table.grid th.req::after {
@@ -413,23 +413,14 @@ tr.dirty td:first-child {
 tr.row-new td.sticky-col {
   background: #fff7e8;
 }
-/* แถวที่กำลังทำงานอยู่ (คลิกเลขลำดับ) — ทาสีทั้งแถบ + เส้นขอบบน/ล่าง กันกรอกผิดแถว
-   ช่องที่มีสีตามกติกา (inline style) ยังคงสีของตัวเอง แต่เส้นขอบยังคาดผ่านให้เห็นว่าอยู่แถวเดียวกัน */
-table.grid tr.row-active > td,
-.view-table tr.row-active > td {
-  background: #ffe1ad;
-  box-shadow: inset 0 2px 0 #e39a1f, inset 0 -2px 0 #e39a1f;
-}
-td.rownum.pick {
-  cursor: pointer;
-  user-select: none;
-}
-td.rownum.pick:hover {
-  color: var(--petrol);
-  font-weight: 700;
+/* แถวที่กำลังทำงานอยู่ (คลิก/กรอกช่องไหนก็ได้ในแถว) — ทั้งแถบเข้มขึ้นนิดหนึ่งจากสีเดิมของแต่ละช่อง
+   ใช้ brightness แทนการทาสีทับ → ช่องที่มีสีตามกติกา (ฟ้า/เหลือง/แดง …) ยังเห็นสีเดิมแค่เข้มขึ้น */
+table.grid tr.row-active > td {
+  filter: brightness(0.9);
+  border-bottom-color: #9aa6b4;
 }
 tr.row-active > td.rownum {
-  color: #8a4b00;
+  color: var(--ink);
   font-weight: 700;
 }
 /* ช่องที่คลิกวนสีได้ (DUTY/VAT AMOUNT: ฟ้า = PANEX จ่าย / เหลือง = ลูกค้าจ่ายเอง) */
@@ -902,7 +893,7 @@ tr.row-active > td.rownum {
 }
 .view-table thead th {
   position: sticky;
-  top: 0;
+  top: var(--hdr, 0px);
   z-index: 5;
   background: #eef3f4;
   color: var(--petrol-dark);
@@ -1294,7 +1285,7 @@ tr.row-locked td {
 
 /* ปุ่มกางรายละเอียดหน้าแถว */
 .grid-wrap.collapsed table.grid thead tr.field-row th {
-  top: 0; /* ไม่มี group-row แล้ว หัวตารางอยู่บนสุด */
+  top: var(--hdr, 0px); /* ไม่มี group-row แล้ว หัวตารางอยู่บนสุด */
 }
 th.expand-col,
 td.expand-col {
@@ -2267,7 +2258,7 @@ table.extra-lines tfoot .tot {
   max-height: 58vh;
 }
 table.grid.rate-grid thead tr.field-row th {
-  top: 0; /* ตารางเรทไม่มีแถวชื่อกลุ่ม หัวตารางจึงอยู่บนสุด */
+  top: var(--hdr, 0px); /* ตารางเรทไม่มีแถวชื่อกลุ่ม หัวตารางจึงอยู่บนสุด */
   padding: 9px 10px;
 }
 table.grid.rate-grid td {
@@ -2551,18 +2542,51 @@ th.sortable:hover .sort-mark.on {
   color: var(--petrol);
 }
 
-/* ===== scroll เดียวทั้งหน้า =====
-   หน้าที่มีตารางหลักตารางเดียว (.grid-wrap.fit): กรอบตารางยืดพอดีขอบล่างจอ (useFitHeight) → หน้าเว็บไม่เลื่อน
-   เผื่อขอบล่างไว้นิดเดียว · มีแถบ "ยังไม่บันทึก" ลอยอยู่ → เผื่อที่ให้แถบ ไม่ให้บังแถวล่างสุด/แถบเลื่อนแนวนอน */
-.page:has(.grid-wrap.fit) {
-  padding-bottom: 14px;
+/* ===== scroll เดียวทั้งหน้า (ใช้ scroll ของหน้าเว็บ ไม่ใช่ของตาราง) =====
+   - กรอบตาราง (.grid-wrap.fit / .flow) ไม่มี scroll ของตัวเอง → ตารางยาว = หน้าเลื่อนลง · ตารางกว้าง = หน้าเลื่อนขวา
+   - แถบเมนูบนสุดตรึงกับจอ (fixed) · หัวตารางค้างใต้แถบเมนู (--app-header-h วัดจริงใน AppShell)
+   - คอลัมน์ตรึงซ้าย (Job No.) ค้างที่ขอบซ้ายจอตอนเลื่อนขวา */
+:root {
+  --app-header-h: 52px; /* ค่าเผื่อก่อนวัดจริง */
+  --view-w: 100vw; /* ความกว้างจอไม่รวม scrollbar (วัดจริงใน AppShell) */
 }
-body:has(.save-bar) .page:has(.grid-wrap.fit) {
-  padding-bottom: 76px;
+body:has(.app-header) {
+  padding-top: var(--app-header-h);
 }
-/* หน้าที่มีหลายตาราง (Dashboard / Rate Checker): ตารางไม่จำกัดความสูง — เลื่อนหน้าอย่างเดียว */
+body:has(.app-header) .app-header {
+  position: fixed;
+  left: 0;
+  right: 0;
+}
+.grid-wrap.fit,
 .grid-wrap.flow {
+  --hdr: var(--app-header-h); /* หัวตารางค้างใต้แถบเมนู — เฉพาะตารางที่ใช้ scroll ของหน้า */
+  overflow: visible;
   max-height: none !important;
+  width: max-content;
+  min-width: 100%;
+}
+/* หน้า tab งาน: ทั้งหน้ากว้างเท่าตาราง (ให้เลื่อนซ้าย-ขวาได้) แต่แถบเครื่องมือ/ตัวกรอง/legend ค้างเต็มจอที่ขอบซ้าย */
+.page.page-wide {
+  width: max-content;
+  min-width: 100%;
+}
+.page.page-wide > .toolbar,
+.page.page-wide > .io-hint,
+.page.page-wide > .legend,
+.page.page-wide > .bulk-bar {
+  position: sticky; /* แถบแก้หลายแถว: sticky ขอบล่างอยู่แล้ว — ได้ขอบซ้ายเพิ่ม */
+  left: 18px;
+  width: calc(var(--view-w) - 36px);
+}
+@media (max-width: 720px) {
+  .page.page-wide > .toolbar,
+  .page.page-wide > .io-hint,
+  .page.page-wide > .legend,
+  .page.page-wide > .bulk-bar {
+    left: 10px;
+    width: calc(var(--view-w) - 20px);
+  }
 }
 
 /* ===== Accounting: ฟอร์มของทั้ง Job ใต้ตาราง AP (กรอกครั้งเดียว มีผลทุกบรรทัด) ===== */
@@ -2577,4 +2601,16 @@ body:has(.save-bar) .page:has(.grid-wrap.fit) {
   color: var(--amber);
   font-weight: 600;
   text-transform: none;
+}
+@media print {
+  body:has(.app-header) {
+    padding-top: 0;
+  }
+}
+/* Rate Checker: การ์ดตัดขอบมน (overflow: hidden) — ตารางเรทที่กว้างเกินให้เลื่อนซ้าย-ขวาในการ์ด
+   ส่วนแนวตั้งไม่จำกัดความสูง → ยังเลื่อนขึ้น-ลงด้วย scroll ของหน้าเว็บ */
+.rate-section .grid-wrap.flow {
+  overflow-x: auto;
+  width: auto;
+  min-width: 0;
 }

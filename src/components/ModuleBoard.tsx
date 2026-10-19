@@ -512,7 +512,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     : undefined;
 
   return (
-    <main className="page fade-in">
+    <main className="page page-wide fade-in">
       <SavingOverlay show={saving} message={savingMsg} />
 
       <div className="toolbar top-toolbar">
@@ -608,7 +608,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
       {dataLoading && !data ? (
         <CenterLoading />
       ) : (
-        <div style={{ marginTop: 12 }}>
+        <div className="grid-host" style={{ marginTop: 12 }}>
           {collapsed && grouped ? (
             <GroupedGrid
               groupKey={LINK_CS}

@@ -6,7 +6,7 @@ import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
 import { SortMark, useTableSort } from "@/components/SortTh";
 import { MONTHS_TH, salesStats, yearsInData } from "@/lib/stats";
-import { FitGridWrap } from "@/components/useFitHeight";
+import { FitGridWrap } from "@/components/FitGridWrap";
 
 export default function SalesPage() {
   return (

@@ -14,7 +14,7 @@ import { contBySize } from "@/lib/containers";
 import { LINK_CS } from "@/lib/fields";
 import { cellCue } from "@/lib/cellRules";
 import { formatStored } from "@/lib/dateFormat";
-import { FitGridWrap } from "@/components/useFitHeight";
+import { FitGridWrap } from "@/components/FitGridWrap";
 
 // ช่อง Reason / Pending Remark = Clearance Pending Reason ของ 06_Shipping
 const REASON_KEY = "clearance_pending_reason";

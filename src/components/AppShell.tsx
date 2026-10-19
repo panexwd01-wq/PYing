@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { DataProvider } from "@/components/DataProvider";
 import { Nav } from "@/components/Nav";
@@ -10,12 +11,33 @@ import { useAuth } from "@/components/AuthProvider";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // หน้าเว็บใช้ scroll เดียว (ของหน้า) — แถบเมนูตรึงกับจอ หัวตารางต้องค้างใต้แถบเมนูพอดี
+  // วัดความสูงแถบเมนูจริง (มือถือพับ 2 บรรทัด) + ความกว้างจอไม่รวม scrollbar → ส่งให้ CSS
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const measure = () => {
+      root.style.setProperty("--app-header-h", el.offsetHeight + "px");
+      root.style.setProperty("--view-w", root.clientWidth + "px");
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [pathname]);
 
   if (pathname === "/login") return <>{children}</>;
 
   return (
     <>
-      <header className="app-header">
+      <header className="app-header" ref={headerRef}>
         <div className="brand">
           <span className="full">FREIGHT</span> OPS
         </div>

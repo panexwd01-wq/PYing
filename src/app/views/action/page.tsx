@@ -6,7 +6,7 @@ import { CenterLoading } from "@/components/Spinner";
 import { RequireTab } from "@/components/RequireTab";
 import { SortMark, useTableSort } from "@/components/SortTh";
 import { actionRows, ActionRow } from "@/lib/stats";
-import { FitGridWrap } from "@/components/useFitHeight";
+import { FitGridWrap } from "@/components/FitGridWrap";
 
 // คอลัมน์ตาราง: [ฟิลด์ใน ActionRow, หัวคอลัมน์]
 const COLS: [keyof ActionRow, string][] = [

@@ -53,7 +53,7 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<JobRecord | null>(null); // แถวที่บันทึกแล้วที่กำลังแก้ (ต้องมีสิทธิ์แก้ไข)
   const [saving, setSaving] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null); // แถวที่คลิกเลขลำดับไว้ — ไฮไลต์ชั่วคราว
+  const [activeId, setActiveId] = useState<string | null>(null); // แถวที่คลิกไว้ — ไฮไลต์ชั่วคราว
   const [toast, setToast] = useState<{ text: string; err?: boolean } | null>(null);
   
   // ความกว้างคอลัมน์ที่ผู้ใช้ลากไว้ (จำเฉพาะบัญชีนี้ — หน้า Rate ก็ยืดหดได้เหมือน Excel)
@@ -296,14 +296,12 @@ export function RateBoard({ moduleKey, title }: { moduleKey: string; title: stri
             {sorted.map((rec, i) => {
               const isEditing = editing?.__id === rec.__id;
               return (
-                <tr key={rec.__id} className={(isEditing ? "dirty " : "") + (activeId === rec.__id ? "row-active" : "")}>
-                  <td
-                    className="rownum pick"
-                    onClick={() => setActiveId((cur) => (cur === rec.__id ? null : rec.__id))}
-                    title={activeId === rec.__id ? "คลิกอีกครั้งเพื่อเลิกไฮไลต์" : "คลิกเพื่อไฮไลต์แถวนี้"}
-                  >
-                    {i + 1}
-                  </td>
+                <tr
+                  key={rec.__id}
+                  className={(isEditing ? "dirty " : "") + (activeId === rec.__id ? "row-active" : "")}
+                  onMouseDown={() => setActiveId(rec.__id)}
+                >
+                  <td className="rownum">{i + 1}</td>
                   {viewFields.map((f) => (
                     <td key={f.key} className={f.type === "auto" ? "tint-locked" : undefined}>
                       {isEditing && f.type !== "auto" ? (

@@ -8,7 +8,6 @@ import { ColorTag } from "@/lib/prefs";
 import { cellState } from "@/lib/cellState";
 import { Cell } from "./Cell";
 import { useRowWindow } from "./useRowWindow";
-import { useFitHeight } from "./useFitHeight";
 import { SortState } from "@/lib/sort";
 import { markColumnResized, SortMark, sortThProps } from "./SortTh";
 
@@ -78,8 +77,8 @@ interface RowProps {
   isDupValue?: (v: string) => boolean; // ค่านี้ไปซ้ำกับแถวอื่นไหม
   selected?: boolean; // ติ๊กเลือกไว้ (โหมดแก้หลายแถวพร้อมกัน)
   onToggleSelect?: (id: string) => void;
-  active: boolean; // แถวที่กำลังทำงานอยู่ (คลิกเลขลำดับ) — ไฮไลต์ทั้งแถบ กันกรอกผิดแถว
-  onToggleActive: (id: string) => void;
+  active: boolean; // แถวที่กำลังทำงานอยู่ (คลิก/กรอกช่องไหนก็ได้ในแถว) — ทั้งแถบเข้มขึ้น กันกรอกผิดแถว
+  onActivate: (id: string) => void;
   detailFields: Field[]; // ช่องที่ซ่อน (โชว์ตอนกาง) — ว่าง = โหมดเต็ม
   detailGroups: string[];
   collapsed: boolean;
@@ -112,7 +111,7 @@ const Row = React.memo(function Row({
   selected,
   onToggleSelect,
   active,
-  onToggleActive,
+  onActivate,
   detailFields,
   detailGroups,
   collapsed,
@@ -187,13 +186,8 @@ const Row = React.memo(function Row({
 
   return (
     <>
-      <tr className={rowCls}>
-        <td
-          className="sticky-col rownum pick"
-          style={{ left: 0 }}
-          onClick={() => onToggleActive(rec.__id)}
-          title={active ? "คลิกอีกครั้งเพื่อเลิกไฮไลต์" : "คลิกเพื่อไฮไลต์แถวที่กำลังกรอก"}
-        >
+      <tr className={rowCls} onMouseDown={() => onActivate(rec.__id)} onFocus={() => onActivate(rec.__id)}>
+        <td className="sticky-col rownum" style={{ left: 0 }}>
           {index + 1}
         </td>
         {onToggleSelect && (
@@ -239,7 +233,11 @@ const Row = React.memo(function Row({
         </td>
       </tr>
       {collapsed && expanded && detailFields.length > 0 && (
-        <tr className="detail-row">
+        <tr
+          className={"detail-row" + (active ? " row-active" : "")}
+          onMouseDown={() => onActivate(rec.__id)}
+          onFocus={() => onActivate(rec.__id)}
+        >
           <td className="detail-cell" colSpan={totalCols}>
             <div className="detail-panel">
               {detailGroups.map((g) => {
@@ -344,12 +342,10 @@ export function JobGrid({
 
   // วาดทีละชุด — ข้อมูลมาครบตั้งแต่แรกแล้ว แค่ทยอยวาดให้ตารางขึ้นเร็ว
   const { limit, hasMore, sentinel, showAll } = useRowWindow(rows.length, windowKey);
-  const wrapRef = useFitHeight<HTMLDivElement>(); // ตารางยืดพอดีจอ — scroll เดียว
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // แถวที่กำลังทำงานอยู่ — ไฮไลต์ชั่วคราวในเครื่องนี้ (ไม่บันทึก) · ทีละแถว คลิกซ้ำ = เลิก
+  // แถวที่กำลังทำงานอยู่ — ไฮไลต์ชั่วคราวในเครื่องนี้ (ไม่บันทึก) · ทีละแถว คลิกแถวอื่น = ย้ายไปแถวนั้น
   const [activeId, setActiveId] = useState<string | null>(null);
-  const onToggleActive = React.useCallback((id: string) => setActiveId((cur) => (cur === id ? null : id)), []);
   const onToggleExpand = React.useCallback((id: string) => {
     setExpanded((prev) => {
       const n = new Set(prev);
@@ -412,7 +408,7 @@ export function JobGrid({
   }, [displayFields]);
 
   return (
-    <div ref={wrapRef} className={"grid-wrap fit" + (collapsed ? " collapsed" : "")}>
+    <div className={"grid-wrap fit" + (collapsed ? " collapsed" : "")}>
       <table className="grid">
         <thead>
           {!collapsed ? (
@@ -466,7 +462,7 @@ export function JobGrid({
                 style={{
                   width: f.width,
                   minWidth: f.width,
-                  ...(!collapsed && stickyLeft[f.key] != null ? { left: stickyLeft[f.key], top: 27 } : {}),
+                  ...(!collapsed && stickyLeft[f.key] != null ? { left: stickyLeft[f.key], top: "calc(var(--hdr, 0px) + 27px)" } : {}),
                 }}
                 title={f.help || f.label}
               >
@@ -493,7 +489,7 @@ export function JobGrid({
               selected={selectedIds?.has(rec.__id)}
               onToggleSelect={onToggleSelect}
               active={activeId === rec.__id}
-              onToggleActive={onToggleActive}
+              onActivate={setActiveId}
               detailFields={detailFields}
               detailGroups={detailGroups}
               collapsed={collapsed}
