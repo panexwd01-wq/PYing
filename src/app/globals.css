@@ -2620,3 +2620,12 @@ html {
   scroll-padding-top: calc(var(--app-header-h) + 72px);
   scroll-padding-bottom: 72px;
 }
+/* Accounting: ข้อมูล Transport จากงาน Import/Export ใต้ตาราง AP (ดูอย่างเดียว) */
+.cs-transport {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 2px dashed #cfd9e4;
+}
+.cs-transport .detail-group + .detail-group {
+  margin-top: 10px;
+}

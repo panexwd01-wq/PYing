@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { JobGrid } from "@/components/JobGrid";
 import { GroupedGrid } from "@/components/GroupedGrid";
 import { RecordPanel } from "@/components/RecordPanel";
-import { AccountingLinesTable, ExtraLinesTable } from "@/components/LinesTable";
+import { AccountingLinesTable, CsSource, ExtraLinesTable } from "@/components/LinesTable";
 import { FilterBar, Filters } from "@/components/FilterBar";
 import { SavingOverlay } from "@/components/SavingOverlay";
 import { SaveBar } from "@/components/SaveBar";
@@ -16,7 +16,7 @@ import { useData } from "@/components/DataProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { LINK_CS, LINK_IMP, MODULE_BY_KEY, fieldByKey, moduleGroups, recordHeaders } from "@/lib/schema";
 import { defaultCollapseKeys, normalizeCollapseKeys } from "@/lib/collapseDefaults";
-import { ModulePrefs, applyColumnPrefs } from "@/lib/prefs";
+import { ModulePrefs, applyColumnPrefs, keepSections } from "@/lib/prefs";
 import { nextSort, sortRows, SortState } from "@/lib/sort";
 import { ACC_AP_JOB_KEYS, ACC_LINE_COLUMNS, ACC_LINE_LEAD } from "@/lib/modules/accounting";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
@@ -105,6 +105,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
 
   // ลำดับ + ความกว้างที่ผู้ใช้จัดไว้ (ใช้แทน mod.fields ทุกที่ที่วาดตาราง)
   const viewFields = useMemo(() => applyColumnPrefs(mod.fields, myPrefs), [mod, myPrefs]);
+  // โหมดโชว์ทั้งหมด / แผงตอนกาง: คอลัมน์อยู่ใน section เดิมของมัน (ลำดับที่จัดข้าม section ใช้เฉพาะโหมดย่อ)
+  const sectionFields = useMemo(() => keepSections(viewFields, mod.fields), [viewFields, mod]);
 
   const collapsedKeys = myPrefs?.collapse?.length
     ? myPrefs.collapse
@@ -131,6 +133,17 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     [myPrefs, moduleKey, flash, setMyPrefs]
   );
 
+  // Accounting: งาน CS แม่ของแต่ละ Job (ตามรหัสเชื่อม link_cs) — ใช้แสดงข้อมูล Transport ใต้ตาราง AP
+  const csById = useMemo(() => {
+    const m = new Map<string, CsSource>();
+    if (moduleKey !== "accounting") return m;
+    for (const key of ["cs-import", "cs-export"]) {
+      const def = MODULE_BY_KEY[key];
+      for (const r of data?.modules[key] || []) m.set(r.__id, { rec: r, fields: def.fields, label: def.short });
+    }
+    return m;
+  }, [moduleKey, data?.modules]);
+
   // ===== มุมมองรวบกลุ่ม: Extra / Accounting = 1 บรรทัดต่อ 1 Job No. (กางแล้วแยกราย Type) =====
   const grouped = moduleKey === "extra" || moduleKey === "accounting";
   const fbk = useMemo(() => fieldByKey(mod), [mod]);
@@ -155,8 +168,8 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
         : moduleKey === "extra"
         ? new Set<string>([...EXTRA_LINE_COLUMNS.sell, ...EXTRA_LINE_COLUMNS.cost])
         : null;
-    return lineKeys ? viewFields.filter((f) => !lineKeys.has(f.key)) : viewFields;
-  }, [viewFields, moduleKey]);
+    return lineKeys ? sectionFields.filter((f) => !lineKeys.has(f.key)) : sectionFields;
+  }, [sectionFields, moduleKey]);
 
   // ค่าที่ต้องแสดงเป็น "ของทั้ง Job" ในแผงเดียว — ยอดรวม + ค่าที่ต่างกันราย Type ให้รวมข้อความ
   const groupTotals = useCallback(
@@ -650,6 +663,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
                       readOnly={!mayEdit}
                       onChange={onChange}
                       onDelete={mayDelete ? removeRow : undefined}
+                      cs={csById.get((rs[0][LINK_CS] || "").trim())}
                     />
                   )}
                   <div className="group-rec">
@@ -683,6 +697,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
           <JobGrid
             moduleId={mod.id}
             fields={viewFields}
+            sectionFields={sectionFields}
             rows={filtered}
             windowKey={windowKey}
             sort={sort}

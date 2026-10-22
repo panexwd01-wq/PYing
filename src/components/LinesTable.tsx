@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { Field } from "@/lib/fields";
 import { JobRecord, Lists } from "@/lib/types";
 import { cellState } from "@/lib/cellState";
 import { EXTRA_LINE_COLUMNS } from "@/lib/modules/extra";
 import {
   ACC_AP_JOB_KEYS,
+  ACC_CS_TRANSPORT_GROUPS,
   ACC_FUEL_NA_KEYS,
   ACC_LINE_COLUMNS,
   ACC_LINE_LEAD,
@@ -63,6 +64,7 @@ interface Props {
   sides: LineSide[];
   onChange: (id: string, key: string, value: string) => void;
   onDelete?: (id: string) => void; // ลบบรรทัดนี้ทิ้ง (โชว์เฉพาะตารางแรก — 1 บรรทัด = 1 ระเบียน)
+  footer?: ReactNode; // ต่อท้ายใต้ตารางสุดท้าย (ในกรอบเดียวกัน)
 }
 
 export function LinesTable({
@@ -77,6 +79,7 @@ export function LinesTable({
   sides,
   onChange,
   onDelete,
+  footer,
 }: Props) {
   const origin = originLabel(rows);
 
@@ -203,11 +206,12 @@ export function LinesTable({
           </div>
         );
       })}
+      {footer}
     </div>
   );
 }
 
-type WrapProps = Omit<Props, "sides" | "moduleId">;
+type WrapProps = Omit<Props, "sides" | "moduleId" | "footer">;
 
 // ----- Extra (09): Sell / Job Cost -----
 export function ExtraLinesTable(props: WrapProps) {
@@ -250,7 +254,13 @@ export function ExtraLinesTable(props: WrapProps) {
 }
 
 // ----- Accounting (10): AR ขึ้นก่อน AP -----
-export function AccountingLinesTable(props: WrapProps) {
+// cs = งาน CS แม่ (Import หรือ Export) ของ Job นี้ — ใช้แสดงข้อมูล Transport ใต้ตาราง AP
+export interface CsSource {
+  rec: JobRecord;
+  fields: Field[];
+  label: string; // "Import" / "Export"
+}
+export function AccountingLinesTable({ cs, ...props }: WrapProps & { cs?: CsSource }) {
   const sides: LineSide[] = useMemo(
     () => [
       {
@@ -272,14 +282,55 @@ export function AccountingLinesTable(props: WrapProps) {
         totalLabel: "Total Cost =",
         // แถว Fuel: ช่วง Extra Root Cause → Received Ship Close Acc ระบบใส่ N/A ให้ (แก้ไม่ได้)
         lockCell: (k, r) => isFuelRow(r) && (ACC_FUEL_NA_KEYS as readonly string[]).includes(k),
-        // ข้อมูล Trans Supp + AP Status / Received Ship Close Acc — กรอกครั้งเดียวใต้ตาราง AP
+        // AP Status / Received Ship Close Acc — กรอกครั้งเดียวใต้ตาราง AP
         jobFields: ACC_AP_JOB_KEYS,
       },
     ],
     []
   );
 
-  return <LinesTable {...props} moduleId="10_Accounting" sides={sides} />;
+  const footer = cs ? <CsTransportPanel cs={cs} lists={props.lists} /> : null;
+  return <LinesTable {...props} moduleId="10_Accounting" sides={sides} footer={footer} />;
+}
+
+// ข้อมูล section Transport + Transport Supp 1–3 ของงาน Import/Export — ดูอย่างเดียว (แก้ที่ tab Import/Export)
+// Supp ที่ยังไม่ได้เลือกชื่อ Supplier = ซ่อนทั้งชุด
+function CsTransportPanel({ cs, lists }: { cs: CsSource; lists: Lists }) {
+  const { rec, fields } = cs;
+  const groups = ACC_CS_TRANSPORT_GROUPS.map((g) => ({
+    g,
+    fs: fields.filter((f) => f.group === g && !f.hidden),
+  })).filter(({ g, fs }) => {
+    if (!fs.length) return false;
+    const m = /^Transport Supp (\d)$/.exec(g);
+    return !m || !!(rec[`trans_supp${m[1]}`] || "").trim();
+  });
+  if (!groups.length) return null;
+  return (
+    <div className="cs-transport">
+      <div className="extra-origin">ข้อมูล Transport จาก {cs.label}</div>
+      {groups.map(({ g, fs }) => (
+        <div className="detail-group" key={g}>
+          <div className="detail-group-title">{g}</div>
+          <div className="detail-grid">
+            {fs.map((f) => (
+              <div className="detail-item tint-locked" key={f.key}>
+                <label title={f.help || f.label}>{f.label}</label>
+                <Cell
+                  field={f}
+                  value={rec[f.key] || ""}
+                  options={f.list ? lists[f.list] || [] : []}
+                  onChange={() => {}}
+                  locked
+                  lockHint="ดึงมาจาก tab Import/Export (แก้ที่นั่น)"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function uniq(a: string[]): string[] {

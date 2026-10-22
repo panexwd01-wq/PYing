@@ -68,3 +68,16 @@ export function applyColumnPrefs(fields: Field[], prefs?: ModulePrefs): Field[] 
   const hasWidth = Object.keys(widths).length > 0;
   return hasWidth ? out.map((f) => (widths[f.key] ? { ...f, width: widths[f.key] } : f)) : out;
 }
+
+// โหมด "โชว์ทั้งหมด" (และแผงตอนกางแถว): คอลัมน์ต้องกลับไปอยู่ใน section (group) เดิมของมัน
+// ลำดับ section ตาม schema · ภายใน section ยังเรียงตามที่ผู้ใช้จัดไว้
+// (ลากคอลัมน์ข้าม section ไว้หน้าแถว มีผลเฉพาะโหมดย่อ)
+export function keepSections(fields: Field[], schema: Field[]): Field[] {
+  const rank = new Map<string, number>();
+  for (const f of schema) if (!rank.has(f.group)) rank.set(f.group, rank.size);
+  const big = rank.size;
+  return fields
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => (rank.get(a.f.group) ?? big) - (rank.get(b.f.group) ?? big) || a.i - b.i)
+    .map((x) => x.f);
+}

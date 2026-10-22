@@ -45,10 +45,6 @@ export const ACCOUNTING_FIELDS: Field[] = [
   { key: "ap_cost_cur", label: "Extra Cost Cur", group: "Accounts Payable (AP)", type: "auto", width: 110 },
   { key: "ap_total_cost", label: "Extra Total Cost", group: "Accounts Payable (AP)", type: "auto", width: 150, help: "= Total Rate ฝั่ง Job Cost ของ 09_Extra_Service" },
   // ----- ช่องของทั้ง Job (กรอกครั้งเดียวใต้ตาราง AP — เขียนลงทุกบรรทัดของ Job) -----
-  { key: "ap_trans_supp", label: "Trans Supp", group: "Accounts Payable (AP)", type: "text", width: 150, help: "กรอกเอง (ไม่ดึงจาก Transport) · 1 เจ้าต่อ Job" },
-  { key: "ap_supp_address", label: "Supp Address", group: "Accounts Payable (AP)", type: "text", width: 200 },
-  { key: "ap_trans_supp_vol", label: "Trans Supp Vol", group: "Accounts Payable (AP)", type: "number", width: 110 },
-  { key: "ap_delivery_date", label: "Delivery / Loading Date", group: "Accounts Payable (AP)", type: "datetime", range: true, width: 210, help: "เลือกช่วงวันที่" },
   { key: "received_ship_close_acc", label: "Received Ship Close Acc", group: "Accounts Payable (AP)", type: "dropdown", list: "rcv_ship_close_acc", mandatory: true, width: 160 },
   { key: "ap_remark", label: "AP Remark", group: "Accounts Payable (AP)", type: "text", width: 170 },
   { key: "ap_status", label: "AP Status", group: "Accounts Payable (AP)", type: "dropdown", list: "ap_status", mandatory: true, summary: true, width: 150 },
@@ -67,10 +63,11 @@ export const ACC_LINE_COLUMNS = {
 
 // ช่องของทั้ง Job ที่แสดงเป็นฟอร์มใต้ตาราง AP — เลือก/กรอกครั้งเดียว มีผลกับทุกบรรทัดของ Job
 // (แถว Fuel ที่ระบบใส่ N/A ไว้ เช่น Received Ship Close Acc จะไม่ถูกเขียนทับ)
-export const ACC_AP_JOB_KEYS = [
-  "ap_trans_supp", "ap_supp_address", "ap_trans_supp_vol", "ap_delivery_date",
-  "received_ship_close_acc", "ap_status",
-] as const;
+export const ACC_AP_JOB_KEYS = ["received_ship_close_acc", "ap_status"] as const;
+
+// ข้อมูล Transport ของงาน CS แม่ (Import หรือ Export) — แสดงใต้ตาราง AP แบบดูอย่างเดียว (แก้ที่ tab Import/Export)
+// ทุกช่องใน section เหล่านี้ของ IMPORT_FIELDS / EXPORT_FIELDS · Supp ที่ไม่ได้เลือกชื่อ Supplier ไว้ = ซ่อนทั้งชุด
+export const ACC_CS_TRANSPORT_GROUPS = ["Transport", "Transport Supp 1", "Transport Supp 2", "Transport Supp 3"] as const;
 
 // ยอดรวมท้ายตาราง (คอลัมน์ที่บวกกันทั้ง Job)
 export const ACC_LINE_SUMS = { ap: ["ap_total_cost"], ar: ["ar_total_sell"] } as const;

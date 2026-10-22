@@ -276,6 +276,7 @@ const Row = React.memo(function Row({
 export function JobGrid({
   moduleId,
   fields: allFields,
+  sectionFields: allSectionFields,
   rows,
   lists,
   carrierColors,
@@ -304,7 +305,8 @@ export function JobGrid({
   onUnlock,
 }: {
   moduleId: string;
-  fields: Field[];
+  fields: Field[]; // ลำดับที่ผู้ใช้จัด (ใช้ในโหมดย่อ)
+  sectionFields?: Field[]; // ลำดับของโหมดเต็ม/แผงตอนกาง — คอลัมน์อยู่ใน section เดิม (ไม่ส่ง = ใช้ fields)
   carrierColors?: Record<string, string>;
   palette?: ColorTag[];
   rows: JobRecord[];
@@ -357,22 +359,26 @@ export function JobGrid({
 
   // ซ่อนช่อง hidden (เก็บเป็นคอลัมน์ในชีทแต่ไม่แสดง เช่นช่องเก็บสีปุ่ม)
   const fields = useMemo(() => allFields.filter((f) => !f.hidden), [allFields]);
+  const fullFields = useMemo(
+    () => (allSectionFields ? allSectionFields.filter((f) => !f.hidden) : fields),
+    [allSectionFields, fields]
+  );
 
   // ในโหมดย่อ: แสดงคอลัมน์ตามที่ตั้งค่าไว้ (collapsedKeys) ถ้าไม่มีก็ใช้ summary จาก schema
   const displayFields = useMemo(() => {
-    if (!collapsed) return fields;
+    if (!collapsed) return fullFields;
     if (collapsedKeys && collapsedKeys.length) {
       const set = new Set(collapsedKeys);
       const chosen = fields.filter((f) => set.has(f.key)); // คงลำดับตาม schema
       return chosen.length ? chosen : summaryFields(fields);
     }
     return summaryFields(fields);
-  }, [collapsed, fields, collapsedKeys]);
+  }, [collapsed, fields, fullFields, collapsedKeys]);
   const detailFields = useMemo(() => {
     if (!collapsed) return [];
     const shown = new Set(displayFields.map((f) => f.key));
-    return fields.filter((f) => !shown.has(f.key));
-  }, [collapsed, fields, displayFields]);
+    return fullFields.filter((f) => !shown.has(f.key));
+  }, [collapsed, fullFields, displayFields]);
   const detailGroups = useMemo(() => {
     const seen: string[] = [];
     for (const f of detailFields) if (!seen.includes(f.group)) seen.push(f.group);
@@ -384,8 +390,8 @@ export function JobGrid({
   // ถ้าผู้ใช้ลากสลับจนมันไปอยู่กลางตาราง ให้เลิกตรึงทั้งหมด ไม่งั้นจะซ้อนทับคอลัมน์อื่น
   const stickyLeft = useMemo(() => {
     const out: Record<string, number> = {};
-    const sticky = fields.filter((x) => x.sticky);
-    const leading = fields.slice(0, sticky.length).every((f) => f.sticky);
+    const sticky = fullFields.filter((x) => x.sticky);
+    const leading = fullFields.slice(0, sticky.length).every((f) => f.sticky);
     if (!leading) return out;
     let acc = ROWNUM_W;
     for (const f of sticky) {
@@ -393,7 +399,7 @@ export function JobGrid({
       acc += f.width || 130;
     }
     return out;
-  }, [fields]);
+  }, [fullFields]);
 
   // แถบกลุ่มด้านบน (โหมดเต็ม) — รวมเป็น "ช่วงต่อเนื่อง" ตามลำดับคอลัมน์จริง
   // ถ้าผู้ใช้สลับคอลัมน์ข้ามกลุ่ม กลุ่มเดียวกันจะโผล่หลายช่วงได้ (ไม่ใช่ colSpan ก้อนเดียว)
