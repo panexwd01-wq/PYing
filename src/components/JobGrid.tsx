@@ -79,7 +79,7 @@ interface RowProps {
   onToggleSelect?: (id: string) => void;
   active: boolean; // แถวที่กำลังทำงานอยู่ (คลิก/กรอกช่องไหนก็ได้ในแถว) — ทั้งแถบเข้มขึ้น กันกรอกผิดแถว
   onActivate: (id: string) => void;
-  detailFields: Field[]; // ช่องที่ซ่อน (โชว์ตอนกาง) — ว่าง = โหมดเต็ม
+  detailFields: Field[]; // ช่องในแผงตอนกาง (ครบทุกช่อง ตาม section) — ว่าง = โหมดเต็ม
   detailGroups: string[];
   collapsed: boolean;
   expanded: boolean;
@@ -374,11 +374,9 @@ export function JobGrid({
     }
     return summaryFields(fields);
   }, [collapsed, fields, fullFields, collapsedKeys]);
-  const detailFields = useMemo(() => {
-    if (!collapsed) return [];
-    const shown = new Set(displayFields.map((f) => f.key));
-    return fullFields.filter((f) => !shown.has(f.key));
-  }, [collapsed, fullFields, displayFields]);
+  // แผงตอนกางแถว: แสดงครบทุกช่องใน section เดิมของมัน — รวมช่องที่โชว์อยู่บนแถวหลักตอนย่อด้วย
+  // (ไม่ตัดออก ไม่งั้นช่องพวกนั้นหายจาก section ของตัวเอง ต้องไล่หาจากแถวหลักแทน)
+  const detailFields = useMemo(() => (collapsed ? fullFields : []), [collapsed, fullFields]);
   const detailGroups = useMemo(() => {
     const seen: string[] = [];
     for (const f of detailFields) if (!seen.includes(f.group)) seen.push(f.group);
