@@ -1137,10 +1137,10 @@ async function reconcileAccounting(csIds: Iterable<string>): Promise<void> {
     const byKey = new Map<string, JobRecord>();
     for (const r of existing) byKey.set(linkOf(r, LINK_KEY), r);
 
-    // ช่องของทั้ง Job (ETA + ฟอร์มใต้ตาราง AP) — บรรทัดใหม่ของ Job เดิมรับค่าที่กรอกไว้แล้วจากบรรทัดพี่น้อง
+    // ช่องของทั้ง Job (ฟอร์มใต้ตาราง AP) — บรรทัดใหม่ของ Job เดิมรับค่าที่กรอกไว้แล้วจากบรรทัดพี่น้อง
     // (ค่าที่ระบบใส่ให้แถว Fuel เช่น N/A มาจาก w.data ซึ่งทับทีหลัง จึงไม่เพี้ยน)
     const jobLevel: Partial<JobRecord> = {};
-    for (const k of ["acc_eta", ...ACC_AP_JOB_KEYS]) {
+    for (const k of ACC_AP_JOB_KEYS) {
       const v = existing.map((r) => (r[k] || "").trim()).find((x) => x && x !== ACC_FUEL_NA);
       if (v) jobLevel[k] = v;
     }
