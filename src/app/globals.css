@@ -2542,13 +2542,14 @@ th.sortable:hover .sort-mark.on {
   color: var(--petrol);
 }
 
-/* ===== scroll เดียวทั้งหน้า (ใช้ scroll ของหน้าเว็บ ไม่ใช่ของตาราง) =====
-   - กรอบตาราง (.grid-wrap.fit / .flow) ไม่มี scroll ของตัวเอง → ตารางยาว = หน้าเลื่อนลง · ตารางกว้าง = หน้าเลื่อนขวา
-   - แถบเมนูบนสุดตรึงกับจอ (fixed) · หัวตารางค้างใต้แถบเมนู (--app-header-h วัดจริงใน AppShell)
-   - คอลัมน์ตรึงซ้าย (Job No.) ค้างที่ขอบซ้ายจอตอนเลื่อนขวา */
+/* ===== การเลื่อนตาราง =====
+   - ขึ้น-ลง: ใช้ scroll ของหน้าเว็บ (กรอบตารางไม่จำกัดความสูง) · แถบเมนูบนสุดตรึงกับจอ (fixed)
+   - ซ้าย-ขวา: เลื่อนเฉพาะในกรอบตาราง หน้าเว็บกว้างเท่าจอเสมอ · คอลัมน์ตรึงซ้าย (Job No.) ค้างที่ขอบซ้ายกรอบ
+   - หัวตารางค้างใต้แถบเมนู: กรอบที่เลื่อนซ้าย-ขวาได้เป็นกรอบ scroll ของตัวเอง CSS sticky จึงค้างเทียบกับหน้าเว็บไม่ได้
+     → AppShell คำนวณ --hdr (ระยะที่หัวตารางต้องถูกดันลง) ใส่ให้ thead ทุกครั้งที่เลื่อนหน้า
+   - แถบเลื่อนซ้าย-ขวาของกรอบอยู่ท้ายตาราง ถ้ามองไม่เห็น มีแถบเลื่อนแทนลอยที่ขอบล่างจอ (.hscroll-proxy) */
 :root {
-  --app-header-h: 52px; /* ค่าเผื่อก่อนวัดจริง */
-  --view-w: 100vw; /* ความกว้างจอไม่รวม scrollbar (วัดจริงใน AppShell) */
+  --app-header-h: 52px; /* ค่าเผื่อก่อนวัดจริง (วัดใน AppShell) */
 }
 body:has(.app-header) {
   padding-top: var(--app-header-h);
@@ -2560,32 +2561,26 @@ body:has(.app-header) .app-header {
 }
 .grid-wrap.fit,
 .grid-wrap.flow {
-  --hdr: var(--app-header-h); /* หัวตารางค้างใต้แถบเมนู — เฉพาะตารางที่ใช้ scroll ของหน้า */
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden; /* ไม่มี scroll แนวตั้งของตัวเอง (สูงเท่าตาราง) */
   max-height: none !important;
-  width: max-content;
-  min-width: 100%;
 }
-/* หน้า tab งาน: ทั้งหน้ากว้างเท่าตาราง (ให้เลื่อนซ้าย-ขวาได้) แต่แถบเครื่องมือ/ตัวกรอง/legend ค้างเต็มจอที่ขอบซ้าย */
-.page.page-wide {
-  width: max-content;
-  min-width: 100%;
+.hscroll-proxy {
+  position: fixed;
+  bottom: 0;
+  z-index: 45;
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: rgba(243, 245, 247, 0.92);
+  border-top: 1px solid var(--line);
 }
-.page.page-wide > .toolbar,
-.page.page-wide > .io-hint,
-.page.page-wide > .legend,
-.page.page-wide > .bulk-bar {
-  position: sticky; /* แถบแก้หลายแถว: sticky ขอบล่างอยู่แล้ว — ได้ขอบซ้ายเพิ่ม */
-  left: 18px;
-  width: calc(var(--view-w) - 36px);
+.hscroll-proxy > div {
+  height: 1px;
 }
-@media (max-width: 720px) {
-  .page.page-wide > .toolbar,
-  .page.page-wide > .io-hint,
-  .page.page-wide > .legend,
-  .page.page-wide > .bulk-bar {
-    left: 10px;
-    width: calc(var(--view-w) - 20px);
+@media print {
+  .hscroll-proxy {
+    display: none;
   }
 }
 
@@ -2607,10 +2602,21 @@ body:has(.app-header) .app-header {
     padding-top: 0;
   }
 }
-/* Rate Checker: การ์ดตัดขอบมน (overflow: hidden) — ตารางเรทที่กว้างเกินให้เลื่อนซ้าย-ขวาในการ์ด
-   ส่วนแนวตั้งไม่จำกัดความสูง → ยังเลื่อนขึ้น-ลงด้วย scroll ของหน้าเว็บ */
-.rate-section .grid-wrap.flow {
-  overflow-x: auto;
-  width: auto;
-  min-width: 0;
+/* ===== กันหัวตารางบังแถวแรก =====
+   --hdr ต้องมีผลเฉพาะ thead ของตารางนั้นเอง (AppShell ใส่ให้ที่ thead) — ตารางที่ซ้อนอยู่ข้างใน
+   หรือกรอบที่มี scroll ของตัวเอง (ป็อปอัปสิทธิ์ผู้ใช้ / ตัวอย่าง Import) ต้องเป็น 0
+   ไม่งั้นหัวตารางถูกดันลงมาทับแถวแรก ๆ ถาวร (เลื่อนขึ้นเท่าไหร่ก็ไม่เห็น) */
+.grid-wrap:not(.fit):not(.flow),
+tbody {
+  --hdr: 0px;
+}
+/* ตารางรายชื่อพนักงานที่กางอยู่ในแถวของ Team Workload — หัวตารางไม่ต้องค้าง (ไม่งั้นซ้อนทับหัวตารางหลัก) */
+.team-members .view-table thead th {
+  position: static;
+}
+/* กด Tab / ลูกศรไปช่องอื่น เบราว์เซอร์จะเลื่อนให้เห็นช่องนั้น — เผื่อที่แถบเมนู + หัวตาราง (บน) และแถบบันทึก (ล่าง)
+   ไม่งั้นช่องที่โฟกัสไปซ่อนอยู่ใต้หัวตาราง/ใต้แถบบันทึก */
+html {
+  scroll-padding-top: calc(var(--app-header-h) + 72px);
+  scroll-padding-bottom: 72px;
 }

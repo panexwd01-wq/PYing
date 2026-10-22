@@ -512,7 +512,7 @@ export function ModuleBoard({ moduleKey }: { moduleKey: string }) {
     : undefined;
 
   return (
-    <main className="page page-wide fade-in">
+    <main className="page fade-in">
       <SavingOverlay show={saving} message={savingMsg} />
 
       <div className="toolbar top-toolbar">

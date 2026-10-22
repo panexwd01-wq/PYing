@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { DataProvider } from "@/components/DataProvider";
 import { Nav } from "@/components/Nav";
 import { NotesPanel } from "@/components/NotesPanel";
+import { TableScrollAssist } from "@/components/TableScrollAssist";
 import { useAuth } from "@/components/AuthProvider";
 
 // หน้า login ไม่ต้องมี header/เมนู และไม่ต้องโหลด snapshot
@@ -13,15 +14,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const headerRef = useRef<HTMLElement>(null);
 
-  // หน้าเว็บใช้ scroll เดียว (ของหน้า) — แถบเมนูตรึงกับจอ หัวตารางต้องค้างใต้แถบเมนูพอดี
-  // วัดความสูงแถบเมนูจริง (มือถือพับ 2 บรรทัด) + ความกว้างจอไม่รวม scrollbar → ส่งให้ CSS
+  // แถบเมนูตรึงกับจอ (fixed) — วัดความสูงจริง (มือถือพับ 2 บรรทัด) ส่งให้ CSS เว้นที่ด้านบนของหน้า
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
     const root = document.documentElement;
     const measure = () => {
       root.style.setProperty("--app-header-h", el.offsetHeight + "px");
-      root.style.setProperty("--view-w", root.clientWidth + "px");
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -58,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <DataProvider>
         {children}
         <NotesPanel />
+        <TableScrollAssist />
       </DataProvider>
     </>
   );
